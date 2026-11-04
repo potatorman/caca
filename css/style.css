@@ -822,3 +822,20 @@ body.logged-in .auth-card {
         flex-direction: column;
     }
 }
+
+
+/* ROOM DELETION */
+.danger-button.room-delete-button {
+    border-color: #8b3542;
+    background: #5a202b;
+    color: #ffe5e8;
+}
+
+.danger-button.room-delete-button:hover {
+    background: #752b39;
+}
+
+.danger-button.room-delete-button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
