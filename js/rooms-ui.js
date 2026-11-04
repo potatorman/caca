@@ -29,6 +29,8 @@ let unsubscribeMembers = null;
 let unsubscribeMyMembership = null;
 let unsubscribeBanned = null;
 let activeRoomOwnerId = null;
+let memberRenderVersion = 0;
+let bannedRenderVersion = 0;
 let isDeletingRoom = false;
 
 // ROOM CODE
@@ -92,6 +94,31 @@ function stopMemberListener() {
 
     activeRoomId = null;
     activeRoomOwnerId = null;
+}
+
+// Resolve the current public profile so older membership/ban records
+// still show the account username separately from the current nickname.
+async function getAccountDisplayNames(userId, fallbackName = "Bilinmeyen kullanıcı") {
+    try {
+        const profileSnapshot = await getDoc(doc(db, "users", userId));
+
+        if (profileSnapshot.exists()) {
+            const profile = profileSnapshot.data();
+            const accountUsername = profile.username || fallbackName;
+
+            return {
+                accountUsername,
+                displayNickname: profile.nickname || accountUsername
+            };
+        }
+    } catch (error) {
+        console.warn("CACA: Could not load member profile:", userId, error);
+    }
+
+    return {
+        accountUsername: fallbackName,
+        displayNickname: fallbackName
+    };
 }
 
 // LOAD MY ROOMS
@@ -356,11 +383,12 @@ function listenToMembers(roomId, ownerId) {
     unsubscribeMembers = onSnapshot(
         membersReference,
 
-        (snapshot) => {
+        async (snapshot) => {
 
             // Ignore events from a room that is no longer open.
             if (activeRoomId !== roomId) return;
 
+            const renderVersion = ++memberRenderVersion;
             const membersList = $("membersList");
             const heading = $("membersHeading");
 
@@ -377,18 +405,34 @@ function listenToMembers(roomId, ownerId) {
                 return;
             }
 
-            const members = snapshot.docs.map(memberDoc => ({
-                id: memberDoc.id,
-                ...memberDoc.data()
-            }));
+            const members = await Promise.all(
+                snapshot.docs.map(async (memberDoc) => {
+                    const member = {
+                        id: memberDoc.id,
+                        ...memberDoc.data()
+                    };
 
-            // Show room owner first, then sort by username.
+                    const names = await getAccountDisplayNames(
+                        member.id,
+                        member.username || "Bilinmeyen kullanıcı"
+                    );
+
+                    return { ...member, ...names };
+                })
+            );
+
+            // A newer snapshot may have arrived while profile reads were running.
+            if (activeRoomId !== roomId || renderVersion !== memberRenderVersion) {
+                return;
+            }
+
+            // Show room owner first, then sort by nickname.
             members.sort((a, b) => {
                 if (a.role === "owner") return -1;
                 if (b.role === "owner") return 1;
 
-                return (a.username || "").localeCompare(
-                    b.username || ""
+                return (a.displayNickname || "").localeCompare(
+                    b.displayNickname || ""
                 );
             });
 
@@ -400,14 +444,28 @@ function listenToMembers(roomId, ownerId) {
                 const info = document.createElement("div");
                 info.className = "member-info";
 
-                const username = document.createElement("strong");
-                username.textContent = member.username || "Bilinmeyen kullanıcı";
+                const nickname = document.createElement("strong");
+                nickname.className = "member-display-name";
+                nickname.textContent = member.displayNickname;
+
+                const username = document.createElement("span");
+                username.className = "member-account-username";
+
+                const usernameDiffers =
+                    member.accountUsername.trim().toLowerCase() !==
+                    member.displayNickname.trim().toLowerCase();
+
+                username.textContent = usernameDiffers
+                    ? `(${member.accountUsername})`
+                    : "";
+                username.hidden = !usernameDiffers;
 
                 const role = document.createElement("span");
+                role.className = "member-role";
                 role.textContent =
                     member.role === "owner" ? "Oda sahibi" : "Üye";
 
-                info.append(username, role);
+                info.append(nickname, username, role);
                 item.appendChild(info);
 
                 const ownerIsViewing = currentUser.uid === activeRoomOwnerId;
@@ -506,11 +564,12 @@ function listenToBannedMembers(roomId) {
 
     unsubscribeBanned = onSnapshot(
         collection(db, "rooms", roomId, "bans"),
-        (snapshot) => {
+        async (snapshot) => {
             if (activeRoomId !== roomId || activeRoomOwnerId !== currentUser?.uid) {
                 return;
             }
 
+            const renderVersion = ++bannedRenderVersion;
             const section = $("bannedSection");
             const list = $("bannedList");
             const heading = $("bannedHeading");
@@ -527,25 +586,59 @@ function listenToBannedMembers(roomId) {
                 return;
             }
 
-            snapshot.forEach((banDoc) => {
-                const ban = banDoc.data();
+            const bannedUsers = await Promise.all(
+                snapshot.docs.map(async (banDoc) => {
+                    const ban = banDoc.data();
+                    const names = await getAccountDisplayNames(
+                        banDoc.id,
+                        ban.username || "Bilinmeyen kullanıcı"
+                    );
+
+                    return { id: banDoc.id, ban, ...names };
+                })
+            );
+
+            if (activeRoomId !== roomId || renderVersion !== bannedRenderVersion) {
+                return;
+            }
+
+            for (const bannedUser of bannedUsers) {
                 const item = document.createElement("div");
                 item.className = "banned-user-item";
 
-                const username = document.createElement("strong");
-                username.textContent = ban.username || "Bilinmeyen kullanıcı";
+                const info = document.createElement("div");
+                info.className = "member-info";
+
+                const nickname = document.createElement("strong");
+                nickname.className = "member-display-name";
+                nickname.textContent = bannedUser.displayNickname;
+
+                const username = document.createElement("span");
+                username.className = "member-account-username";
+                const usernameDiffers =
+                    bannedUser.accountUsername.trim().toLowerCase() !==
+                    bannedUser.displayNickname.trim().toLowerCase();
+                username.textContent = usernameDiffers
+                    ? `(${bannedUser.accountUsername})`
+                    : "";
+                username.hidden = !usernameDiffers;
+
+                info.append(nickname, username);
 
                 const button = document.createElement("button");
                 button.type = "button";
                 button.className = "unban-button";
                 button.textContent = "Banı kaldır";
                 button.addEventListener("click", () => {
-                    unbanMember(banDoc.id, ban.username || "kullanıcı");
+                    unbanMember(
+                        bannedUser.id,
+                        bannedUser.displayNickname
+                    );
                 });
 
-                item.append(username, button);
+                item.append(info, button);
                 list.appendChild(item);
-            });
+            }
         },
         (error) => {
             console.error("CACA banned-members listener failed:", error);
@@ -584,7 +677,7 @@ async function manageMember(member, action) {
             batch.set(
                 doc(db, "rooms", activeRoomId, "bans", member.id),
                 {
-                    username: member.username || "Bilinmeyen kullanıcı",
+                    username: member.accountUsername || member.username || "Bilinmeyen kullanıcı",
                     bannedAt: serverTimestamp(),
                     bannedBy: currentUser.uid
                 }
