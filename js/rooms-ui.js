@@ -17,6 +17,7 @@ import {
     limit,
     writeBatch,
     deleteDoc,
+    updateDoc,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
@@ -123,6 +124,8 @@ function stopMemberListener() {
     messageRenderVersion += 1;
     activeRoomId = null;
     activeRoomOwnerId = null;
+    if ($("roomManagementPanel")) $("roomManagementPanel").hidden = true;
+    if ($("roomManagementButton")) $("roomManagementButton").hidden = true;
 }
 
 // Resolve the current public profile so older membership/ban records
@@ -281,6 +284,206 @@ async function loadRooms() {
 }
 
 
+// MESSAGE ACTIONS: inline editing and contextual menus
+
+function closeMessageMenus(exceptMenu = null) {
+    document.querySelectorAll(".message-action-menu").forEach((menu) => {
+        if (menu !== exceptMenu) menu.hidden = true;
+    });
+
+    document.querySelectorAll(".message-more-button").forEach((button) => {
+        const menu = button.parentElement?.querySelector(".message-action-menu");
+        if (menu !== exceptMenu) button.setAttribute("aria-expanded", "false");
+    });
+}
+
+document.addEventListener("click", (event) => {
+    if (!event.target.closest(".message-actions")) closeMessageMenus();
+});
+
+function startMessageEdit(messageId, originalText, bubble) {
+    const editor = document.createElement("form");
+    editor.className = "message-edit-form";
+
+    const textarea = document.createElement("textarea");
+    textarea.value = originalText;
+    textarea.maxLength = 2000;
+    textarea.rows = Math.max(2, Math.min(6, originalText.split("\n").length));
+    textarea.setAttribute("aria-label", "Mesajı düzenle");
+
+    const footer = document.createElement("div");
+    footer.className = "message-edit-footer";
+    const hint = document.createElement("span");
+    hint.textContent = "Esc ile iptal edebilirsin.";
+    const buttons = document.createElement("div");
+    buttons.className = "message-edit-buttons";
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "message-edit-cancel";
+    cancelButton.textContent = "İptal";
+    cancelButton.addEventListener("click", () => editor.replaceWith(bubble));
+
+    const saveButton = document.createElement("button");
+    saveButton.type = "submit";
+    saveButton.className = "message-edit-save";
+    saveButton.textContent = "Kaydet";
+
+    buttons.append(cancelButton, saveButton);
+    footer.append(hint, buttons);
+    editor.append(textarea, footer);
+
+    textarea.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            event.preventDefault();
+            editor.replaceWith(bubble);
+        }
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+            event.preventDefault();
+            editor.requestSubmit();
+        }
+    });
+
+    editor.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const nextText = textarea.value.trim();
+
+        if (!nextText) {
+            showChatStatus("Mesaj boş olamaz.");
+            textarea.focus();
+            return;
+        }
+        if (nextText.length > 2000) {
+            showChatStatus("Mesaj en fazla 2.000 karakter olabilir.");
+            return;
+        }
+        if (nextText === originalText) {
+            editor.replaceWith(bubble);
+            return;
+        }
+
+        saveButton.disabled = true;
+        cancelButton.disabled = true;
+        try {
+            await updateDoc(
+                doc(db, "rooms", activeRoomId, "messages", messageId),
+                { text: nextText, editedAt: serverTimestamp() }
+            );
+            showChatStatus("Mesaj güncellendi.", true);
+        } catch (error) {
+            console.error("CACA message edit failed:", error);
+            showChatStatus(
+                error.code === "permission-denied"
+                    ? "Mesaj düzenleme izni yok. Firestore Rules içindeki mesaj update iznini kontrol et."
+                    : "Mesaj düzenlenemedi: " + (error.message || "Bilinmeyen hata")
+            );
+            saveButton.disabled = false;
+            cancelButton.disabled = false;
+        }
+    });
+
+    bubble.replaceWith(editor);
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+}
+
+async function deleteChatMessage(messageId) {
+    if (!currentUser || !activeRoomId) return;
+    if (!window.confirm("Bu mesajı kalıcı olarak silmek istiyor musun?")) return;
+
+    try {
+        await deleteDoc(doc(db, "rooms", activeRoomId, "messages", messageId));
+        showChatStatus("Mesaj silindi.", true);
+    } catch (error) {
+        console.error("CACA message delete failed:", error);
+        showChatStatus(
+            error.code === "permission-denied"
+                ? "Mesaj silme izni yok. Firestore Rules içindeki mesaj delete iznini kontrol et."
+                : "Mesaj silinemedi: " + (error.message || "Bilinmeyen hata")
+        );
+    }
+}
+
+// Owner-only room management panel.
+function setRoomManagementOpen(isOpen) {
+    const panel = $("roomManagementPanel");
+    if (!panel || (isOpen && activeRoomOwnerId !== currentUser?.uid)) return;
+    panel.hidden = !isOpen;
+
+    if (isOpen) {
+        $("roomManagementStatus").textContent = "";
+        $("clearChatHistoryButton").focus();
+    } else {
+        $("roomManagementButton")?.focus();
+    }
+}
+
+$("roomManagementButton").addEventListener("click", () => setRoomManagementOpen(true));
+$("closeRoomManagementButton").addEventListener("click", () => setRoomManagementOpen(false));
+$("roomManagementPanel").addEventListener("click", (event) => {
+    if (event.target === $("roomManagementPanel")) setRoomManagementOpen(false);
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !$("roomManagementPanel").hidden) {
+        setRoomManagementOpen(false);
+    }
+});
+
+async function clearRoomChatHistory() {
+    if (!currentUser || !activeRoomId || activeRoomOwnerId !== currentUser.uid) return;
+
+    const roomId = activeRoomId;
+    const roomName = $("activeRoomName").textContent || "Bu oda";
+    if (!window.confirm(
+        `"${roomName}" odasındaki tüm mesajları kalıcı olarak silmek istiyor musun?\n\nOda, üyeler ve davet kodu silinmez. Bu işlem geri alınamaz.`
+    )) return;
+
+    const button = $("clearChatHistoryButton");
+    button.disabled = true;
+    button.textContent = "Sohbet siliniyor...";
+    $("roomManagementStatus").textContent = "Mesajlar siliniyor...";
+    let deletedCount = 0;
+
+    try {
+        while (activeRoomId === roomId) {
+            const oldestMessages = await getDocs(
+                query(
+                    collection(db, "rooms", roomId, "messages"),
+                    orderBy("createdAt", "asc"),
+                    limit(10)
+                )
+            );
+            if (oldestMessages.empty) break;
+
+            const batch = writeBatch(db);
+            oldestMessages.docs.forEach((messageDoc) => batch.delete(messageDoc.ref));
+            await batch.commit();
+            deletedCount += oldestMessages.size;
+            $("roomManagementStatus").textContent = `${deletedCount} mesaj silindi...`;
+        }
+
+        if (activeRoomId === roomId) {
+            $("roomManagementStatus").textContent = deletedCount
+                ? `Sohbet geçmişi temizlendi. ${deletedCount} mesaj silindi.`
+                : "Sohbet zaten boş.";
+            showChatStatus(
+                deletedCount ? "Oda sohbetinin tamamı temizlendi." : "Sohbet zaten boş.",
+                true
+            );
+        }
+    } catch (error) {
+        console.error("CACA chat history clear failed:", error);
+        $("roomManagementStatus").textContent =
+            error.code === "permission-denied"
+                ? "Mesajları silme izni yok. Firestore Rules içindeki mesaj delete iznini kontrol et."
+                : "Sohbet temizlenemedi: " + (error.message || "Bilinmeyen hata");
+    } finally {
+        button.disabled = false;
+        button.textContent = "Tüm sohbeti sil";
+    }
+}
+$("clearChatHistoryButton").addEventListener("click", clearRoomChatHistory);
+
 // REAL-TIME ROOM CHAT
 
 function showChatStatus(message, success = false) {
@@ -426,6 +629,7 @@ function listenToMessages(roomId) {
                 );
 
                 const row = document.createElement("div");
+                row.dataset.messageId = messageDoc.id;
                 row.dataset.senderId = message.senderId || "";
                 row.className = "message-row" +
                     (isMine ? " mine" : "") +
@@ -441,16 +645,13 @@ function listenToMessages(roomId) {
                 if (!isGrouped) {
                     const meta = document.createElement("div");
                     meta.className = "message-meta";
-
                     const author = document.createElement("strong");
                     author.textContent = senderName;
-
                     const time = document.createElement("time");
                     time.textContent = formatMessageTime(message.createdAt);
                     if (message.createdAt?.toDate) {
                         time.dateTime = message.createdAt.toDate().toISOString();
                     }
-
                     meta.append(author, time);
                     content.appendChild(meta);
                 }
@@ -458,8 +659,62 @@ function listenToMessages(roomId) {
                 const bubble = document.createElement("div");
                 bubble.className = "message-bubble";
                 bubble.textContent = text;
-
                 content.appendChild(bubble);
+
+                if (message.editedAt) {
+                    const editedLabel = document.createElement("span");
+                    editedLabel.className = "message-edited-label";
+                    editedLabel.textContent = "düzenlendi";
+                    content.appendChild(editedLabel);
+                }
+
+                const canDelete = isMine || activeRoomOwnerId === currentUser?.uid;
+                if (isMine || canDelete) {
+                    const actions = document.createElement("div");
+                    actions.className = "message-actions";
+                    const moreButton = document.createElement("button");
+                    moreButton.type = "button";
+                    moreButton.className = "message-more-button";
+                    moreButton.textContent = "⋯";
+                    moreButton.setAttribute("aria-label", "Mesaj seçenekleri");
+                    moreButton.setAttribute("aria-expanded", "false");
+
+                    const menu = document.createElement("div");
+                    menu.className = "message-action-menu";
+                    menu.hidden = true;
+
+                    if (isMine) {
+                        const editButton = document.createElement("button");
+                        editButton.type = "button";
+                        editButton.textContent = "Düzenle";
+                        editButton.addEventListener("click", () => {
+                            closeMessageMenus();
+                            startMessageEdit(messageDoc.id, text, bubble);
+                        });
+                        menu.appendChild(editButton);
+                    }
+
+                    const deleteButton = document.createElement("button");
+                    deleteButton.type = "button";
+                    deleteButton.className = "delete";
+                    deleteButton.textContent = "Mesajı sil";
+                    deleteButton.addEventListener("click", () => {
+                        closeMessageMenus();
+                        deleteChatMessage(messageDoc.id);
+                    });
+                    menu.appendChild(deleteButton);
+
+                    moreButton.addEventListener("click", (event) => {
+                        event.stopPropagation();
+                        const shouldOpen = menu.hidden;
+                        closeMessageMenus(menu);
+                        menu.hidden = !shouldOpen;
+                        moreButton.setAttribute("aria-expanded", String(shouldOpen));
+                    });
+                    actions.append(moreButton, menu);
+                    content.appendChild(actions);
+                }
+
                 row.append(avatar, content);
                 messagesList.appendChild(row);
 
@@ -1278,6 +1533,8 @@ async function openRoom(roomId) {
 
         const isOwner = room.ownerId === currentUser.uid;
         $("bannedSection").hidden = !isOwner;
+        $("roomManagementButton").hidden = !isOwner;
+        $("roomManagementPanel").hidden = true;
 
         const leaveButton = $("leaveRoomButton");
         leaveButton.disabled = false;
