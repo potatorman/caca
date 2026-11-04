@@ -161,6 +161,7 @@ async function loadRooms() {
             const button = document.createElement("button");
             button.type = "button";
             button.className = "room-list-item";
+            button.dataset.roomId = roomDoc.id;
             button.classList.toggle("active", roomDoc.id === activeRoomId);
 
             const info = document.createElement("div");
@@ -1017,6 +1018,11 @@ async function openRoom(roomId) {
         // Show room
         $("dashboardView").hidden = true;
         $("roomView").hidden = false;
+
+        // Highlight the selected room in the left-hand list.
+        document.querySelectorAll(".room-list-item").forEach((button) => {
+            button.classList.toggle("active", button.dataset.roomId === roomId);
+        });
 
         // Open the member panel by default for a newly selected room.
         setMembersPanelOpen(true);
