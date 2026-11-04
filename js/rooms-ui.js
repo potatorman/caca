@@ -29,6 +29,7 @@ let unsubscribeMembers = null;
 let unsubscribeMyMembership = null;
 let unsubscribeBanned = null;
 let activeRoomOwnerId = null;
+let isDeletingRoom = false;
 
 // ROOM CODE
 
@@ -451,7 +452,7 @@ function listenToMembers(roomId, ownerId) {
     unsubscribeMyMembership = onSnapshot(
         doc(db, "rooms", roomId, "members", currentUser.uid),
         async (membershipSnapshot) => {
-            if (activeRoomId !== roomId || membershipSnapshot.exists()) return;
+            if (activeRoomId !== roomId || membershipSnapshot.exists() || isDeletingRoom) return;
 
             let isBanned = false;
 
@@ -623,6 +624,8 @@ async function openRoom(roomId) {
 
     try {
 
+        isDeletingRoom = false;
+
         const banSnapshot = await getDoc(
             doc(db, "rooms", roomId, "bans", currentUser.uid)
         );
@@ -661,13 +664,12 @@ async function openRoom(roomId) {
         $("bannedSection").hidden = !isOwner;
 
         const leaveButton = $("leaveRoomButton");
-        leaveButton.disabled = isOwner;
-        leaveButton.textContent = isOwner
-            ? "Kurucu odadan ayrılamaz"
-            : "Odadan çık";
+        leaveButton.disabled = false;
+        leaveButton.classList.toggle("room-delete-button", isOwner);
+        leaveButton.textContent = isOwner ? "Odayı sil" : "Odadan çık";
         leaveButton.title = isOwner
-            ? "Oda sahibinin ayrılması için oda silme veya sahiplik devri gerekir."
-            : "";
+            ? "Odayı, üyelikleri, davet kodunu ve ban kayıtlarını kalıcı olarak siler."
+            : "Bu odadan ayrıl.";
 
         // Show room
         $("dashboardView").hidden = true;
@@ -694,21 +696,112 @@ $("backToDashboard").addEventListener("click", () => {
     loadRooms();
 });
 
-// LEAVE ROOM
+// LEAVE ROOM OR DELETE ROOM
+
+async function deleteActiveRoom() {
+    if (!currentUser || !activeRoomId || activeRoomOwnerId !== currentUser.uid) {
+        return;
+    }
+
+    const roomId = activeRoomId;
+    const roomName = $("activeRoomName").textContent || "Bu oda";
+    const inviteCode = activeRoomCode;
+
+    const confirmed = window.confirm(
+        `"${roomName}" odasını kalıcı olarak silmek istiyor musun?\n\nÜyeler, davet kodu ve ban kayıtları da silinecek. Bu işlem geri alınamaz.`
+    );
+
+    if (!confirmed) return;
+
+    const button = $("leaveRoomButton");
+    button.disabled = true;
+    button.textContent = "Oda siliniyor...";
+    isDeletingRoom = true;
+
+    try {
+        // Fetch all child records while the owner still has access.
+        const [membersSnapshot, bansSnapshot] = await Promise.all([
+            getDocs(collection(db, "rooms", roomId, "members")),
+            getDocs(collection(db, "rooms", roomId, "bans"))
+        ]);
+
+        // Remove other members and their personal room-list entries.
+        // Keep the owner's own membership until the final atomic batch.
+        const referencesToDelete = [];
+
+        membersSnapshot.forEach((memberDoc) => {
+            if (memberDoc.id === currentUser.uid) return;
+
+            referencesToDelete.push(memberDoc.ref);
+            referencesToDelete.push(
+                doc(db, "users", memberDoc.id, "rooms", roomId)
+            );
+        });
+
+        // Remove all ban records.
+        bansSnapshot.forEach((banDoc) => {
+            referencesToDelete.push(banDoc.ref);
+        });
+
+        // Firestore batches support at most 500 writes.
+        // Use 400 per batch so the deletion remains below that limit.
+        for (let index = 0; index < referencesToDelete.length; index += 400) {
+            const batch = writeBatch(db);
+            const chunk = referencesToDelete.slice(index, index + 400);
+
+            for (const reference of chunk) {
+                batch.delete(reference);
+            }
+
+            await batch.commit();
+        }
+
+        // Delete the owner's records, invite and room together.
+        // Firestore Rules will allow this only when the room is deleted
+        // in the same final batch.
+        const finalBatch = writeBatch(db);
+
+        finalBatch.delete(
+            doc(db, "rooms", roomId, "members", currentUser.uid)
+        );
+        finalBatch.delete(
+            doc(db, "users", currentUser.uid, "rooms", roomId)
+        );
+        finalBatch.delete(doc(db, "roomInvites", inviteCode));
+        finalBatch.delete(doc(db, "rooms", roomId));
+
+        await finalBatch.commit();
+
+        stopMemberListener();
+        activeRoomCode = "";
+        $("roomView").hidden = true;
+        $("dashboardView").hidden = false;
+        $("bannedSection").hidden = true;
+
+        await loadRooms();
+        showRoomMessage("Oda ve tüm kayıtları başarıyla silindi.", true);
+    } catch (error) {
+        isDeletingRoom = false;
+        button.disabled = false;
+        button.textContent = "Odayı sil";
+        console.error("CACA room deletion failed:", error);
+        showRoomMessage("Oda silinemedi: " + showError(error));
+    }
+}
 
 $("leaveRoomButton").addEventListener("click", async () => {
     if (!currentUser || !activeRoomId) return;
 
     if (activeRoomOwnerId === currentUser.uid) {
-        showRoomMessage(
-            "Oda kurucusu şimdilik odadan ayrılamaz. Önce oda silme veya sahiplik devri özelliği gerekli."
-        );
+        await deleteActiveRoom();
         return;
     }
 
     if (!window.confirm("Bu odadan ayrılmak istiyor musun?")) return;
 
     const roomId = activeRoomId;
+    const button = $("leaveRoomButton");
+    button.disabled = true;
 
     try {
         // Stop listeners before removing our own membership document.
@@ -724,6 +817,7 @@ $("leaveRoomButton").addEventListener("click", async () => {
         await loadRooms();
         showRoomMessage("Odadan ayrıldın.", true);
     } catch (error) {
+        button.disabled = false;
         showRoomMessage(showError(error));
     }
 });
