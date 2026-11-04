@@ -1076,9 +1076,10 @@ async function deleteActiveRoom() {
 
     try {
         // Fetch all child records while the owner still has access.
-        const [membersSnapshot, bansSnapshot] = await Promise.all([
+        const [membersSnapshot, bansSnapshot, messagesSnapshot] = await Promise.all([
             getDocs(collection(db, "rooms", roomId, "members")),
-            getDocs(collection(db, "rooms", roomId, "bans"))
+            getDocs(collection(db, "rooms", roomId, "bans")),
+            getDocs(collection(db, "rooms", roomId, "messages"))
         ]);
 
         // Remove other members and their personal room-list entries.
@@ -1097,6 +1098,12 @@ async function deleteActiveRoom() {
         // Remove all ban records.
         bansSnapshot.forEach((banDoc) => {
             referencesToDelete.push(banDoc.ref);
+        });
+
+        // Firestore does not delete subcollections with their parent document.
+        // Explicitly remove every room message before deleting the room.
+        messagesSnapshot.forEach((messageDoc) => {
+            referencesToDelete.push(messageDoc.ref);
         });
 
         // Keep batches small so security-rule document lookups stay
