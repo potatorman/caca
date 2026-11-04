@@ -9,6 +9,7 @@ import {
     doc,
     getDoc,
     getDocs,
+    onSnapshot,
     writeBatch,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
@@ -18,6 +19,7 @@ const $ = (id) => document.getElementById(id);
 let currentUser = null;
 let currentUsername = "";
 let activeRoomCode = "";
+let unsubscribeMembers = null;
 
 const roomChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -293,14 +295,21 @@ async function openRoom(roomId) {
 
         activeRoomCode = room.inviteCode;
 
-        const membersSnapshot = await getDocs(
-            collection(db, "rooms", roomId, "members")
-        );
+        // Stop listening to the previous room
+if (unsubscribeMembers) {
+    unsubscribeMembers();
+    unsubscribeMembers = null;
+}
 
+// Listen for real-time member changes
+unsubscribeMembers = onSnapshot(
+    collection(db, "rooms", roomId, "members"),
+
+    (snapshot) => {
         const membersList = $("membersList");
         membersList.replaceChildren();
 
-        for (const memberDoc of membersSnapshot.docs) {
+        snapshot.forEach((memberDoc) => {
             const member = memberDoc.data();
 
             const item = document.createElement("div");
@@ -316,7 +325,14 @@ async function openRoom(roomId) {
 
             item.append(username, role);
             membersList.appendChild(item);
-        }
+        });
+    },
+
+    (error) => {
+        console.error("Member listener error:", error);
+        showRoomMessage(showError(error));
+    }
+);
 
         $("dashboardView").hidden = true;
         $("roomView").hidden = false;
@@ -328,8 +344,15 @@ async function openRoom(roomId) {
 
 // BACK TO DASHBOARD
 $("backToDashboard").addEventListener("click", () => {
+
+    if (unsubscribeMembers) {
+        unsubscribeMembers();
+        unsubscribeMembers = null;
+    }
+
     $("roomView").hidden = true;
     $("dashboardView").hidden = false;
+
     loadRooms();
 });
 
