@@ -250,9 +250,15 @@
 
                     <section id="roomView" hidden>
 
-                        <button id="backToDashboard" class="back-button">
-                            ← Odalarıma dön
-                        </button>
+                        <div class="room-toolbar">
+                            <button id="backToDashboard" class="back-button">
+                                ← Odalarıma dön
+                            </button>
+
+                            <button id="leaveRoomButton" class="danger-button">
+                                Odadan çık
+                            </button>
+                        </div>
 
                         <div class="room-detail-header">
 
@@ -278,6 +284,11 @@
 
                             <div id="membersList" class="members-list"></div>
 
+                        </section>
+
+                        <section id="bannedSection" class="banned-section" hidden>
+                            <h3 id="bannedHeading">Banlı kullanıcılar (0)</h3>
+                            <div id="bannedList" class="banned-list"></div>
                         </section>
 
                         <section class="coming-soon">
