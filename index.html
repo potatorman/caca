@@ -237,6 +237,42 @@
                                             </div>
                                             <button id="closeRoomManagementButton" class="icon-button" type="button" aria-label="Oda yönetimini kapat">×</button>
                                         </div>
+                                        <section class="room-management-section admin-assignment-section">
+                                            <div class="room-management-section-copy">
+                                                <strong>Yönetici ata</strong>
+                                                <p>Üyelere geçici veya kalıcı yönetici yetkisi ver. Yöneticiler üye çıkarabilir, ban atamaz.</p>
+                                            </div>
+                                            <div class="admin-assignment-controls">
+                                                <select id="adminTargetSelect" aria-label="Yönetici yapılacak üyeyi seç">
+                                                    <option value="">Üye seç...</option>
+                                                </select>
+                                                <select id="adminDurationSelect" aria-label="Yönetici yetkisi süresi">
+                                                    <option value="permanent">Kalıcı</option>
+                                                    <option value="3600000">1 saat</option>
+                                                    <option value="86400000">1 gün</option>
+                                                    <option value="604800000">7 gün</option>
+                                                    <option value="2592000000">30 gün</option>
+                                                </select>
+                                                <button id="grantAdminButton" class="admin-grant-button" type="button">Yetki ver</button>
+                                            </div>
+                                            <p id="adminManagementStatus" class="admin-management-status" role="status" aria-live="polite"></p>
+                                            <div class="admin-list-heading">
+                                                <strong>Yöneticiler</strong>
+                                                <span>Yalnızca oda sahibi yönetebilir</span>
+                                            </div>
+                                            <div id="roomAdminsList" class="room-admins-list"></div>
+                                        </section>
+
+                                        <section id="bannedSection" class="banned-section management-banned-section" hidden>
+                                            <div class="banned-management-heading">
+                                                <div>
+                                                    <strong>Banlı kullanıcılar</strong>
+                                                    <span id="bannedHeading">0 kişi</span>
+                                                </div>
+                                            </div>
+                                            <div id="bannedList" class="banned-list"></div>
+                                        </section>
+
                                         <div class="room-management-section">
                                             <div>
                                                 <strong>Sohbet geçmişi</strong>
@@ -326,10 +362,6 @@
                                         </label>
                                         <div id="membersList" class="members-list"></div>
 
-                                        <section id="bannedSection" class="banned-section" hidden>
-                                            <h3 id="bannedHeading">Banlı kullanıcılar (0)</h3>
-                                            <div id="bannedList" class="banned-list"></div>
-                                        </section>
                                     </aside>
                                 </div>
                             </section>
