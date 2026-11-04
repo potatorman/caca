@@ -2493,3 +2493,39 @@ body.logged-in .auth-card {
         grid-template-columns: repeat(4, minmax(42px, 1fr));
     }
 }
+
+
+.avatar-save-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 145px;
+    min-height: 38px;
+    margin-top: 3px;
+    padding: 0 15px;
+    color: #f5f9ff;
+    background: #3478f6;
+    border: 1px solid #4688f7;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    transition: background .16s ease, transform .16s ease, opacity .16s ease;
+}
+
+.avatar-save-button:hover:not(:disabled) {
+    background: #4b8cff;
+    transform: translateY(-1px);
+}
+
+.avatar-save-button:disabled {
+    color: #8292a8;
+    background: #1a2738;
+    border-color: #2a3b51;
+    cursor: not-allowed;
+    opacity: .8;
+}
+
+.settings-view > #settingsMessage {
+    grid-column: 1 / -1;
+    margin: 0;
+}
