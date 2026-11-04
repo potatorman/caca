@@ -8,6 +8,7 @@ import {
 
 import {
     addDoc,
+    Timestamp,
     collection,
     doc,
     getDoc,
@@ -101,6 +102,7 @@ let unsubscribeMyMembership = null;
 let unsubscribeBanned = null;
 let unsubscribeMessages = null;
 let activeRoomOwnerId = null;
+let currentRoomMemberRecord = null;
 let memberRenderVersion = 0;
 let bannedRenderVersion = 0;
 let isDeletingRoom = false;
@@ -187,6 +189,7 @@ function stopMemberListener() {
     messageRenderVersion += 1;
     activeRoomId = null;
     activeRoomOwnerId = null;
+    currentRoomMemberRecord = null;
     if ($("roomManagementPanel")) $("roomManagementPanel").hidden = true;
 }
 
@@ -476,7 +479,8 @@ function setRoomManagementOpen(isOpen) {
 
     if (isOpen) {
         $("roomManagementStatus").textContent = "";
-        $("clearChatHistoryButton").focus();
+        $("adminManagementStatus").textContent = "";
+        $("adminTargetSelect").focus();
     } else {
         $("roomManagementButton")?.focus();
     }
@@ -1512,6 +1516,192 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
     }
 });
 
+// ROOM ADMIN ROLES
+
+function isActiveRoomAdmin(member) {
+    if (!member || member.role !== "admin") return false;
+    if (!member.adminExpiresAt) return true;
+
+    const expiry = typeof member.adminExpiresAt.toDate === "function"
+        ? member.adminExpiresAt.toDate()
+        : new Date(member.adminExpiresAt);
+
+    return Number.isFinite(expiry.getTime()) && expiry.getTime() > Date.now();
+}
+
+function isCurrentUserRoomAdmin() {
+    return isActiveRoomAdmin(currentRoomMemberRecord);
+}
+
+function canCurrentUserKickMembers() {
+    return Boolean(
+        currentUser &&
+        (activeRoomOwnerId === currentUser.uid || isCurrentUserRoomAdmin())
+    );
+}
+
+function formatAdminExpiry(value) {
+    if (!value) return "Kalıcı yönetici";
+    const date = typeof value.toDate === "function" ? value.toDate() : new Date(value);
+    if (!Number.isFinite(date.getTime())) return "Süre bilgisi yok";
+    return `Bitiş: ${new Intl.DateTimeFormat("tr-TR", {
+        dateStyle: "short",
+        timeStyle: "short"
+    }).format(date)}`;
+}
+
+async function grantRoomAdmin() {
+    if (!currentUser || activeRoomOwnerId !== currentUser.uid || !activeRoomId) return;
+
+    const targetId = $("adminTargetSelect").value;
+    const durationValue = $("adminDurationSelect").value;
+    if (!targetId) {
+        $("adminManagementStatus").textContent = "Önce bir üye seç.";
+        return;
+    }
+    if (targetId === activeRoomOwnerId) {
+        $("adminManagementStatus").textContent = "Oda sahibi zaten en yüksek yetkiye sahip.";
+        return;
+    }
+
+    const button = $("grantAdminButton");
+    button.disabled = true;
+    $("adminManagementStatus").textContent = "Yetki veriliyor...";
+
+    try {
+        const adminExpiresAt = durationValue === "permanent"
+            ? null
+            : Timestamp.fromDate(new Date(Date.now() + Number(durationValue)));
+
+        await updateDoc(
+            doc(db, "rooms", activeRoomId, "members", targetId),
+            {
+                role: "admin",
+                adminExpiresAt,
+                adminGrantedAt: serverTimestamp(),
+                adminGrantedBy: currentUser.uid
+            }
+        );
+
+        $("adminManagementStatus").textContent = durationValue === "permanent"
+            ? "Kalıcı yönetici yetkisi verildi."
+            : "Süreli yönetici yetkisi verildi.";
+    } catch (error) {
+        console.error("CACA admin grant failed:", error);
+        $("adminManagementStatus").textContent =
+            error.code === "permission-denied"
+                ? "Yetki verilemedi. Firestore Rules içindeki yönetici atama iznini yayımla."
+                : "Yetki verilemedi: " + (error.message || "Bilinmeyen hata");
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function revokeRoomAdmin(userId, username) {
+    if (!currentUser || activeRoomOwnerId !== currentUser.uid || !activeRoomId) return;
+    if (!window.confirm(`${username} kullanıcısının yönetici yetkisini kaldırmak istiyor musun?`)) return;
+
+    try {
+        await updateDoc(
+            doc(db, "rooms", activeRoomId, "members", userId),
+            {
+                role: "member",
+                adminExpiresAt: null,
+                adminGrantedAt: null,
+                adminGrantedBy: null
+            }
+        );
+        $("adminManagementStatus").textContent = `${username} artık normal üye.`;
+    } catch (error) {
+        console.error("CACA admin revoke failed:", error);
+        $("adminManagementStatus").textContent =
+            error.code === "permission-denied"
+                ? "Yetki kaldırılamadı. Firestore Rules içindeki yönetici rolü iznini kontrol et."
+                : "Yetki kaldırılamadı: " + (error.message || "Bilinmeyen hata");
+    }
+}
+
+function renderAdminManagement(members) {
+    if (activeRoomOwnerId !== currentUser?.uid) return;
+
+    const select = $("adminTargetSelect");
+    const previousValue = select.value;
+    select.replaceChildren();
+
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Üye seç...";
+    select.appendChild(placeholder);
+
+    members
+        .filter(member => member.id !== activeRoomOwnerId)
+        .sort((a, b) => (a.displayNickname || "").localeCompare(b.displayNickname || "", "tr"))
+        .forEach(member => {
+            const option = document.createElement("option");
+            option.value = member.id;
+            option.textContent = isActiveRoomAdmin(member)
+                ? `${member.displayNickname} · Yönetici`
+                : member.displayNickname;
+            select.appendChild(option);
+        });
+
+    if (previousValue && Array.from(select.options).some(option => option.value === previousValue)) {
+        select.value = previousValue;
+    }
+
+    const list = $("roomAdminsList");
+    list.replaceChildren();
+
+    const admins = members
+        .filter(member => member.id !== activeRoomOwnerId && member.role === "admin")
+        .sort((a, b) => (a.displayNickname || "").localeCompare(b.displayNickname || "", "tr"));
+
+    if (!admins.length) {
+        const empty = document.createElement("p");
+        empty.className = "member-search-empty";
+        empty.textContent = "Henüz atanmış yönetici yok.";
+        list.appendChild(empty);
+        return;
+    }
+
+    admins.forEach(member => {
+        const item = document.createElement("div");
+        item.className = "room-admin-item";
+
+        const avatar = document.createElement("div");
+        avatar.className = "member-avatar";
+        setAvatarElement(avatar, member.avatarId, member.avatarData);
+
+        const info = document.createElement("div");
+        info.className = "room-admin-info";
+
+        const name = document.createElement("strong");
+        name.textContent = member.displayNickname;
+
+        const expiry = document.createElement("span");
+        const active = isActiveRoomAdmin(member);
+        expiry.textContent = active
+            ? formatAdminExpiry(member.adminExpiresAt)
+            : "Süresi doldu · normal üye";
+        expiry.classList.toggle("admin-expired-label", !active);
+
+        info.append(name, expiry);
+
+        const revoke = document.createElement("button");
+        revoke.type = "button";
+        revoke.className = "admin-revoke-button";
+        revoke.textContent = "Yetkiyi kaldır";
+        revoke.addEventListener("click", () =>
+            revokeRoomAdmin(member.id, member.displayNickname)
+        );
+
+        item.append(avatar, info, revoke);
+        list.appendChild(item);
+    });
+}
+
+$("grantAdminButton").addEventListener("click", grantRoomAdmin);
+
 // REAL-TIME MEMBER LIST
 
 function listenToMembers(roomId, ownerId) {
@@ -1542,6 +1732,10 @@ function listenToMembers(roomId, ownerId) {
             const renderVersion = ++memberRenderVersion;
             const membersList = $("membersList");
             const heading = $("membersHeading");
+            const ownMemberSnapshot = snapshot.docs.find(memberDoc => memberDoc.id === currentUser.uid);
+            currentRoomMemberRecord = ownMemberSnapshot
+                ? { id: ownMemberSnapshot.id, ...ownMemberSnapshot.data() }
+                : null;
 
             // Keep a real-time listener on every current member's public
             // profile. Profile changes then reach everyone in this room live.
@@ -1644,9 +1838,14 @@ function listenToMembers(roomId, ownerId) {
             const ownerMembers = members.filter(member =>
                 member.id === ownerId || member.role === "owner"
             );
-            const regularMembers = members.filter(member =>
-                member.id !== ownerId && member.role !== "owner"
+            const adminMembers = members.filter(member =>
+                member.id !== ownerId && isActiveRoomAdmin(member)
             );
+            const regularMembers = members.filter(member =>
+                member.id !== ownerId && member.role !== "owner" && !isActiveRoomAdmin(member)
+            );
+
+            renderAdminManagement(members);
 
             function createMemberGroup(label, groupMembers) {
                 if (!groupMembers.length) return null;
@@ -1675,10 +1874,12 @@ function listenToMembers(roomId, ownerId) {
             }
 
             const ownerGroup = createMemberGroup("ODA SAHİBİ", ownerMembers);
+            const adminGroup = createMemberGroup("YÖNETİCİLER", adminMembers);
             const regularGroup = createMemberGroup("ÜYELER", regularMembers);
 
             for (const member of members) {
                 const isOwner = member.id === ownerId || member.role === "owner";
+                const isAdmin = !isOwner && isActiveRoomAdmin(member);
                 const isSelf = member.id === currentUser.uid;
 
                 const item = document.createElement("div");
@@ -1710,6 +1911,13 @@ function listenToMembers(roomId, ownerId) {
                     nameLine.appendChild(ownerBadge);
                 }
 
+                if (isAdmin) {
+                    const adminBadge = document.createElement("span");
+                    adminBadge.className = "member-badge admin-badge";
+                    adminBadge.textContent = "ADMIN";
+                    nameLine.appendChild(adminBadge);
+                }
+
                 if (isSelf) {
                     const selfBadge = document.createElement("span");
                     selfBadge.className = "member-badge self-badge";
@@ -1733,8 +1941,12 @@ function listenToMembers(roomId, ownerId) {
                 item.append(avatar, info);
 
                 const ownerIsViewing = currentUser.uid === activeRoomOwnerId;
+                const viewerIsAdmin = isCurrentUserRoomAdmin();
+                const canKickThisMember =
+                    member.id !== activeRoomOwnerId &&
+                    (ownerIsViewing || (viewerIsAdmin && !isAdmin));
 
-                if (ownerIsViewing && member.id !== activeRoomOwnerId) {
+                if (canKickThisMember) {
                     const actions = document.createElement("div");
                     actions.className = "member-actions";
 
@@ -1747,22 +1959,26 @@ function listenToMembers(roomId, ownerId) {
                     kickButton.addEventListener("click", () => {
                         manageMember(member, "kick");
                     });
+                    actions.appendChild(kickButton);
 
-                    const banButton = document.createElement("button");
-                    banButton.type = "button";
-                    banButton.className = "member-action-button ban";
-                    banButton.textContent = "⊘";
-                    banButton.title = "Üyeyi banla";
-                    banButton.setAttribute("aria-label", "Üyeyi banla");
-                    banButton.addEventListener("click", () => {
-                        manageMember(member, "ban");
-                    });
+                    if (ownerIsViewing) {
+                        const banButton = document.createElement("button");
+                        banButton.type = "button";
+                        banButton.className = "member-action-button ban";
+                        banButton.textContent = "⊘";
+                        banButton.title = "Üyeyi banla";
+                        banButton.setAttribute("aria-label", "Üyeyi banla");
+                        banButton.addEventListener("click", () => {
+                            manageMember(member, "ban");
+                        });
+                        actions.appendChild(banButton);
+                    }
 
-                    actions.append(kickButton, banButton);
                     item.appendChild(actions);
                 }
 
-                (isOwner ? ownerGroup : regularGroup).appendChild(item);
+                const targetGroup = isOwner ? ownerGroup : (isAdmin ? adminGroup : regularGroup);
+                targetGroup?.appendChild(item);
             }
 
             filterMemberList();
@@ -1927,12 +2143,28 @@ function listenToBannedMembers(roomId) {
 // OWNER ACTIONS: KICK / BAN
 
 async function manageMember(member, action) {
-    if (!currentUser || !activeRoomId || activeRoomOwnerId !== currentUser.uid) {
+    if (!currentUser || !activeRoomId || !canCurrentUserKickMembers()) {
+        showRoomMessage("Bu işlem için yönetici yetkisi gerekiyor.");
+        return;
+    }
+
+    const ownerIsActing = activeRoomOwnerId === currentUser.uid;
+    const adminIsActing = isCurrentUserRoomAdmin();
+
+    if (action !== "kick" && action !== "ban") return;
+
+    if (action === "ban" && !ownerIsActing) {
+        showRoomMessage("Yöneticiler kullanıcıları banlayamaz. Bu yetki yalnızca oda sahibinde.");
         return;
     }
 
     if (member.id === activeRoomOwnerId) {
-        showRoomMessage("Oda kurucusu kendisini odadan çıkaramaz.");
+        showRoomMessage("Oda kurucusu odadan çıkarılamaz.");
+        return;
+    }
+
+    if (adminIsActing && !ownerIsActing && isActiveRoomAdmin(member)) {
+        showRoomMessage("Yöneticiler başka yöneticileri odadan çıkaramaz.");
         return;
     }
 
@@ -2039,6 +2271,7 @@ async function openRoom(roomId) {
         const isOwner = room.ownerId === currentUser.uid;
         $("bannedSection").hidden = !isOwner;
         $("roomManagementButton").hidden = !isOwner;
+        $("adminManagementStatus").textContent = "";
         $("roomManagementPanel").hidden = true;
 
         const leaveButton = $("leaveRoomButton");
