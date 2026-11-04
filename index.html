@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0c10">
+    <title>CACA — Chat</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+    <main class="layout">
+
+        <section class="brand-area">
+            <div class="brand-logo">c.</div>
+
+            <div class="brand-content">
+                <span class="brand-label">YOUR SPACE. YOUR PEOPLE.</span>
+                <h1>Conversations<br>made simple.</h1>
+                <p>Arkadaşlarınla buluş, kendi odanı kur ve sohbet etmeye başla.</p>
+            </div>
+
+            <div class="brand-footer">
+                CACA © 2026
+            </div>
+        </section>
+
+        <section class="auth-area">
+            <div class="auth-card">
+
+                <div id="authView">
+
+                    <div class="auth-heading">
+                        <span class="small-label">WELCOME TO CACA</span>
+                        <h2 id="formHeading">Tekrar hoş geldin.</h2>
+                        <p id="formDescription">Hesabına giriş yap ve sohbete devam et.</p>
+                    </div>
+
+                    <div class="tabs">
+                        <button type="button" id="loginTab" class="tab active">
+                            Giriş yap
+                        </button>
+                        <button type="button" id="registerTab" class="tab">
+                            Kayıt ol
+                        </button>
+                    </div>
+
+                    <form id="loginForm" class="auth-form">
+
+                        <label for="loginUsername">Kullanıcı adı</label>
+                        <input
+                            id="loginUsername"
+                            type="text"
+                            placeholder="Kullanıcı adın"
+                            minlength="3"
+                            maxlength="20"
+                            autocomplete="username"
+                            required
+                        >
+
+                        <label for="loginPassword">Şifre</label>
+                        <input
+                            id="loginPassword"
+                            type="password"
+                            placeholder="Şifren"
+                            autocomplete="current-password"
+                            required
+                        >
+
+                        <button type="submit" class="primary-button">
+                            Giriş yap
+                        </button>
+
+                    </form>
+
+                    <form id="registerForm" class="auth-form" hidden>
+
+                        <label for="registerUsername">Kullanıcı adı</label>
+                        <input
+                            id="registerUsername"
+                            type="text"
+                            placeholder="Yeni kullanıcı adın"
+                            minlength="3"
+                            maxlength="20"
+                            autocomplete="username"
+                            required
+                        >
+
+                        <span class="input-hint">
+                            3-20 karakter. Sadece İngilizce harfler, rakamlar ve _ kullan.
+                        </span>
+
+                        <label for="registerPassword">Şifre</label>
+                        <input
+                            id="registerPassword"
+                            type="password"
+                            placeholder="En az 8 karakter"
+                            minlength="8"
+                            autocomplete="new-password"
+                            required
+                        >
+
+                        <button type="submit" class="primary-button">
+                            Hesap oluştur
+                        </button>
+
+                    </form>
+
+                    <p id="authMessage" class="status-message" role="status" aria-live="polite"></p>
+
+                    <div class="auth-footer">
+                        By continuing, you agree to use CACA responsibly.
+                    </div>
+
+                </div>
+
+                <div id="appView" hidden>
+
+                    <div class="user-avatar" id="userAvatar">C</div>
+
+                    <span class="small-label">ACCOUNT READY</span>
+                    <h2>Hoş geldin, <span id="welcomeUsername">User</span>.</h2>
+                    <p>Hesabın başarıyla açıldı. CACA'ya giriş yaptın.</p>
+
+                    <div class="account-info">
+                        <span>Hesap adı</span>
+                        <strong id="accountUsername"></strong>
+                    </div>
+
+                    <button id="logoutButton" class="secondary-button">
+                        Çıkış yap
+                    </button>
+
+                    <p id="appMessage" class="status-message" role="status"></p>
+
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <script type="module" src="./js/app.js"></script>
+
+</body>
+</html>
