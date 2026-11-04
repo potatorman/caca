@@ -539,6 +539,16 @@
 
                             <p id="appMessage" class="status-message" role="status" aria-live="polite"></p>
                             <p id="roomMessage" class="status-message" role="status" aria-live="polite"></p>
+
+                            <dialog id="moderationNoticeDialog" class="moderation-notice-dialog" aria-labelledby="moderationNoticeTitle" aria-describedby="moderationNoticeBody">
+                                <div class="moderation-notice-card" data-kind="info">
+                                    <span id="moderationNoticeSymbol" class="moderation-notice-symbol" aria-hidden="true">!</span>
+                                    <span class="moderation-notice-eyebrow">ODA YÖNETİMİ</span>
+                                    <h2 id="moderationNoticeTitle">İşlem bildirimi</h2>
+                                    <p id="moderationNoticeBody" class="moderation-notice-body"></p>
+                                    <button id="moderationNoticeClose" type="button" class="moderation-notice-close">Tamam</button>
+                                </div>
+                            </dialog>
                         </main>
                     </div>
                 </div>
