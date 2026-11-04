@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#0b0c10">
+
     <title>CACA — Chat</title>
+
     <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
@@ -20,13 +22,14 @@
                 <p>Arkadaşlarınla buluş, kendi odanı kur ve sohbet etmeye başla.</p>
             </div>
 
-            <div class="brand-footer">
-                CACA © 2026
-            </div>
+            <div class="brand-footer">CACA © 2026</div>
         </section>
 
         <section class="auth-area">
+
             <div class="auth-card">
+
+                <!-- LOGIN AND REGISTER -->
 
                 <div id="authView">
 
@@ -40,6 +43,7 @@
                         <button type="button" id="loginTab" class="tab active">
                             Giriş yap
                         </button>
+
                         <button type="button" id="registerTab" class="tab">
                             Kayıt ol
                         </button>
@@ -48,6 +52,7 @@
                     <form id="loginForm" class="auth-form">
 
                         <label for="loginUsername">Kullanıcı adı</label>
+
                         <input
                             id="loginUsername"
                             type="text"
@@ -59,6 +64,7 @@
                         >
 
                         <label for="loginPassword">Şifre</label>
+
                         <input
                             id="loginPassword"
                             type="password"
@@ -76,6 +82,7 @@
                     <form id="registerForm" class="auth-form" hidden>
 
                         <label for="registerUsername">Kullanıcı adı</label>
+
                         <input
                             id="registerUsername"
                             type="text"
@@ -87,10 +94,11 @@
                         >
 
                         <span class="input-hint">
-                            3-20 karakter. Sadece İngilizce harfler, rakamlar ve _ kullan.
+                            3-20 karakter. İngilizce harfler, rakamlar ve _ kullan.
                         </span>
 
                         <label for="registerPassword">Şifre</label>
+
                         <input
                             id="registerPassword"
                             type="password"
@@ -106,7 +114,12 @@
 
                     </form>
 
-                    <p id="authMessage" class="status-message" role="status" aria-live="polite"></p>
+                    <p
+                        id="authMessage"
+                        class="status-message"
+                        role="status"
+                        aria-live="polite"
+                    ></p>
 
                     <div class="auth-footer">
                         By continuing, you agree to use CACA responsibly.
@@ -114,138 +127,192 @@
 
                 </div>
 
+                <!-- LOGGED IN AREA -->
+
                 <div id="appView" hidden>
 
-    <header class="dashboard-header">
-        <div class="dashboard-brand">
-            <div class="brand-logo">c.</div>
-            <span>CACA</span>
-        </div>
+                    <header class="dashboard-header">
 
-        <div class="dashboard-user">
-            <div id="userAvatar" class="user-avatar">C</div>
-            <div>
-                <strong id="welcomeUsername">User</strong>
-                <span id="accountUsername" class="sr-only"></span>
-            </div>
-        </div>
+                        <div class="dashboard-brand">
+                            <div class="brand-logo">c.</div>
+                            <span>CACA</span>
+                        </div>
 
-        <button id="logoutButton" class="logout-button">
-            Çıkış yap
-        </button>
-    </header>
+                        <div class="dashboard-user">
+                            <div id="userAvatar" class="user-avatar">C</div>
 
-    <main id="dashboardView">
+                            <div>
+                                <strong id="welcomeUsername">User</strong>
+                                <span id="accountUsername" class="sr-only"></span>
+                            </div>
+                        </div>
 
-        <div class="dashboard-heading">
-            <span class="small-label">YOUR CHAT SPACE</span>
-            <h2>Nasıl devam etmek istersin?</h2>
-            <p>Yeni bir oda oluştur veya arkadaşının odasına katıl.</p>
-        </div>
+                        <button id="logoutButton" class="logout-button">
+                            Çıkış yap
+                        </button>
 
-        <div class="room-actions">
+                    </header>
 
-            <form id="createRoomForm" class="room-action-card">
-                <div class="action-icon">+</div>
-                <h3>Oda kur</h3>
-                <p>Kendi sohbet odanı oluştur ve arkadaşlarını davet et.</p>
+                    <!-- MAIN DASHBOARD -->
 
-                <label for="newRoomName">Oda adı</label>
-                <input
-                    id="newRoomName"
-                    type="text"
-                    placeholder="Örn. Arkadaşlar"
-                    maxlength="30"
-                    required
-                >
+                    <main id="dashboardView">
 
-                <button type="submit" class="primary-button">
-                    Oda oluştur
-                </button>
-            </form>
+                        <div class="dashboard-heading">
+                            <span class="small-label">YOUR CHAT SPACE</span>
+                            <h2>Nasıl devam etmek istersin?</h2>
+                            <p>Yeni bir oda oluştur veya arkadaşının odasına katıl.</p>
+                        </div>
 
-            <form id="joinRoomForm" class="room-action-card">
-                <div class="action-icon">→</div>
-                <h3>Odaya katıl</h3>
-                <p>Arkadaşının gönderdiği davet kodunu kullan.</p>
+                        <div class="room-actions">
 
-                <label for="roomInviteCode">Davet kodu</label>
-                <input
-                    id="roomInviteCode"
-                    type="text"
-                    placeholder="Örn. AB23CD45"
-                    maxlength="8"
-                    minlength="8"
-                    required
-                >
+                            <form id="createRoomForm" class="room-action-card">
 
-                <button type="submit" class="primary-button">
-                    Odaya katıl
-                </button>
-            </form>
+                                <div class="action-icon">+</div>
 
-        </div>
+                                <h3>Oda kur</h3>
 
-        <section class="my-rooms">
-            <div class="section-heading">
-                <div>
-                    <span class="small-label">YOUR COLLECTION</span>
-                    <h3>Odalarım</h3>
+                                <p>
+                                    Kendi sohbet odanı oluştur ve arkadaşlarını davet et.
+                                </p>
+
+                                <label for="newRoomName">Oda adı</label>
+
+                                <input
+                                    id="newRoomName"
+                                    type="text"
+                                    placeholder="Örn. Arkadaşlar"
+                                    maxlength="30"
+                                    required
+                                >
+
+                                <button type="submit" class="primary-button">
+                                    Oda oluştur
+                                </button>
+
+                            </form>
+
+                            <form id="joinRoomForm" class="room-action-card">
+
+                                <div class="action-icon">→</div>
+
+                                <h3>Odaya katıl</h3>
+
+                                <p>
+                                    Arkadaşının gönderdiği davet kodunu kullan.
+                                </p>
+
+                                <label for="roomInviteCode">Davet kodu</label>
+
+                                <input
+                                    id="roomInviteCode"
+                                    type="text"
+                                    placeholder="Örn. AB23CD45"
+                                    maxlength="8"
+                                    minlength="8"
+                                    required
+                                >
+
+                                <button type="submit" class="primary-button">
+                                    Odaya katıl
+                                </button>
+
+                            </form>
+
+                        </div>
+
+                        <section class="my-rooms">
+
+                            <div class="section-heading">
+                                <div>
+                                    <span class="small-label">YOUR COLLECTION</span>
+                                    <h3>Odalarım</h3>
+                                </div>
+
+                                <span id="roomCount" class="room-count">0 oda</span>
+                            </div>
+
+                            <div id="roomsList" class="rooms-list">
+                                <p class="empty-rooms">Henüz bir odan yok.</p>
+                            </div>
+
+                        </section>
+
+                        <p
+                            id="roomMessage"
+                            class="status-message"
+                            role="status"
+                            aria-live="polite"
+                        ></p>
+
+                    </main>
+
+                    <!-- ROOM DETAIL -->
+
+                    <section id="roomView" hidden>
+
+                        <button id="backToDashboard" class="back-button">
+                            ← Odalarıma dön
+                        </button>
+
+                        <div class="room-detail-header">
+
+                            <span class="small-label">YOUR ROOM</span>
+
+                            <h2 id="activeRoomName">Oda adı</h2>
+
+                            <p>Bu odanın davet kodu:</p>
+
+                            <div class="invite-code-box">
+                                <code id="activeRoomCode"></code>
+
+                                <button id="copyRoomCode" type="button">
+                                    Kopyala
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <section class="members-section">
+
+                            <h3 id="membersHeading">Oda üyeleri (0)</h3>
+
+                            <div id="membersList" class="members-list"></div>
+
+                        </section>
+
+                        <section class="coming-soon">
+
+                            <span class="small-label">COMING NEXT</span>
+
+                            <h3>Genel Sohbet</h3>
+
+                            <p>
+                                Bir sonraki aşamada burada gerçek zamanlı mesajlaşma olacak.
+                            </p>
+
+                        </section>
+
+                    </section>
+
+                    <p
+                        id="appMessage"
+                        class="status-message"
+                        role="status"
+                        aria-live="polite"
+                    ></p>
+
                 </div>
-                <span id="roomCount" class="room-count">0 oda</span>
-            </div>
-
-            <div id="roomsList" class="rooms-list">
-                <p class="empty-rooms">Henüz bir odan yok.</p>
-            </div>
-        </section>
-
-        <p id="roomMessage" class="status-message" role="status"></p>
-
-    </main>
-
-    <section id="roomView" hidden>
-
-        <button id="backToDashboard" class="back-button">
-            ← Odalarıma dön
-        </button>
-
-        <div class="room-detail-header">
-            <span class="small-label">YOUR ROOM</span>
-            <h2 id="activeRoomName">Oda adı</h2>
-            <p>Bu odanın davet kodu:</p>
-
-            <div class="invite-code-box">
-                <code id="activeRoomCode"></code>
-                <button id="copyRoomCode" type="button">
-                    Kopyala
-                </button>
-            </div>
-        </div>
-
-        <section class="members-section">
-            <h3>Oda üyeleri</h3>
-            <div id="membersList" class="members-list"></div>
-        </section>
-
-        <section class="coming-soon">
-            <span class="small-label">COMING NEXT</span>
-            <h3>Genel Sohbet</h3>
-            <p>Bir sonraki aşamada burada gerçek zamanlı mesajlaşma olacak.</p>
-        </section>
-
-    </section>
-
-    <p id="appMessage" class="status-message" role="status"></p>
-
-</div>
 
             </div>
+
         </section>
 
     </main>
 
+    <!-- AUTH SYSTEM -->
     <script type="module" src="./js/app.js"></script>
+
+    <!-- ROOM SYSTEM -->
     <script type="module" src="./js/rooms-ui.js"></script>
 
 </body>
