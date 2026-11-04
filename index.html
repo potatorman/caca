@@ -333,9 +333,27 @@
                             <input id="settingsUsername" type="text" readonly>
 
                             <p class="settings-note">
-                                Kullanıcı adın aynı zamanda giriş kimliğin. Giriş sistemini bozmamak için
-                                şimdilik buradan değiştirilemiyor.
+                                Kullanıcı adın giriş yapmak için kullanılır ve sabit kalır.
                             </p>
+
+                            <form id="nicknameForm" class="settings-form">
+                                <label for="nicknameInput">Nickname (takma ad)</label>
+                                <input
+                                    id="nicknameInput"
+                                    type="text"
+                                    minlength="2"
+                                    maxlength="24"
+                                    placeholder="Sohbette görünecek adın"
+                                    autocomplete="nickname"
+                                    required
+                                >
+                                <p class="settings-note">
+                                    Diğer kullanıcılar seni bu adla görür. 2-24 karakter kullanabilirsin.
+                                </p>
+                                <button type="submit" class="primary-button">
+                                    Nickname'i kaydet
+                                </button>
+                            </form>
                         </section>
 
                         <section class="settings-card">
