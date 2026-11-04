@@ -3520,3 +3520,110 @@ body.logged-in .auth-card {
         flex-wrap: wrap;
     }
 }
+
+
+/* Centered, high-visibility moderation feedback */
+.moderation-notice-dialog {
+    width: min(470px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100vh - 32px);
+    margin: auto;
+    padding: 0;
+    overflow: visible;
+    color: #edf4ff;
+    background: transparent;
+    border: 0;
+    outline: none;
+}
+.moderation-notice-dialog::backdrop {
+    background: rgba(3, 8, 16, .78);
+    backdrop-filter: blur(5px);
+}
+.moderation-notice-dialog[open] {
+    animation: moderation-notice-enter .18s ease-out;
+}
+@keyframes moderation-notice-enter {
+    from { opacity: 0; transform: translateY(9px) scale(.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.moderation-notice-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    padding: 30px 28px 26px;
+    text-align: center;
+    background: linear-gradient(155deg, #18263a, #101a2a 72%);
+    border: 1px solid #3c5678;
+    border-radius: 20px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .58);
+}
+.moderation-notice-symbol {
+    display: grid;
+    width: 54px;
+    height: 54px;
+    place-items: center;
+    color: #e7f1ff;
+    background: #2d4f76;
+    border: 1px solid #5378a5;
+    border-radius: 17px;
+    font-size: 27px;
+    font-weight: 800;
+}
+.moderation-notice-card[data-kind="success"] .moderation-notice-symbol {
+    color: #b9f6d0;
+    background: #173d36;
+    border-color: #347e68;
+}
+.moderation-notice-card[data-kind="ban"] .moderation-notice-symbol {
+    color: #ffd0d4;
+    background: #512832;
+    border-color: #96505d;
+}
+.moderation-notice-card[data-kind="error"] .moderation-notice-symbol {
+    color: #ffe1b3;
+    background: #49351f;
+    border-color: #88643a;
+}
+.moderation-notice-eyebrow {
+    color: #91a9c8;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2px;
+}
+.moderation-notice-card h2 {
+    color: #f4f7fc;
+    font-size: 21px;
+    line-height: 1.3;
+}
+.moderation-notice-body {
+    width: 100%;
+    color: #c4d1e2;
+    font-size: 13px;
+    line-height: 1.75;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+.moderation-notice-close {
+    min-width: 125px;
+    min-height: 40px;
+    margin-top: 5px;
+    padding: 0 22px;
+    color: white;
+    background: #356db0;
+    border: 1px solid #548bd0;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 800;
+    transition: background .15s ease, transform .15s ease;
+}
+.moderation-notice-close:hover {
+    background: #4381c9;
+    transform: translateY(-1px);
+}
+@media (max-width: 480px) {
+    .moderation-notice-card { padding: 25px 19px 21px; }
+    .moderation-notice-card h2 { font-size: 19px; }
+}
