@@ -908,6 +908,24 @@ let emojiAutocompleteItems = [];
 let emojiAutocompleteIndex = 0;
 let emojiAutocompleteRange = null;
 
+function emojiAliasDistance(left, right) {
+    if (Math.abs(left.length - right.length) > 2) return 3;
+
+    let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+    for (let row = 1; row <= left.length; row++) {
+        const current = [row];
+        for (let column = 1; column <= right.length; column++) {
+            current[column] = Math.min(
+                current[column - 1] + 1,
+                previous[column] + 1,
+                previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1)
+            );
+        }
+        previous = current;
+    }
+    return previous[right.length];
+}
+
 function emojiMatchScore(item, query) {
     const aliases = item.aliases.map(alias => alias.toLowerCase());
     const name = item.name.toLowerCase();
@@ -919,13 +937,18 @@ function emojiMatchScore(item, query) {
     if (tags.some(tag => tag.startsWith(query))) return 3;
     if (aliases.some(alias => alias.includes(query))) return 4;
     if (name.includes(query) || tags.some(tag => tag.includes(query))) return 5;
+
+    if (query.length >= 3) {
+        const distance = Math.min(...aliases.map(alias => emojiAliasDistance(alias, query)));
+        if (distance <= 2) return 6 + distance;
+    }
     return 99;
 }
 
 function renderEmojiAutocomplete() {
     const cursor = chatInput.selectionStart ?? chatInput.value.length;
     const beforeCursor = chatInput.value.slice(0, cursor);
-    const match = beforeCursor.match(/(^|\\s):([a-z0-9_+-]{1,32})$/i);
+    const match = beforeCursor.match(/(^|\s):([a-z0-9_+-]{1,32})$/i);
 
     if (!match) {
         closeEmojiAutocomplete();
