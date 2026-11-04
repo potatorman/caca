@@ -27,9 +27,10 @@ const loginTab = $("loginTab");
 const registerTab = $("registerTab");
 
 const authMessage = $("authMessage");
-const appMessage = $("appMessage");
 
 let registrationInProgress = false;
+
+// USERNAME
 
 function validateUsername(value) {
     const username = value.trim();
@@ -47,16 +48,20 @@ function usernameToEmail(username) {
     return `${username.toLowerCase()}@caca-dfe6.firebaseapp.com`;
 }
 
-function showAuthMessage(message, type = "error") {
+// MESSAGES
+
+function showAuthMessage(message, success = false) {
     authMessage.textContent = message;
     authMessage.className = "status-message";
 
-    if (type === "success") {
+    if (success) {
         authMessage.classList.add("success");
     }
 }
 
 function friendlyError(error) {
+    console.error(error);
+
     switch (error.code) {
         case "auth/email-already-in-use":
             return "Bu kullanıcı adı zaten alınmış.";
@@ -76,7 +81,6 @@ function friendlyError(error) {
             return "İnternet bağlantını kontrol et.";
 
         default:
-            console.error(error);
             return error.message || "Bir hata oluştu.";
     }
 }
@@ -85,29 +89,60 @@ function setLoading(form, loading, normalText) {
     const button = form.querySelector('button[type="submit"]');
 
     button.disabled = loading;
-    button.textContent = loading ? "Lütfen bekle..." : normalText;
+    button.textContent = loading
+        ? "Lütfen bekle..."
+        : normalText;
 }
+
+// SHOW DASHBOARD
 
 function showLoggedIn(username) {
-    $("welcomeUsername").textContent = username;
-    $("accountUsername").textContent = username;
-    $("userAvatar").textContent = username.charAt(0).toUpperCase();
 
-    // Hide login and left branding panel.
+    $("welcomeUsername").textContent = username;
+
+    $("accountUsername").textContent = username;
+
+    $("userAvatar").textContent =
+        username.charAt(0).toUpperCase();
+
+    // Hide login screen
     authView.hidden = true;
+
+    // Show dashboard
     appView.hidden = false;
 
-    // IMPORTANT: This class hides the left Conversations panel.
+    // Hide left branding panel
     document.body.classList.add("logged-in");
+
+    console.log("CACA: Dashboard opened.");
 }
 
+// SHOW LOGIN
+
+function showLoggedOut() {
+
+    authView.hidden = false;
+
+    appView.hidden = true;
+
+    // Restore left branding panel
+    document.body.classList.remove("logged-in");
+
+    console.log("CACA: Login screen opened.");
+}
+
+// SWITCH LOGIN / REGISTER
+
 function switchMode(mode) {
+
     const isLogin = mode === "login";
 
     loginForm.hidden = !isLogin;
+
     registerForm.hidden = isLogin;
 
     loginTab.classList.toggle("active", isLogin);
+
     registerTab.classList.toggle("active", !isLogin);
 
     $("formHeading").textContent = isLogin
@@ -122,16 +157,19 @@ function switchMode(mode) {
 }
 
 loginTab.addEventListener("click", () => switchMode("login"));
+
 registerTab.addEventListener("click", () => switchMode("register"));
 
 // REGISTER
 
 registerForm.addEventListener("submit", async (event) => {
+
     event.preventDefault();
 
     let newUser = null;
 
     try {
+
         const username = validateUsername(
             $("registerUsername").value
         );
@@ -144,7 +182,7 @@ registerForm.addEventListener("submit", async (event) => {
 
         setLoading(registerForm, true, "Hesap oluştur");
 
-        showAuthMessage("Hesabın oluşturuluyor...", "success");
+        showAuthMessage("Hesabın oluşturuluyor...", true);
 
         registrationInProgress = true;
 
@@ -156,11 +194,14 @@ registerForm.addEventListener("submit", async (event) => {
 
         newUser = credential.user;
 
-        await setDoc(doc(db, "users", newUser.uid), {
-            username: username,
-            usernameLower: username.toLowerCase(),
-            createdAt: serverTimestamp()
-        });
+        await setDoc(
+            doc(db, "users", newUser.uid),
+            {
+                username: username,
+                usernameLower: username.toLowerCase(),
+                createdAt: serverTimestamp()
+            }
+        );
 
         registerForm.reset();
 
@@ -181,7 +222,9 @@ registerForm.addEventListener("submit", async (event) => {
         );
 
     } finally {
+
         registrationInProgress = false;
+
         setLoading(registerForm, false, "Hesap oluştur");
     }
 });
@@ -189,9 +232,11 @@ registerForm.addEventListener("submit", async (event) => {
 // LOGIN
 
 loginForm.addEventListener("submit", async (event) => {
+
     event.preventDefault();
 
     try {
+
         const username = validateUsername(
             $("loginUsername").value
         );
@@ -200,7 +245,7 @@ loginForm.addEventListener("submit", async (event) => {
 
         setLoading(loginForm, true, "Giriş yap");
 
-        showAuthMessage("Giriş yapılıyor...", "success");
+        showAuthMessage("Giriş yapılıyor...", true);
 
         await signInWithEmailAndPassword(
             auth,
@@ -217,28 +262,28 @@ loginForm.addEventListener("submit", async (event) => {
         );
 
     } finally {
+
         setLoading(loginForm, false, "Giriş yap");
     }
 });
 
-// AUTH STATE
+// FIREBASE AUTH STATE
 
 onAuthStateChanged(auth, async (user) => {
 
     if (registrationInProgress) return;
 
     if (!user) {
-        authView.hidden = false;
-        appView.hidden = true;
 
-        // Show the left branding panel again.
-        document.body.classList.remove("logged-in");
+        showLoggedOut();
 
         return;
     }
 
     try {
+
         const userRef = doc(db, "users", user.uid);
+
         const userSnapshot = await getDoc(userRef);
 
         if (!userSnapshot.exists()) {
@@ -250,9 +295,10 @@ onAuthStateChanged(auth, async (user) => {
         showLoggedIn(username);
 
     } catch (error) {
-        console.error("Profile loading error:", error);
 
-        showAuthMessage("Profil yüklenemedi: " + error.message);
+        showAuthMessage(
+            "Profil yüklenemedi: " + error.message
+        );
 
         await signOut(auth);
     }
@@ -261,14 +307,19 @@ onAuthStateChanged(auth, async (user) => {
 // LOGOUT
 
 $("logoutButton").addEventListener("click", async () => {
+
     try {
+
         await signOut(auth);
-        document.body.classList.remove("logged-in");
 
     } catch (error) {
+
         console.error(error);
-        $("appMessage").textContent = friendlyError(error);
+
+        showAuthMessage(friendlyError(error));
     }
 });
+
+// INITIAL SCREEN
 
 switchMode("login");
