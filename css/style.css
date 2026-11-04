@@ -2164,3 +2164,197 @@ body.logged-in .auth-card {
     }
 }
 
+
+
+/* BUILT-IN AVATARS — NO FILE UPLOAD OR STORAGE BILLING */
+.user-avatar[data-avatar-id],
+.message-avatar[data-avatar-id],
+.member-avatar[data-avatar-id],
+.avatar-choice[data-avatar-id] {
+    display: grid;
+    place-items: center;
+    line-height: 1;
+    user-select: none;
+}
+
+.user-avatar[data-avatar-id] {
+    font-size: 22px;
+    border-radius: 13px;
+    border: 1px solid rgba(255,255,255,.13);
+}
+
+.message-avatar[data-avatar-id] {
+    font-size: 19px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.12);
+}
+
+.member-avatar[data-avatar-id] {
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    font-size: 19px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 11px;
+}
+
+[data-avatar-id="fox"] {
+    background: linear-gradient(145deg, #75462b, #422b27) !important;
+}
+[data-avatar-id="panda"] {
+    background: linear-gradient(145deg, #4c5c70, #263242) !important;
+}
+[data-avatar-id="cat"] {
+    background: linear-gradient(145deg, #844d74, #4b304b) !important;
+}
+[data-avatar-id="frog"] {
+    background: linear-gradient(145deg, #376f56, #234536) !important;
+}
+[data-avatar-id="penguin"] {
+    background: linear-gradient(145deg, #426c8c, #263f59) !important;
+}
+[data-avatar-id="bear"] {
+    background: linear-gradient(145deg, #80603a, #493826) !important;
+}
+[data-avatar-id="octopus"] {
+    background: linear-gradient(145deg, #7052a0, #40315e) !important;
+}
+[data-avatar-id="owl"] {
+    background: linear-gradient(145deg, #7e673d, #4a402b) !important;
+}
+[data-avatar-id="wolf"] {
+    background: linear-gradient(145deg, #53677f, #303e50) !important;
+}
+[data-avatar-id="tiger"] {
+    background: linear-gradient(145deg, #9a592d, #5b3926) !important;
+}
+[data-avatar-id="raccoon"] {
+    background: linear-gradient(145deg, #397b78, #244c50) !important;
+}
+[data-avatar-id="dragon"] {
+    background: linear-gradient(145deg, #8b405b, #542b4a) !important;
+}
+
+/* Avatar selection in account settings */
+.avatar-picker-section {
+    margin: 0 0 19px;
+    padding: 16px;
+    background: #0f1a28;
+    border: 1px solid #283b54;
+    border-radius: 12px;
+}
+
+.avatar-picker-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.avatar-picker-heading label {
+    margin: 0 !important;
+    color: #dce8f8 !important;
+    font-size: 12px !important;
+}
+
+.avatar-picker-current {
+    color: #91baff;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.avatar-picker {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(42px, 1fr));
+    gap: 9px;
+}
+
+.avatar-choice {
+    display: grid;
+    width: 100%;
+    aspect-ratio: 1;
+    min-width: 0;
+    place-items: center;
+    color: white;
+    background: #1b2b40;
+    border: 2px solid transparent;
+    border-radius: 13px;
+    cursor: pointer;
+    font-size: 25px;
+    transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.avatar-choice:hover {
+    transform: translateY(-2px);
+    border-color: #638fc8;
+}
+
+.avatar-choice.selected,
+.avatar-choice[aria-pressed="true"] {
+    border-color: #76adff;
+    box-shadow: 0 0 0 3px rgba(66, 137, 242, .17), 0 5px 15px rgba(0,0,0,.2);
+}
+
+.avatar-choice:disabled {
+    opacity: .55;
+    cursor: wait;
+}
+
+.avatar-picker-section .settings-note {
+    margin-top: 11px;
+    font-size: 11px;
+}
+
+/* Room member avatars */
+.member-item {
+    justify-content: flex-start;
+}
+
+.member-item .member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.member-item .member-actions {
+    margin-left: auto;
+}
+
+.banned-user-item {
+    flex-direction: row;
+    align-items: center;
+}
+
+.banned-user-item .member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Consecutive messages from the same person are visually grouped. */
+.message-row.grouped {
+    margin-top: -7px;
+}
+
+.message-row.grouped .message-avatar {
+    visibility: hidden;
+}
+
+.message-row.grouped .message-content {
+    gap: 0;
+}
+
+.message-row.grouped .message-bubble {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.message-row.mine.grouped .message-bubble {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+@media (max-width: 520px) {
+    .avatar-picker {
+        grid-template-columns: repeat(4, minmax(42px, 1fr));
+    }
+}
