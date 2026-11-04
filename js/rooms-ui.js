@@ -245,7 +245,7 @@ function updateLiveProfileUI(userId, profile) {
         : DEFAULT_AVATAR_ID;
     const avatarData = profile?.avatarData || null;
 
-    for (const list of [$("membersList"), $("bannedList")]) {
+    for (const list of [$("membersList"), $("bannedList"), $("roomAdminsList")]) {
         if (!list) continue;
 
         const item = Array.from(
@@ -257,7 +257,7 @@ function updateLiveProfileUI(userId, profile) {
         const avatar = item.querySelector(".member-avatar");
         if (avatar) setAvatarElement(avatar, avatarId, avatarData);
 
-        const nickname = item.querySelector(".member-display-name");
+        const nickname = item.querySelector(".member-display-name, .room-admin-info strong");
         if (nickname) nickname.textContent = displayNickname;
 
         const username = item.querySelector(".member-account-username");
@@ -2062,7 +2062,7 @@ function listenToBannedMembers(roomId) {
 
             section.hidden = false;
             list.replaceChildren();
-            heading.textContent = `Banlı kullanıcılar (${snapshot.size})`;
+            heading.textContent = `${snapshot.size} kişi`;
 
             if (snapshot.empty) {
                 const empty = document.createElement("p");
