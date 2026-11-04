@@ -2358,6 +2358,329 @@ body.logged-in .auth-card {
     gap: 7px;
 }
 
+/* Refined Discord-style room member list */
+.members-panel {
+    gap: 0;
+    padding: 15px 12px 12px;
+    background:
+        radial-gradient(ellipse at 100% 0%, rgba(51, 105, 177, .09), transparent 44%),
+        #101925;
+}
+
+.members-panel-heading {
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 2px 2px 12px;
+}
+
+.members-panel-heading .small-label {
+    color: #769bd0;
+    font-size: 8px;
+    font-weight: 750;
+    letter-spacing: 1.5px;
+}
+
+.members-heading-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.members-panel-heading .members-heading-row h3 {
+    margin: 0;
+    color: #edf4ff;
+    font-size: 15px;
+    font-weight: 750;
+}
+
+.members-count {
+    display: inline-flex;
+    min-width: 22px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    color: #b8d4fa;
+    background: #203b5d;
+    border: 1px solid #355b87;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+}
+
+.members-search {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    margin: 0 0 13px;
+    padding: 0 9px;
+    color: #8194ad;
+    background: #0b1420;
+    border: 1px solid #293b52;
+    border-radius: 8px;
+    transition: border-color .15s ease, background .15s ease;
+}
+
+.members-search:focus-within {
+    background: #0d1826;
+    border-color: #3979d8;
+}
+
+.members-search > span {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.members-search input {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    height: 32px;
+    padding: 0;
+    color: #e8f1ff;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    font-size: 10px;
+}
+
+.members-search input::placeholder {
+    color: #71839a;
+}
+
+.members-search kbd {
+    display: inline-grid;
+    min-width: 17px;
+    height: 18px;
+    place-items: center;
+    color: #8193aa;
+    background: #1a293c;
+    border: 1px solid #2a405b;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 9px;
+}
+
+.members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    min-height: 0;
+}
+
+.member-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.member-group[hidden] {
+    display: none !important;
+}
+
+.member-group-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1px 4px 3px;
+    color: #8498b2;
+}
+
+.member-group-heading span {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+}
+
+.member-group-heading strong {
+    color: #7488a2;
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+}
+
+.member-group-items {
+    display: grid;
+    gap: 4px;
+}
+
+.member-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 9px;
+    padding: 7px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    transition: background .14s ease, border-color .14s ease, transform .14s ease;
+}
+
+.member-item:hover {
+    background: #19283a;
+    border-color: #2a405b;
+    transform: translateY(-1px);
+}
+
+.member-item.owner {
+    background: linear-gradient(100deg, rgba(55, 105, 167, .13), transparent 92%);
+}
+
+.member-item.is-self {
+    border-color: rgba(66, 132, 218, .24);
+}
+
+.member-item .member-avatar {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .2);
+}
+
+.member-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.member-name-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-width: 0;
+}
+
+.member-info .member-display-name {
+    max-width: 100%;
+    overflow: hidden;
+    color: #e9f1fc;
+    font-size: 11px;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.member-info .member-account-username {
+    margin-top: 3px;
+    overflow: hidden;
+    color: #7e91aa;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.member-badge {
+    flex: 0 0 auto;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 8px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.member-badge.owner-badge {
+    color: #f4d69a;
+    background: rgba(150, 104, 35, .2);
+    border: 1px solid rgba(191, 142, 62, .3);
+}
+
+.member-badge.self-badge {
+    color: #a8ceff;
+    background: rgba(49, 111, 185, .18);
+    border: 1px solid rgba(73, 139, 216, .28);
+}
+
+.member-role {
+    display: none;
+}
+
+.member-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 3px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .14s ease;
+}
+
+.member-item:hover .member-actions,
+.member-item:focus-within .member-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.member-action-button {
+    display: grid;
+    width: 25px;
+    height: 25px;
+    place-items: center;
+    padding: 0;
+    color: #a7bbd4;
+    background: #20334b;
+    border: 1px solid #344d6d;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.member-action-button:hover {
+    color: #ffffff;
+    background: #2c4b70;
+}
+
+.member-action-button.ban {
+    color: #efadb5;
+    background: #3a2630;
+    border-color: #60404a;
+}
+
+.member-action-button.ban:hover {
+    background: #5a303c;
+}
+
+.member-search-empty {
+    margin: 0;
+    padding: 19px 9px;
+    color: #8294ad;
+    text-align: center;
+    font-size: 10px;
+}
+
+@media (hover: none) {
+    .member-actions {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
+@media (max-width: 1150px) {
+    .member-item {
+        gap: 6px;
+        padding: 6px 5px;
+    }
+
+    .member-item .member-avatar {
+        flex-basis: 34px;
+        width: 34px;
+        height: 34px;
+    }
+
+    .member-actions {
+        gap: 2px;
+    }
+
+    .member-action-button {
+        width: 23px;
+        height: 23px;
+    }
+}
+
 .banned-user-item {
     display: flex;
     flex-direction: column;
