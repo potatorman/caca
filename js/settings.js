@@ -25,6 +25,8 @@ let currentUsername = "";
 let currentNickname = "";
 let currentAvatarId = DEFAULT_AVATAR_ID;
 let pendingAvatarId = DEFAULT_AVATAR_ID;
+let currentAvatarData = null;
+let pendingAvatarData = null;
 let accountActionInProgress = false;
 
 // MESSAGES
@@ -82,22 +84,94 @@ function reauthenticateUser(user, password) {
     return reauthenticateWithCredential(user, credential);
 }
 
-// Keep the selected avatar and its accessible state in sync.
+// Crop the chosen picture into a centered 128x128 JPEG and compress it
+// locally, avoiding Firebase Storage and external image services.
+async function createProfilePhotoData(file) {
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+    if (!file || !allowedTypes.includes(file.type)) {
+        throw new Error("JPG, PNG veya WebP formatında bir fotoğraf seç.");
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+        throw new Error("Seçtiğin dosya 10 MB'tan küçük olmalı.");
+    }
+
+    if (typeof createImageBitmap !== "function") {
+        throw new Error("Tarayıcın fotoğraf düzenlemeyi desteklemiyor. Güncel bir tarayıcı kullan.");
+    }
+
+    const bitmap = await createImageBitmap(file);
+
+    try {
+        const sourceSide = Math.min(bitmap.width, bitmap.height);
+        const sourceX = Math.floor((bitmap.width - sourceSide) / 2);
+        const sourceY = Math.floor((bitmap.height - sourceSide) / 2);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 128;
+        canvas.height = 128;
+
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) {
+            throw new Error("Fotoğraf düzenleyici başlatılamadı.");
+        }
+
+        context.fillStyle = "#172334";
+        context.fillRect(0, 0, 128, 128);
+        context.drawImage(
+            bitmap,
+            sourceX,
+            sourceY,
+            sourceSide,
+            sourceSide,
+            0,
+            0,
+            128,
+            128
+        );
+
+        let quality = 0.82;
+        let dataUrl = canvas.toDataURL("image/jpeg", quality);
+
+        while (dataUrl.length > 85000 && quality > 0.42) {
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL("image/jpeg", quality);
+        }
+
+        if (dataUrl.length > 90000) {
+            throw new Error("Fotoğraf sıkıştırılamadı. Daha küçük bir fotoğraf dene.");
+        }
+
+        return dataUrl;
+    } finally {
+        if (typeof bitmap.close === "function") bitmap.close();
+    }
+}
+
+// Keep the selected emoji/photo and its accessible state in sync.
 function renderAvatarPicker() {
     const selectedAvatar = AVATARS[pendingAvatarId] || AVATARS[DEFAULT_AVATAR_ID];
-    $("avatarPickerCurrent").textContent = selectedAvatar.label;
+    $("avatarPickerCurrent").textContent =
+        pendingAvatarData ? "Özel fotoğraf" : selectedAvatar.label;
 
     document.querySelectorAll("#avatarPicker [data-avatar-id]").forEach((button) => {
-        const selected = button.dataset.avatarId === pendingAvatarId;
+        const selected =
+            !pendingAvatarData && button.dataset.avatarId === pendingAvatarId;
+
         button.classList.toggle("selected", selected);
         button.setAttribute("aria-pressed", String(selected));
     });
 
+    setAvatarElement($("avatarPickerPreview"), pendingAvatarId, pendingAvatarData);
+
+    const hasChanges =
+        pendingAvatarId !== currentAvatarId ||
+        pendingAvatarData !== currentAvatarData;
+
     const saveButton = $("saveAvatarButton");
-    saveButton.disabled =
-        accountActionInProgress || pendingAvatarId === currentAvatarId;
-    saveButton.textContent =
-        pendingAvatarId === currentAvatarId ? "Avatar güncel" : "Avatarı kaydet";
+    saveButton.disabled = accountActionInProgress || !hasChanges;
+    saveButton.textContent = hasChanges ? "Değişikliği kaydet" : "Avatar güncel";
 }
 
 // SETTINGS NAVIGATION
@@ -126,6 +200,8 @@ onAuthStateChanged(auth, async (user) => {
         currentNickname = "";
         currentAvatarId = DEFAULT_AVATAR_ID;
         pendingAvatarId = DEFAULT_AVATAR_ID;
+        currentAvatarData = null;
+        pendingAvatarData = null;
         $("settingsUsername").value = "";
         $("nicknameInput").value = "";
         renderAvatarPicker();
@@ -144,6 +220,9 @@ onAuthStateChanged(auth, async (user) => {
         currentNickname = profile.nickname || currentUsername;
         currentAvatarId = AVATARS[profile.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID;
         pendingAvatarId = currentAvatarId;
+        currentAvatarData =
+            typeof profile.avatarData === "string" ? profile.avatarData : null;
+        pendingAvatarData = currentAvatarData;
 
         $("settingsUsername").value = currentUsername;
         $("nicknameInput").value = currentNickname;
@@ -163,6 +242,7 @@ $("avatarPicker").addEventListener("click", (event) => {
     if (!AVATARS[avatarId]) return;
 
     pendingAvatarId = avatarId;
+    pendingAvatarData = null;
     renderAvatarPicker();
 
     const status = $("avatarSaveMessage");
@@ -176,18 +256,52 @@ $("avatarPicker").addEventListener("click", (event) => {
 });
 
 
+// CHOOSE AND COMPRESS A CUSTOM PROFILE PHOTO
+
+$("avatarImageInput").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || accountActionInProgress) return;
+
+    const status = $("avatarSaveMessage");
+    accountActionInProgress = true;
+    renderAvatarPicker();
+    status.textContent = "Fotoğraf 128×128 boyutuna hazırlanıyor...";
+    status.className = "avatar-save-status saving";
+
+    try {
+        pendingAvatarData = await createProfilePhotoData(file);
+        renderAvatarPicker();
+        status.textContent =
+            "Fotoğraf hazır. Uygulamak için Değişikliği kaydet'e bas.";
+        status.className = "avatar-save-status";
+    } catch (error) {
+        pendingAvatarData = currentAvatarData;
+        renderAvatarPicker();
+        status.textContent = error.message || "Fotoğraf hazırlanamadı.";
+        status.className = "avatar-save-status error";
+    } finally {
+        accountActionInProgress = false;
+        $("avatarImageInput").value = "";
+        renderAvatarPicker();
+    }
+});
+
 // SAVE PROFILE AVATAR
 
-function publishAvatarChange(avatarId) {
+function publishAvatarChange(avatarId, avatarData = null) {
     document.dispatchEvent(
         new CustomEvent("caca:avatar-changed", {
-            detail: { avatarId }
+            detail: { avatarId, avatarData }
         })
     );
 }
 
 $("saveAvatarButton").addEventListener("click", async () => {
-    if (accountActionInProgress || pendingAvatarId === currentAvatarId) return;
+    const hasChanges =
+        pendingAvatarId !== currentAvatarId ||
+        pendingAvatarData !== currentAvatarData;
+
+    if (accountActionInProgress || !hasChanges) return;
 
     const user = auth.currentUser;
     if (!user) {
@@ -198,7 +312,9 @@ $("saveAvatarButton").addEventListener("click", async () => {
     }
 
     const previousAvatarId = currentAvatarId;
+    const previousAvatarData = currentAvatarData;
     const nextAvatarId = pendingAvatarId;
+    const nextAvatarData = pendingAvatarData;
 
     if (!AVATARS[nextAvatarId]) return;
 
@@ -212,14 +328,18 @@ $("saveAvatarButton").addEventListener("click", async () => {
     // Show the new avatar immediately. Roll it back if Firestore rejects
     // the update, so the interface never silently displays an unsaved choice.
     currentAvatarId = nextAvatarId;
-    publishAvatarChange(nextAvatarId);
+    currentAvatarData = nextAvatarData;
+    publishAvatarChange(nextAvatarId, nextAvatarData);
 
     try {
         await updateDoc(doc(db, "users", user.uid), {
-            avatarId: nextAvatarId
+            avatarId: nextAvatarId,
+            avatarData: nextAvatarData
         });
 
-        status.textContent = `${AVATARS[nextAvatarId].label} avatarın kaydedildi.`;
+        status.textContent = nextAvatarData
+            ? "Profil fotoğrafın kaydedildi."
+            : `${AVATARS[nextAvatarId].label} avatarın kaydedildi.`;
         status.className = "avatar-save-status success";
         showSettingsMessage("Profil avatarın güncellendi.", true);
     } catch (error) {
@@ -227,8 +347,10 @@ $("saveAvatarButton").addEventListener("click", async () => {
 
         currentAvatarId = previousAvatarId;
         pendingAvatarId = previousAvatarId;
+        currentAvatarData = previousAvatarData;
+        pendingAvatarData = previousAvatarData;
         renderAvatarPicker();
-        publishAvatarChange(previousAvatarId);
+        publishAvatarChange(previousAvatarId, previousAvatarData);
 
         const detail = error.code
             ? `${error.code}: ${error.message || "İzin veya bağlantı hatası"}`
