@@ -2617,3 +2617,103 @@ body.logged-in .auth-card {
     margin: 0;
     line-height: 1.5;
 }
+
+
+/* ROOM MANAGEMENT PANEL */
+.room-management-button {
+    min-height: 37px; padding: 0 12px; color: #d7e7ff;
+    background: #203654; border: 1px solid #3b6294;
+    border-radius: 8px; font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.room-management-button:hover { background: #29486f; }
+.room-management-panel {
+    position: fixed; inset: 0; z-index: 1000; display: grid;
+    place-items: center; padding: 22px;
+    background: rgba(3, 8, 15, .76); backdrop-filter: blur(8px);
+}
+.room-management-panel[hidden] { display: none; }
+.room-management-card {
+    width: min(100%, 520px); padding: 23px; color: #e4edfa;
+    background: #111c2b; border: 1px solid #2c405b;
+    border-radius: 16px; box-shadow: 0 24px 80px rgba(0, 0, 0, .5);
+}
+.room-management-heading {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; padding-bottom: 20px;
+}
+.room-management-heading h3 { margin: 6px 0; font-size: 20px; }
+.room-management-heading p, .room-management-section p {
+    margin: 0; color: #899bb3; font-size: 12px; line-height: 1.6;
+}
+.room-management-section {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 18px; padding: 17px; background: #172538;
+    border: 1px solid #2a3e58; border-radius: 11px;
+}
+.room-management-section strong { display: block; margin-bottom: 5px; font-size: 13px; }
+.room-management-danger-button {
+    flex: 0 0 auto; min-height: 37px; padding: 0 12px;
+    color: #ffe2e4; background: #47252d; border: 1px solid #75404b;
+    border-radius: 8px; font-size: 11px; font-weight: 700;
+}
+.room-management-danger-button:hover { background: #5a2c36; }
+.room-management-danger-button:disabled { opacity: .55; cursor: wait; }
+.room-management-status {
+    min-height: 18px; margin: 12px 2px 0; color: #a8caff;
+    font-size: 11px; line-height: 1.5;
+}
+.message-content { position: relative; }
+.message-actions { position: absolute; z-index: 5; top: -13px; right: -2px; }
+.message-more-button {
+    display: grid; width: 29px; height: 27px; place-items: center;
+    color: #c9d8eb; background: #24364d; border: 1px solid #405a7a;
+    border-radius: 7px; font-size: 19px; line-height: 1; opacity: 0;
+    transition: opacity .14s ease, background .14s ease;
+}
+.message-row:hover .message-more-button,
+.message-actions:focus-within .message-more-button,
+.message-more-button[aria-expanded="true"] { opacity: 1; }
+.message-more-button:hover { color: white; background: #304b6d; }
+.message-action-menu {
+    position: absolute; top: 31px; right: 0; display: flex; min-width: 136px;
+    flex-direction: column; padding: 5px; background: #111d2c;
+    border: 1px solid #344a66; border-radius: 9px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, .38);
+}
+.message-action-menu[hidden] { display: none; }
+.message-action-menu button {
+    padding: 8px 10px; color: #dce8f7; background: transparent;
+    border: 0; border-radius: 6px; font-size: 11px; text-align: left;
+}
+.message-action-menu button:hover { background: #24364d; }
+.message-action-menu button.delete { color: #ffb9c0; }
+.message-action-menu button.delete:hover { background: #48262e; }
+.message-edited-label { margin: -1px 4px 0; color: #8295ae; font-size: 10px; }
+.message-edit-form {
+    display: flex; width: min(100%, 650px); flex-direction: column;
+    gap: 8px; padding: 10px; background: #111d2c;
+    border: 1px solid #3d5f89; border-radius: 10px;
+}
+.message-edit-form textarea {
+    width: 100%; min-height: 64px; max-height: 180px; resize: vertical;
+    padding: 9px 10px; color: #e7effa; background: #0c1522;
+    border: 1px solid #2d425d; border-radius: 7px;
+    font: inherit; font-size: 12px; line-height: 1.55;
+}
+.message-edit-footer, .message-edit-buttons { display: flex; align-items: center; }
+.message-edit-footer { justify-content: space-between; gap: 10px; }
+.message-edit-footer > span { color: #8193aa; font-size: 10px; }
+.message-edit-buttons { gap: 7px; }
+.message-edit-buttons button {
+    min-height: 29px; padding: 0 10px; border-radius: 6px;
+    font-size: 10px; font-weight: 700;
+}
+.message-edit-cancel { color: #c6d4e7; background: #233248; border: 1px solid #3b506c; }
+.message-edit-save { color: white; background: #2868bb; border: 1px solid #4182d2; }
+.message-edit-buttons button:disabled { opacity: .5; cursor: wait; }
+@media (hover: none) { .message-more-button { opacity: 1; } }
+@media (max-width: 720px) {
+    .room-toolbar-actions { flex-wrap: wrap; justify-content: flex-end; }
+    .room-management-section { align-items: stretch; flex-direction: column; }
+    .room-management-danger-button { width: 100%; }
+}
