@@ -125,7 +125,6 @@ function stopMemberListener() {
     activeRoomId = null;
     activeRoomOwnerId = null;
     if ($("roomManagementPanel")) $("roomManagementPanel").hidden = true;
-    if ($("roomManagementButton")) $("roomManagementButton").hidden = true;
 }
 
 // Resolve the current public profile so older membership/ban records
