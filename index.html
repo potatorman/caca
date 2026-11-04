@@ -270,7 +270,21 @@
                                             <textarea id="chatInput" rows="1" wrap="soft" maxlength="2000" placeholder="Mesajını yaz..." aria-label="Mesajını yaz" required></textarea>
                                             <div class="composer-footer">
                                                 <span>Enter gönderir · Shift + Enter yeni satır</span>
-                                                <button id="chatSendButton" type="submit" class="chat-send-button">Gönder <span aria-hidden="true">↑</span></button>
+                                                <div class="composer-actions">
+                                                    <div class="emoji-picker-wrap">
+                                                        <button id="emojiPickerButton" class="emoji-picker-button" type="button" aria-label="Emoji ekle" aria-expanded="false" aria-controls="emojiPicker" title="Emoji ekle">
+                                                            <span class="emoji-picker-face" aria-hidden="true"></span>
+                                                        </button>
+                                                        <div id="emojiPicker" class="emoji-picker" hidden>
+                                                            <div class="emoji-picker-heading">
+                                                                <strong>Emoji ekle</strong>
+                                                                <input id="emojiPickerSearch" type="search" placeholder="Emoji ara..." aria-label="Emoji ara">
+                                                            </div>
+                                                            <div id="emojiPickerGrid" class="emoji-picker-grid" role="group" aria-label="Emoji seçenekleri"></div>
+                                                        </div>
+                                                    </div>
+                                                    <button id="chatSendButton" type="submit" class="chat-send-button">Gönder <span aria-hidden="true">↑</span></button>
+                                                </div>
                                             </div>
                                         </form>
                                         <p id="chatStatus" class="chat-status" role="status" aria-live="polite"></p>
