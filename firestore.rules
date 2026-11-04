@@ -1,0 +1,391 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function roomPath(roomId) {
+      return /databases/$(database)/documents/rooms/$(roomId);
+    }
+
+    function memberPath(roomId, userId) {
+      return /databases/$(database)/documents/rooms/$(roomId)/members/$(userId);
+    }
+
+    function userRoomPath(userId, roomId) {
+      return /databases/$(database)/documents/users/$(userId)/rooms/$(roomId);
+    }
+
+    function banPath(roomId, userId) {
+      return /databases/$(database)/documents/rooms/$(roomId)/bans/$(userId);
+    }
+
+    function invitePath(inviteCode) {
+      return /databases/$(database)/documents/roomInvites/$(inviteCode);
+    }
+
+    function isRoomOwner(roomId) {
+      return signedIn()
+        && exists(roomPath(roomId))
+        && get(roomPath(roomId)).data.ownerId == request.auth.uid;
+    }
+
+    function isRoomMember(roomId) {
+      return signedIn()
+        && exists(memberPath(roomId, request.auth.uid))
+        && get(memberPath(roomId, request.auth.uid)).data.get('role', 'member')
+          in ['owner', 'member', 'admin'];
+    }
+
+    function isActiveAdminRecord(memberData) {
+      return memberData.get('role', 'member') == 'admin'
+        && (
+          memberData.get('adminExpiresAt', null) == null
+          || memberData.get('adminExpiresAt', request.time) > request.time
+        );
+    }
+
+    function isActiveRoomAdmin(roomId) {
+      return signedIn()
+        && exists(memberPath(roomId, request.auth.uid))
+        && isActiveAdminRecord(
+          get(memberPath(roomId, request.auth.uid)).data
+        );
+    }
+
+    function isKickableByAdmin(memberData) {
+      return memberData.get('role', 'member') == 'member'
+        || (
+          memberData.get('role', 'member') == 'admin'
+          && memberData.get('adminExpiresAt', null) != null
+          && memberData.get('adminExpiresAt', request.time) <= request.time
+        );
+    }
+
+    function canKickRoomMember(roomId, targetUserId) {
+      return isRoomOwner(roomId)
+        || (
+          isActiveRoomAdmin(roomId)
+          && exists(memberPath(roomId, targetUserId))
+          && isKickableByAdmin(
+            get(memberPath(roomId, targetUserId)).data
+          )
+        );
+    }
+
+    function validNickname(value) {
+      return value is string && value.size() >= 2 && value.size() <= 24;
+    }
+
+    function validAvatarData(value) {
+      return value == null
+        || (value is string && value.size() <= 120000);
+    }
+
+    // User profiles are readable by authenticated users because room members
+    // and chat messages display each other's public nickname and avatar.
+    match /users/{userId} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'username',
+          'usernameLower',
+          'nickname',
+          'createdAt'
+        ])
+        && request.resource.data.username is string
+        && request.resource.data.username.matches('^[A-Za-z0-9_]{3,20}$')
+        && request.resource.data.usernameLower is string
+        && request.resource.data.usernameLower.matches('^[a-z0-9_]{3,20}$')
+        && request.resource.data.nickname == request.resource.data.username
+        && request.resource.data.createdAt is timestamp;
+
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'nickname',
+          'avatarId',
+          'avatarData'
+        ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['nickname'])
+          || validNickname(request.resource.data.nickname)
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['avatarId'])
+          || (
+            request.resource.data.avatarId is string
+            && request.resource.data.avatarId.size() <= 32
+          )
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['avatarData'])
+          || validAvatarData(request.resource.data.get('avatarData', null))
+        );
+
+      allow delete: if signedIn() && request.auth.uid == userId;
+
+      match /rooms/{roomId} {
+        allow get, list: if signedIn() && request.auth.uid == userId;
+
+        allow create: if signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(['name', 'role', 'joinedAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 2
+          && request.resource.data.name.size() <= 30
+          && request.resource.data.role in ['owner', 'member']
+          && request.resource.data.joinedAt is timestamp
+          && existsAfter(roomPath(roomId))
+          && existsAfter(memberPath(roomId, userId))
+          && (
+            (
+              request.resource.data.role == 'owner'
+              && getAfter(roomPath(roomId)).data.ownerId == userId
+              && getAfter(memberPath(roomId, userId)).data.role == 'owner'
+            )
+            || (
+              request.resource.data.role == 'member'
+              && getAfter(memberPath(roomId, userId)).data.role == 'member'
+            )
+          );
+
+        allow update: if false;
+
+        allow delete: if signedIn()
+          && (
+            request.auth.uid == userId
+            || isRoomOwner(roomId)
+            || (
+              canKickRoomMember(roomId, userId)
+              && userId != request.auth.uid
+            )
+          );
+      }
+    }
+
+    match /rooms/{roomId} {
+      allow get: if signedIn()
+        && (
+          resource.data.ownerId == request.auth.uid
+          || isRoomMember(roomId)
+        );
+
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'name',
+          'ownerId',
+          'inviteCode',
+          'createdAt'
+        ])
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 30
+        && request.resource.data.inviteCode is string
+        && request.resource.data.inviteCode.matches('^[A-HJ-NP-Z2-9]{8}$')
+        && request.resource.data.createdAt is timestamp;
+
+      allow update: if false;
+
+      // The owner deletes the room only after its child documents and the
+      // owner's own membership/list entry have been removed.
+      allow delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && !existsAfter(memberPath(roomId, request.auth.uid))
+        && !existsAfter(userRoomPath(request.auth.uid, roomId));
+
+      match /members/{memberId} {
+        allow get, list: if signedIn()
+          && (
+            memberId == request.auth.uid
+            || isRoomOwner(roomId)
+            || isRoomMember(roomId)
+          );
+
+        allow create: if signedIn()
+          && memberId == request.auth.uid
+          && request.resource.data.keys().hasOnly([
+            'username',
+            'role',
+            'joinedAt',
+            'inviteCodeUsed'
+          ])
+          && request.resource.data.username is string
+          && request.resource.data.role in ['owner', 'member']
+          && request.resource.data.joinedAt is timestamp
+          && existsAfter(userRoomPath(memberId, roomId))
+          && (
+            (
+              request.resource.data.role == 'owner'
+              && getAfter(roomPath(roomId)).data.ownerId == memberId
+            )
+            || (
+              request.resource.data.role == 'member'
+              && request.resource.data.inviteCodeUsed is string
+              && get(invitePath(request.resource.data.inviteCodeUsed)).data.roomId == roomId
+              && !exists(banPath(roomId, memberId))
+            )
+          );
+
+        // A user can update only their own public room nickname.
+        // The room owner alone can grant, renew or revoke admin permissions.
+        allow update: if signedIn()
+          && (
+            (
+              memberId == request.auth.uid
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username'])
+              && request.resource.data.username is string
+              && request.resource.data.username.size() >= 2
+              && request.resource.data.username.size() <= 24
+            )
+            || (
+              isRoomOwner(roomId)
+              && memberId != request.auth.uid
+              && resource.data.get('role', 'member') != 'owner'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'role',
+                'adminExpiresAt',
+                'adminGrantedAt',
+                'adminGrantedBy'
+              ])
+              && request.resource.data.role in ['admin', 'member']
+              && (
+                (
+                  request.resource.data.role == 'admin'
+                  && request.resource.data.adminGrantedBy == request.auth.uid
+                  && request.resource.data.adminGrantedAt is timestamp
+                  && (
+                    request.resource.data.adminExpiresAt == null
+                    || request.resource.data.adminExpiresAt is timestamp
+                  )
+                )
+                || (
+                  request.resource.data.role == 'member'
+                  && request.resource.data.adminExpiresAt == null
+                  && request.resource.data.adminGrantedAt == null
+                  && request.resource.data.adminGrantedBy == null
+                )
+              )
+            )
+          );
+
+        allow delete: if signedIn()
+          && (
+            // Members may leave their own room. The owner can also remove
+            // their own membership only as part of deleting the whole room.
+            (
+              memberId == request.auth.uid
+              && (
+                resource.data.get('role', 'member') != 'owner'
+                || (
+                  isRoomOwner(roomId)
+                  && !existsAfter(roomPath(roomId))
+                  && !existsAfter(userRoomPath(memberId, roomId))
+                )
+              )
+            )
+            // Owners can remove any other member. Active admins can remove
+            // ordinary members and expired admins, but never active admins.
+            || (
+              memberId != request.auth.uid
+              && canKickRoomMember(roomId, memberId)
+            )
+          );
+      }
+
+      match /messages/{messageId} {
+        allow read: if isRoomMember(roomId);
+
+        allow create: if isRoomMember(roomId)
+          && request.resource.data.keys().hasOnly([
+            'text',
+            'senderId',
+            'senderName',
+            'senderAvatarId',
+            'createdAt'
+          ])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 1
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.senderName is string
+          && request.resource.data.senderAvatarId is string
+          && request.resource.data.createdAt is timestamp;
+
+        allow update: if isRoomMember(roomId)
+          && resource.data.senderId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'text',
+            'editedAt'
+          ])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 1
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.editedAt is timestamp;
+
+        allow delete: if isRoomMember(roomId)
+          && (
+            resource.data.senderId == request.auth.uid
+            || isRoomOwner(roomId)
+          );
+      }
+
+      match /bans/{bannedUserId} {
+        // A banned user can verify their own ban; only the room owner can
+        // enumerate the room's ban list or change ban records.
+        allow get: if signedIn()
+          && (
+            bannedUserId == request.auth.uid
+            || isRoomOwner(roomId)
+          );
+
+        allow list: if isRoomOwner(roomId);
+
+        allow create: if isRoomOwner(roomId)
+          && bannedUserId != request.auth.uid
+          && request.resource.data.keys().hasOnly([
+            'username',
+            'bannedAt',
+            'bannedBy'
+          ])
+          && request.resource.data.username is string
+          && request.resource.data.bannedAt is timestamp
+          && request.resource.data.bannedBy == request.auth.uid;
+
+        allow update: if false;
+        allow delete: if isRoomOwner(roomId);
+      }
+    }
+
+    match /roomInvites/{inviteCode} {
+      // A signed-in user may look up an exact invite code to join a room.
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'roomId',
+          'roomName',
+          'createdAt'
+        ])
+        && request.resource.data.roomId is string
+        && request.resource.data.roomName is string
+        && request.resource.data.createdAt is timestamp
+        && existsAfter(roomPath(request.resource.data.roomId))
+        && getAfter(roomPath(request.resource.data.roomId)).data.ownerId == request.auth.uid;
+
+      allow update: if false;
+      allow delete: if signedIn()
+        && isRoomOwner(resource.data.roomId);
+    }
+  }
+}
