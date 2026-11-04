@@ -791,6 +791,7 @@ const emojiPickerButton = $("emojiPickerButton");
 const emojiPicker = $("emojiPicker");
 const emojiPickerSearch = $("emojiPickerSearch");
 const emojiPickerGrid = $("emojiPickerGrid");
+const emojiAutocomplete = $("emojiAutocomplete");
 const emojiCategoryTabs = $("emojiCategoryTabs");
 const emojiSkinTone = $("emojiSkinTone");
 const chatInput = $("chatInput");
@@ -903,6 +904,158 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
+let emojiAutocompleteItems = [];
+let emojiAutocompleteIndex = 0;
+let emojiAutocompleteRange = null;
+
+function emojiMatchScore(item, query) {
+    const aliases = item.aliases.map(alias => alias.toLowerCase());
+    const name = item.name.toLowerCase();
+    const tags = item.tags.map(tag => tag.toLowerCase());
+
+    if (aliases.includes(query)) return 0;
+    if (aliases.some(alias => alias.startsWith(query))) return 1;
+    if (name.startsWith(query)) return 2;
+    if (tags.some(tag => tag.startsWith(query))) return 3;
+    if (aliases.some(alias => alias.includes(query))) return 4;
+    if (name.includes(query) || tags.some(tag => tag.includes(query))) return 5;
+    return 99;
+}
+
+function renderEmojiAutocomplete() {
+    const cursor = chatInput.selectionStart ?? chatInput.value.length;
+    const beforeCursor = chatInput.value.slice(0, cursor);
+    const match = beforeCursor.match(/(^|\\s):([a-z0-9_+-]{1,32})$/i);
+
+    if (!match) {
+        closeEmojiAutocomplete();
+        return;
+    }
+
+    const query = match[2].toLowerCase();
+    const prefixLength = match[1].length;
+    const start = cursor - match[0].length + prefixLength;
+    emojiAutocompleteRange = { start, end: cursor };
+
+    emojiAutocompleteItems = CHAT_EMOJIS
+        .map(item => ({ item, score: emojiMatchScore(item, query) }))
+        .filter(result => result.score < 99)
+        .sort((a, b) =>
+            a.score - b.score ||
+            a.item.aliases[0].length - b.item.aliases[0].length ||
+            a.item.aliases[0].localeCompare(b.item.aliases[0])
+        )
+        .slice(0, 8)
+        .map(result => result.item);
+
+    emojiAutocomplete.replaceChildren();
+    if (!emojiAutocompleteItems.length) {
+        const empty = document.createElement("div");
+        empty.className = "emoji-autocomplete-empty";
+        empty.textContent = "Eşleşen emoji bulunamadı.";
+        emojiAutocomplete.appendChild(empty);
+        emojiAutocomplete.hidden = false;
+        emojiAutocompleteIndex = -1;
+        return;
+    }
+
+    emojiAutocompleteIndex = 0;
+    emojiAutocompleteItems.forEach((item, index) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "emoji-autocomplete-option";
+        option.classList.toggle("active", index === emojiAutocompleteIndex);
+        option.setAttribute("role", "option");
+        option.setAttribute("aria-selected", String(index === emojiAutocompleteIndex));
+
+        const symbol = document.createElement("span");
+        symbol.className = "emoji-autocomplete-symbol";
+        symbol.textContent = applyEmojiSkinTone(item.emoji);
+
+        const copy = document.createElement("span");
+        copy.className = "emoji-autocomplete-copy";
+
+        const code = document.createElement("span");
+        code.className = "emoji-autocomplete-code";
+        code.textContent = `:${item.aliases[0]}:`;
+
+        const name = document.createElement("span");
+        name.className = "emoji-autocomplete-name";
+        name.textContent = item.name;
+
+        copy.append(code, name);
+        option.append(symbol, copy);
+        option.addEventListener("pointerdown", event => event.preventDefault());
+        option.addEventListener("click", () => chooseEmojiAutocomplete(index));
+        emojiAutocomplete.appendChild(option);
+    });
+
+    emojiAutocomplete.hidden = false;
+}
+
+function closeEmojiAutocomplete() {
+    emojiAutocomplete.hidden = true;
+    emojiAutocompleteItems = [];
+    emojiAutocompleteRange = null;
+    emojiAutocompleteIndex = 0;
+}
+
+function updateEmojiAutocompleteSelection() {
+    const options = emojiAutocomplete.querySelectorAll(".emoji-autocomplete-option");
+    options.forEach((option, index) => {
+        const active = index === emojiAutocompleteIndex;
+        option.classList.toggle("active", active);
+        option.setAttribute("aria-selected", String(active));
+    });
+    options[emojiAutocompleteIndex]?.scrollIntoView({ block: "nearest" });
+}
+
+function chooseEmojiAutocomplete(index = emojiAutocompleteIndex) {
+    const item = emojiAutocompleteItems[index];
+    if (!item || !emojiAutocompleteRange) return false;
+
+    const emoji = applyEmojiSkinTone(item.emoji);
+    chatInput.setRangeText(
+        emoji,
+        emojiAutocompleteRange.start,
+        emojiAutocompleteRange.end,
+        "end"
+    );
+    closeEmojiAutocomplete();
+    chatInput.focus();
+    rememberChatSelection();
+    resizeChatInput();
+    return true;
+}
+
+function handleEmojiAutocompleteKeydown(event) {
+    if (emojiAutocomplete.hidden || !emojiAutocompleteItems.length) return false;
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        emojiAutocompleteIndex =
+            (emojiAutocompleteIndex + direction + emojiAutocompleteItems.length) %
+            emojiAutocompleteItems.length;
+        updateEmojiAutocompleteSelection();
+        return true;
+    }
+
+    if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        chooseEmojiAutocomplete();
+        return true;
+    }
+
+    if (event.key === "Escape") {
+        event.preventDefault();
+        closeEmojiAutocomplete();
+        return true;
+    }
+
+    return false;
+}
+
 function handleChatInput() {
     const originalValue = chatInput.value;
     const cursor = chatInput.selectionStart ?? originalValue.length;
@@ -913,15 +1066,27 @@ function handleChatInput() {
         chatInput.value = convertedValue;
         const nextCursor = convertedBeforeCursor.length;
         chatInput.setSelectionRange(nextCursor, nextCursor);
+        closeEmojiAutocomplete();
+    } else {
+        renderEmojiAutocomplete();
     }
 
     rememberChatSelection();
     resizeChatInput();
 }
 
-chatInput.addEventListener("click", rememberChatSelection);
-chatInput.addEventListener("keyup", rememberChatSelection);
-chatInput.addEventListener("select", rememberChatSelection);
+chatInput.addEventListener("click", () => {
+    rememberChatSelection();
+    renderEmojiAutocomplete();
+});
+chatInput.addEventListener("keyup", () => {
+    rememberChatSelection();
+    renderEmojiAutocomplete();
+});
+chatInput.addEventListener("select", () => {
+    rememberChatSelection();
+    renderEmojiAutocomplete();
+});
 chatInput.addEventListener("input", handleChatInput);
 
 // SEND MESSAGE
@@ -977,6 +1142,8 @@ $("chatForm").addEventListener("submit", async (event) => {
 });
 
 $("chatInput").addEventListener("keydown", (event) => {
+    if (handleEmojiAutocompleteKeydown(event)) return;
+
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         $("chatForm").requestSubmit();
