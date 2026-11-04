@@ -1052,7 +1052,15 @@ function chooseEmojiAutocomplete(index = emojiAutocompleteIndex) {
 }
 
 function handleEmojiAutocompleteKeydown(event) {
-    if (emojiAutocomplete.hidden || !emojiAutocompleteItems.length) return false;
+    if (emojiAutocomplete.hidden) return false;
+
+    if (event.key === "Escape") {
+        event.preventDefault();
+        closeEmojiAutocomplete();
+        return true;
+    }
+
+    if (!emojiAutocompleteItems.length) return false;
 
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
