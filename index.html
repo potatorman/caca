@@ -311,11 +311,19 @@
                                     <aside id="roomMembersPanel" class="members-panel">
                                         <div class="members-panel-heading">
                                             <div>
-                                                <span class="small-label">ROOM</span>
-                                                <h3 id="membersHeading">Üyeler (0)</h3>
+                                                <span class="small-label">ODA TOPLULUĞU</span>
+                                                <div class="members-heading-row">
+                                                    <h3 id="membersHeading">Üyeler</h3>
+                                                    <span id="membersCount" class="members-count">0</span>
+                                                </div>
                                             </div>
                                             <button id="closeMembersButton" class="icon-button" type="button" aria-label="Üye panelini kapat">×</button>
                                         </div>
+                                        <label class="members-search">
+                                            <span aria-hidden="true">⌕</span>
+                                            <input id="membersSearch" type="search" placeholder="Üyelerde ara..." autocomplete="off" aria-label="Oda üyelerinde ara">
+                                            <kbd>/</kbd>
+                                        </label>
                                         <div id="membersList" class="members-list"></div>
 
                                         <section id="bannedSection" class="banned-section" hidden>
