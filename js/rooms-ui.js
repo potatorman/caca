@@ -137,6 +137,39 @@ function showRoomMessage(message, success = false) {
     }
 }
 
+function showModerationNotice(title, message, kind = "info") {
+    const dialog = $("moderationNoticeDialog");
+    if (!dialog) {
+        showRoomMessage(message, kind === "success");
+        return;
+    }
+
+    const card = dialog.querySelector(".moderation-notice-card");
+    const symbol = $("moderationNoticeSymbol");
+
+    $("moderationNoticeTitle").textContent = title;
+    $("moderationNoticeBody").textContent = message;
+    card.dataset.kind = kind;
+    symbol.textContent =
+        kind === "success" ? "✓" :
+        kind === "ban" ? "⊘" :
+        kind === "kick" ? "−" : "!";
+
+    if (!dialog.open) {
+        dialog.showModal();
+    }
+}
+
+$("moderationNoticeClose")?.addEventListener("click", () => {
+    $("moderationNoticeDialog")?.close();
+});
+
+$("moderationNoticeDialog")?.addEventListener("click", (event) => {
+    if (event.target === $("moderationNoticeDialog")) {
+        $("moderationNoticeDialog").close();
+    }
+});
+
 function showError(error) {
     console.error("CACA error:", error);
 
@@ -2144,7 +2177,11 @@ function listenToBannedMembers(roomId) {
 
 async function manageMember(member, action) {
     if (!currentUser || !activeRoomId || !canCurrentUserKickMembers()) {
-        showRoomMessage("Bu işlem için yönetici yetkisi gerekiyor.");
+        showModerationNotice(
+            "Yetki gerekiyor",
+            "Bu odada üye çıkarma işlemini yalnızca oda sahibi veya yetkili yönetici yapabilir.",
+            "error"
+        );
         return;
     }
 
@@ -2154,17 +2191,29 @@ async function manageMember(member, action) {
     if (action !== "kick" && action !== "ban") return;
 
     if (action === "ban" && !ownerIsActing) {
-        showRoomMessage("Yöneticiler kullanıcıları banlayamaz. Bu yetki yalnızca oda sahibinde.");
+        showModerationNotice(
+            "Ban yetkisi yok",
+            "Yöneticiler kullanıcıları odadan çıkarabilir ancak banlayamaz. Ban yetkisi yalnızca oda sahibindedir.",
+            "error"
+        );
         return;
     }
 
     if (member.id === activeRoomOwnerId) {
-        showRoomMessage("Oda kurucusu odadan çıkarılamaz.");
+        showModerationNotice(
+            "İşlem yapılamadı",
+            "Oda kurucusu odadan çıkarılamaz veya banlanamaz.",
+            "error"
+        );
         return;
     }
 
     if (adminIsActing && !ownerIsActing && isActiveRoomAdmin(member)) {
-        showRoomMessage("Yöneticiler başka yöneticileri odadan çıkaramaz.");
+        showModerationNotice(
+            "İşlem yapılamadı",
+            "Bir yönetici başka bir aktif yöneticiyi odadan çıkaramaz. Bu işlemi yalnızca oda sahibi yapabilir.",
+            "error"
+        );
         return;
     }
 
@@ -2195,14 +2244,27 @@ async function manageMember(member, action) {
         batch.delete(userRoomRef);
         await batch.commit();
 
-        showRoomMessage(
+        const targetName = member.displayNickname || member.username || "Bilinmeyen kullanıcı";
+        const accountName = member.accountUsername && member.accountUsername !== targetName
+            ? ` (@${member.accountUsername})`
+            : "";
+        const actorRole = ownerIsActing ? "Oda sahibi" : "Yönetici";
+        const details = [
+            `İşlemi yapan: ${currentUsername || "Sen"} — ${actorRole}`,
+            `İşlem yapılan: ${targetName}${accountName}`,
+            "",
             action === "ban"
-                ? `${member.username || "Kullanıcı"} odadan banlandı.`
-                : `${member.username || "Kullanıcı"} odadan çıkarıldı.`,
-            true
+                ? "Sonuç: Oda üyeliği kaldırıldı ve kullanıcı ban listesine eklendi. Oda sahibi banı kaldırana kadar bu odaya tekrar katılamaz."
+                : "Sonuç: Oda üyeliği kaldırıldı. Kullanıcı banlanmadı."
+        ].join("\n");
+
+        showModerationNotice(
+            action === "ban" ? "Kullanıcı banlandı" : "Kullanıcı odadan çıkarıldı",
+            details,
+            action === "ban" ? "ban" : "success"
         );
     } catch (error) {
-        showRoomMessage(showError(error));
+        showModerationNotice("İşlem başarısız", showError(error), "error");
     }
 }
 
@@ -2219,9 +2281,13 @@ async function unbanMember(userId, username) {
 
     try {
         await deleteDoc(doc(db, "rooms", activeRoomId, "bans", userId));
-        showRoomMessage(`${username} kullanıcısının banı kaldırıldı.`, true);
+        showModerationNotice(
+            "Ban kaldırıldı",
+            `İşlem yapılan: ${username}\n\nSonuç: Kullanıcının ban kaydı silindi. Bu kullanıcı geçerli oda davetiyle yeniden katılabilir.`,
+            "success"
+        );
     } catch (error) {
-        showRoomMessage(showError(error));
+        showModerationNotice("Ban kaldırılamadı", showError(error), "error");
     }
 }
 
