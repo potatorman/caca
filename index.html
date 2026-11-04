@@ -311,7 +311,20 @@
                                     <button type="button" class="avatar-choice" data-avatar-id="raccoon" aria-pressed="false" title="Rakun">🦝</button>
                                     <button type="button" class="avatar-choice" data-avatar-id="dragon" aria-pressed="false" title="Ejderha">🐉</button>
                                 </div>
-                                <p class="settings-note">Bir avatar seç, ardından kaydet butonuna bas. Seçimin sohbetlerde ve üye listelerinde görünür.</p>
+                                <div class="avatar-photo-upload-row">
+                                    <div id="avatarPickerPreview" class="avatar-photo-preview" aria-label="Seçili profil fotoğrafı">🦊</div>
+                                    <div class="avatar-photo-upload-controls">
+                                        <label class="avatar-photo-upload-button" for="avatarImageInput">Fotoğraf seç</label>
+                                        <input
+                                            id="avatarImageInput"
+                                            class="avatar-photo-input"
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                        >
+                                        <p class="settings-note">JPG, PNG veya WebP. Fotoğraf otomatik olarak 128×128 piksele küçültülür.</p>
+                                    </div>
+                                </div>
+                                <p class="settings-note">Emoji seçersen özel fotoğrafın kaldırılır. Seçimini yaptıktan sonra kaydet.</p>
                                 <button id="saveAvatarButton" class="avatar-save-button" type="button" disabled>Avatarı kaydet</button>
                                 <p id="avatarSaveMessage" class="avatar-save-status" role="status" aria-live="polite"></p>
                             </div>
