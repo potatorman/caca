@@ -420,12 +420,14 @@ $("chatInput").addEventListener("input", resizeChatInput);
 
 window.addEventListener("resize", resizeChatInput);
 
+let chatPanelResizeObserver = null;
+
 if ("ResizeObserver" in window) {
     const chatPanel = document.querySelector(".chat-panel");
     if (chatPanel) {
         let previousWidth = 0;
 
-        const chatPanelObserver = new ResizeObserver((entries) => {
+        chatPanelResizeObserver = new ResizeObserver((entries) => {
             const width = entries[0]?.contentRect.width || 0;
 
             if (Math.abs(width - previousWidth) > 1) {
@@ -434,7 +436,7 @@ if ("ResizeObserver" in window) {
             }
         });
 
-        chatPanelObserver.observe(chatPanel);
+        chatPanelResizeObserver.observe(chatPanel);
     }
 }
 
