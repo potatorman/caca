@@ -1019,3 +1019,48 @@ body.logged-in .auth-card {
 #nicknameForm .settings-note {
     margin-top: 3px;
 }
+
+
+/* NICKNAME + LOGIN USERNAME DISPLAY */
+.dashboard-user strong {
+    font-size: 15px;
+    font-weight: 650;
+}
+
+.dashboard-user .account-username {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.dashboard-user .account-username[hidden] {
+    display: none !important;
+}
+
+.member-info .member-display-name {
+    display: block;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 650;
+}
+
+.member-info .member-account-username {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.member-info .member-account-username[hidden] {
+    display: none !important;
+}
+
+.member-info .member-role {
+    display: block;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 11px;
+}
