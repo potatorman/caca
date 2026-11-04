@@ -11,6 +11,7 @@ import {
     getDocs,
     onSnapshot,
     writeBatch,
+    deleteDoc,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
@@ -25,6 +26,9 @@ let activeRoomId = null;
 
 // Realtime listener for room members
 let unsubscribeMembers = null;
+let unsubscribeMyMembership = null;
+let unsubscribeBanned = null;
+let activeRoomOwnerId = null;
 
 // ROOM CODE
 
@@ -75,7 +79,18 @@ function stopMemberListener() {
         unsubscribeMembers = null;
     }
 
+    if (unsubscribeMyMembership) {
+        unsubscribeMyMembership();
+        unsubscribeMyMembership = null;
+    }
+
+    if (unsubscribeBanned) {
+        unsubscribeBanned();
+        unsubscribeBanned = null;
+    }
+
     activeRoomId = null;
+    activeRoomOwnerId = null;
 }
 
 // LOAD MY ROOMS
@@ -248,6 +263,16 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
         const invite = inviteSnapshot.data();
         const roomId = invite.roomId;
 
+        const banSnapshot = await getDoc(
+            doc(db, "rooms", roomId, "bans", currentUser.uid)
+        );
+
+        if (banSnapshot.exists()) {
+            throw new Error(
+                "Bu odadan banlandın. Oda sahibi banını kaldırana kadar tekrar katılamazsın."
+            );
+        }
+
         const ownRoomRef = doc(
             db,
             "users",
@@ -302,12 +327,13 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
 
 // REAL-TIME MEMBER LIST
 
-function listenToMembers(roomId) {
+function listenToMembers(roomId, ownerId) {
 
     // Stop previous room listener
     stopMemberListener();
 
     activeRoomId = roomId;
+    activeRoomOwnerId = ownerId;
 
     const membersReference = collection(
         db,
@@ -362,6 +388,9 @@ function listenToMembers(roomId) {
                 const item = document.createElement("div");
                 item.className = "member-item";
 
+                const info = document.createElement("div");
+                info.className = "member-info";
+
                 const username = document.createElement("strong");
                 username.textContent = member.username || "Bilinmeyen kullanıcı";
 
@@ -369,7 +398,35 @@ function listenToMembers(roomId) {
                 role.textContent =
                     member.role === "owner" ? "Oda sahibi" : "Üye";
 
-                item.append(username, role);
+                info.append(username, role);
+                item.appendChild(info);
+
+                const ownerIsViewing = currentUser.uid === activeRoomOwnerId;
+
+                if (ownerIsViewing && member.id !== activeRoomOwnerId) {
+                    const actions = document.createElement("div");
+                    actions.className = "member-actions";
+
+                    const kickButton = document.createElement("button");
+                    kickButton.type = "button";
+                    kickButton.className = "member-action-button";
+                    kickButton.textContent = "Kick";
+                    kickButton.addEventListener("click", () => {
+                        manageMember(member, "kick");
+                    });
+
+                    const banButton = document.createElement("button");
+                    banButton.type = "button";
+                    banButton.className = "member-action-button ban";
+                    banButton.textContent = "Ban";
+                    banButton.addEventListener("click", () => {
+                        manageMember(member, "ban");
+                    });
+
+                    actions.append(kickButton, banButton);
+                    item.appendChild(actions);
+                }
+
                 membersList.appendChild(item);
             }
 
@@ -388,6 +445,175 @@ function listenToMembers(roomId) {
             }
         }
     );
+
+    // Watch this user's membership separately. A kick or ban removes this
+    // document and immediately returns the affected user to the dashboard.
+    unsubscribeMyMembership = onSnapshot(
+        doc(db, "rooms", roomId, "members", currentUser.uid),
+        async (membershipSnapshot) => {
+            if (activeRoomId !== roomId || membershipSnapshot.exists()) return;
+
+            let isBanned = false;
+
+            try {
+                const banSnapshot = await getDoc(
+                    doc(db, "rooms", roomId, "bans", currentUser.uid)
+                );
+                isBanned = banSnapshot.exists();
+            } catch (error) {
+                console.warn("CACA: Could not check ban status after removal.", error);
+            }
+
+            if (activeRoomId !== roomId) return;
+
+            stopMemberListener();
+            $("roomView").hidden = true;
+            $("dashboardView").hidden = false;
+            await loadRooms();
+
+            showRoomMessage(
+                isBanned
+                    ? "Bu odadan banlandın. Oda sahibi banını kaldırana kadar tekrar katılamazsın."
+                    : "Oda sahibi seni odadan çıkardı."
+            );
+        },
+        (error) => {
+            console.error("CACA membership listener failed:", error);
+        }
+    );
+
+    if (activeRoomOwnerId === currentUser.uid) {
+        listenToBannedMembers(roomId);
+    }
+}
+
+// REAL-TIME BANNED MEMBERS (OWNER ONLY)
+
+function listenToBannedMembers(roomId) {
+    if (unsubscribeBanned) {
+        unsubscribeBanned();
+        unsubscribeBanned = null;
+    }
+
+    unsubscribeBanned = onSnapshot(
+        collection(db, "rooms", roomId, "bans"),
+        (snapshot) => {
+            if (activeRoomId !== roomId || activeRoomOwnerId !== currentUser?.uid) {
+                return;
+            }
+
+            const section = $("bannedSection");
+            const list = $("bannedList");
+            const heading = $("bannedHeading");
+
+            section.hidden = false;
+            list.replaceChildren();
+            heading.textContent = `Banlı kullanıcılar (${snapshot.size})`;
+
+            if (snapshot.empty) {
+                const empty = document.createElement("p");
+                empty.className = "empty-rooms";
+                empty.textContent = "Bu odada banlı kullanıcı yok.";
+                list.appendChild(empty);
+                return;
+            }
+
+            snapshot.forEach((banDoc) => {
+                const ban = banDoc.data();
+                const item = document.createElement("div");
+                item.className = "banned-user-item";
+
+                const username = document.createElement("strong");
+                username.textContent = ban.username || "Bilinmeyen kullanıcı";
+
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "unban-button";
+                button.textContent = "Banı kaldır";
+                button.addEventListener("click", () => {
+                    unbanMember(banDoc.id, ban.username || "kullanıcı");
+                });
+
+                item.append(username, button);
+                list.appendChild(item);
+            });
+        },
+        (error) => {
+            console.error("CACA banned-members listener failed:", error);
+            if (activeRoomId === roomId) {
+                showRoomMessage("Banlı kullanıcılar yüklenemedi: " + showError(error));
+            }
+        }
+    );
+}
+
+// OWNER ACTIONS: KICK / BAN
+
+async function manageMember(member, action) {
+    if (!currentUser || !activeRoomId || activeRoomOwnerId !== currentUser.uid) {
+        return;
+    }
+
+    if (member.id === activeRoomOwnerId) {
+        showRoomMessage("Oda kurucusu kendisini odadan çıkaramaz.");
+        return;
+    }
+
+    const actionText = action === "ban" ? "banlamak" : "odadan çıkarmak";
+    const confirmed = window.confirm(
+        `${member.username || "Bu kullanıcı"} kullanıcısını ${actionText} istiyor musun?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+        const batch = writeBatch(db);
+        const memberRef = doc(db, "rooms", activeRoomId, "members", member.id);
+        const userRoomRef = doc(db, "users", member.id, "rooms", activeRoomId);
+
+        if (action === "ban") {
+            batch.set(
+                doc(db, "rooms", activeRoomId, "bans", member.id),
+                {
+                    username: member.username || "Bilinmeyen kullanıcı",
+                    bannedAt: serverTimestamp(),
+                    bannedBy: currentUser.uid
+                }
+            );
+        }
+
+        batch.delete(memberRef);
+        batch.delete(userRoomRef);
+        await batch.commit();
+
+        showRoomMessage(
+            action === "ban"
+                ? `${member.username || "Kullanıcı"} odadan banlandı.`
+                : `${member.username || "Kullanıcı"} odadan çıkarıldı.`,
+            true
+        );
+    } catch (error) {
+        showRoomMessage(showError(error));
+    }
+}
+
+// OWNER ACTION: UNBAN
+
+async function unbanMember(userId, username) {
+    if (!currentUser || !activeRoomId || activeRoomOwnerId !== currentUser.uid) {
+        return;
+    }
+
+    if (!window.confirm(`${username} kullanıcısının banını kaldırmak istiyor musun?`)) {
+        return;
+    }
+
+    try {
+        await deleteDoc(doc(db, "rooms", activeRoomId, "bans", userId));
+        showRoomMessage(`${username} kullanıcısının banı kaldırıldı.`, true);
+    } catch (error) {
+        showRoomMessage(showError(error));
+    }
 }
 
 // OPEN ROOM
@@ -396,6 +622,16 @@ async function openRoom(roomId) {
     if (!currentUser) return;
 
     try {
+
+        const banSnapshot = await getDoc(
+            doc(db, "rooms", roomId, "bans", currentUser.uid)
+        );
+
+        if (banSnapshot.exists()) {
+            throw new Error(
+                "Bu odadan banlandın. Oda sahibi banını kaldırana kadar tekrar katılamazsın."
+            );
+        }
 
         // Verify that this user belongs to the room.
         const membership = await getDoc(
@@ -421,12 +657,24 @@ async function openRoom(roomId) {
 
         activeRoomCode = room.inviteCode;
 
+        const isOwner = room.ownerId === currentUser.uid;
+        $("bannedSection").hidden = !isOwner;
+
+        const leaveButton = $("leaveRoomButton");
+        leaveButton.disabled = isOwner;
+        leaveButton.textContent = isOwner
+            ? "Kurucu odadan ayrılamaz"
+            : "Odadan çık";
+        leaveButton.title = isOwner
+            ? "Oda sahibinin ayrılması için oda silme veya sahiplik devri gerekir."
+            : "";
+
         // Show room
         $("dashboardView").hidden = true;
         $("roomView").hidden = false;
 
         // Start live member updates
-        listenToMembers(roomId);
+        listenToMembers(roomId, room.ownerId);
 
     } catch (error) {
         showRoomMessage(showError(error));
@@ -441,8 +689,43 @@ $("backToDashboard").addEventListener("click", () => {
 
     $("roomView").hidden = true;
     $("dashboardView").hidden = false;
+    $("bannedSection").hidden = true;
 
     loadRooms();
+});
+
+// LEAVE ROOM
+
+$("leaveRoomButton").addEventListener("click", async () => {
+    if (!currentUser || !activeRoomId) return;
+
+    if (activeRoomOwnerId === currentUser.uid) {
+        showRoomMessage(
+            "Oda kurucusu şimdilik odadan ayrılamaz. Önce oda silme veya sahiplik devri özelliği gerekli."
+        );
+        return;
+    }
+
+    if (!window.confirm("Bu odadan ayrılmak istiyor musun?")) return;
+
+    const roomId = activeRoomId;
+
+    try {
+        // Stop listeners before removing our own membership document.
+        stopMemberListener();
+
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "rooms", roomId, "members", currentUser.uid));
+        batch.delete(doc(db, "users", currentUser.uid, "rooms", roomId));
+        await batch.commit();
+
+        $("roomView").hidden = true;
+        $("dashboardView").hidden = false;
+        await loadRooms();
+        showRoomMessage("Odadan ayrıldın.", true);
+    } catch (error) {
+        showRoomMessage(showError(error));
+    }
 });
 
 // COPY INVITE CODE
@@ -477,6 +760,7 @@ onAuthStateChanged(auth, async (user) => {
 
         $("roomsList").replaceChildren();
         $("roomCount").textContent = "0 oda";
+        $("bannedSection").hidden = true;
 
         return;
     }
