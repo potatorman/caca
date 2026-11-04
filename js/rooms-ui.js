@@ -742,6 +742,207 @@ function listenToMessages(roomId) {
     );
 }
 
+// EMOJI PICKER AND SHORTCODES
+
+const CHAT_EMOJIS = [
+    { emoji: "😀", codes: ["grinning"], keywords: "happy smile mutlu" },
+    { emoji: "😃", codes: ["smiley"], keywords: "happy smile mutlu" },
+    { emoji: "😄", codes: ["smile"], keywords: "happy grin mutlu" },
+    { emoji: "😁", codes: ["grin"], keywords: "happy teeth" },
+    { emoji: "😆", codes: ["laughing", "satisfied"], keywords: "lol laugh gülmek" },
+    { emoji: "😂", codes: ["joy"], keywords: "tears laugh gülmek kahkaha" },
+    { emoji: "🤣", codes: ["rofl"], keywords: "rolling laugh kahkaha" },
+    { emoji: "🥹", codes: ["face_holding_back_tears"], keywords: "tears touched ağlamak" },
+    { emoji: "😭", codes: ["sob", "loudly_crying_face"], keywords: "cry sad ağlamak ağlama" },
+    { emoji: "😢", codes: ["cry"], keywords: "sad tear üzgün" },
+    { emoji: "🥲", codes: ["smiling_face_with_tear"], keywords: "smile tear" },
+    { emoji: "😅", codes: ["sweat_smile"], keywords: "nervous laugh ter" },
+    { emoji: "😮", codes: ["open_mouth"], keywords: "surprised şaşkın" },
+    { emoji: "😱", codes: ["scream"], keywords: "shock korku" },
+    { emoji: "😡", codes: ["rage"], keywords: "angry kızgın" },
+    { emoji: "😠", codes: ["angry"], keywords: "mad kızgın" },
+    { emoji: "🤔", codes: ["thinking"], keywords: "think düşünmek" },
+    { emoji: "🤨", codes: ["raised_eyebrow"], keywords: "question şüphe" },
+    { emoji: "🙄", codes: ["rolling_eyes"], keywords: "eyeroll" },
+    { emoji: "😎", codes: ["sunglasses"], keywords: "cool gözlük" },
+    { emoji: "🥳", codes: ["partying_face"], keywords: "party kutlama" },
+    { emoji: "🤯", codes: ["exploding_head"], keywords: "mind blown şaşkın" },
+    { emoji: "🤗", codes: ["hugs"], keywords: "hug sarılma" },
+    { emoji: "🥰", codes: ["smiling_face_with_hearts"], keywords: "love sevgi" },
+    { emoji: "😍", codes: ["heart_eyes"], keywords: "love aşk" },
+    { emoji: "😘", codes: ["kissing_heart"], keywords: "kiss öpücük" },
+    { emoji: "😴", codes: ["sleeping"], keywords: "sleep uyku" },
+    { emoji: "🤡", codes: ["clown_face"], keywords: "clown palyaço" },
+    { emoji: "💀", codes: ["skull"], keywords: "dead ölmek" },
+    { emoji: "🤝", codes: ["handshake"], keywords: "deal anlaşma" },
+    { emoji: "🙏", codes: ["pray"], keywords: "please thanks teşekkür" },
+    { emoji: "👏", codes: ["clap"], keywords: "applause alkış" },
+    { emoji: "👍", codes: ["thumbsup", "+1"], keywords: "like up beğeni" },
+    { emoji: "👎", codes: ["thumbsdown", "-1"], keywords: "dislike down" },
+    { emoji: "👀", codes: ["eyes"], keywords: "look bakış" },
+    { emoji: "🤌", codes: ["pinched_fingers"], keywords: "italian" },
+    { emoji: "✌️", codes: ["v"], keywords: "peace zafer" },
+    { emoji: "🤘", codes: ["metal"], keywords: "rock" },
+    { emoji: "💪", codes: ["muscle"], keywords: "strong güç" },
+    { emoji: "❤️", codes: ["heart", "red_heart"], keywords: "love aşk kalp" },
+    { emoji: "🧡", codes: ["orange_heart"], keywords: "heart kalp" },
+    { emoji: "💛", codes: ["yellow_heart"], keywords: "heart kalp" },
+    { emoji: "💚", codes: ["green_heart"], keywords: "heart kalp" },
+    { emoji: "💙", codes: ["blue_heart"], keywords: "heart kalp" },
+    { emoji: "💜", codes: ["purple_heart"], keywords: "heart kalp" },
+    { emoji: "🖤", codes: ["black_heart"], keywords: "heart kalp" },
+    { emoji: "💔", codes: ["broken_heart"], keywords: "heart kalp heartbreak" },
+    { emoji: "🔥", codes: ["fire"], keywords: "hot ateş" },
+    { emoji: "✨", codes: ["sparkles"], keywords: "star shine parıltı" },
+    { emoji: "⭐", codes: ["star"], keywords: "favorite yıldız" },
+    { emoji: "🎉", codes: ["tada"], keywords: "party celebration kutlama" },
+    { emoji: "🎂", codes: ["birthday"], keywords: "cake doğum günü" },
+    { emoji: "🚀", codes: ["rocket"], keywords: "ship uzay" },
+    { emoji: "💯", codes: ["100"], keywords: "perfect yüz" },
+    { emoji: "✅", codes: ["white_check_mark"], keywords: "check tamam" },
+    { emoji: "❌", codes: ["x"], keywords: "no hayır" },
+    { emoji: "⚡", codes: ["zap"], keywords: "lightning enerji" },
+    { emoji: "💎", codes: ["gem"], keywords: "diamond elmas" },
+    { emoji: "🐱", codes: ["cat"], keywords: "kedi animal" },
+    { emoji: "🐶", codes: ["dog"], keywords: "köpek animal" },
+    { emoji: "🦊", codes: ["fox"], keywords: "tilki animal" },
+    { emoji: "🐸", codes: ["frog"], keywords: "kurbağa animal" },
+    { emoji: "🐼", codes: ["panda"], keywords: "animal" },
+    { emoji: "🦋", codes: ["butterfly"], keywords: "kelebek animal" },
+    { emoji: "🌈", codes: ["rainbow"], keywords: "gökkuşağı" },
+    { emoji: "☀️", codes: ["sunny"], keywords: "sun güneş" },
+    { emoji: "🌙", codes: ["crescent_moon"], keywords: "moon ay" },
+    { emoji: "☕", codes: ["coffee"], keywords: "kahve drink" },
+    { emoji: "🍕", codes: ["pizza"], keywords: "food yemek" },
+    { emoji: "🍉", codes: ["watermelon"], keywords: "food karpuz" },
+    { emoji: "🎮", codes: ["video_game"], keywords: "game oyun" },
+    { emoji: "🎧", codes: ["headphones"], keywords: "music müzik" },
+    { emoji: "⚽", codes: ["soccer"], keywords: "football futbol" },
+    { emoji: "🏆", codes: ["trophy"], keywords: "win kupa" }
+];
+
+const EMOJI_SHORTCODES = new Map();
+CHAT_EMOJIS.forEach((item) => {
+    item.codes.forEach((code) => EMOJI_SHORTCODES.set(code, item.emoji));
+});
+
+function replaceEmojiShortcodes(value) {
+    return value.replace(/:([a-z0-9_+\\-]+):/gi, (match, code) => {
+        return EMOJI_SHORTCODES.get(code.toLowerCase()) || match;
+    });
+}
+
+const emojiPickerButton = $("emojiPickerButton");
+const emojiPicker = $("emojiPicker");
+const emojiPickerSearch = $("emojiPickerSearch");
+const emojiPickerGrid = $("emojiPickerGrid");
+const chatInput = $("chatInput");
+let savedChatSelection = { start: 0, end: 0 };
+
+function rememberChatSelection() {
+    if (!chatInput) return;
+    savedChatSelection = {
+        start: chatInput.selectionStart ?? chatInput.value.length,
+        end: chatInput.selectionEnd ?? chatInput.value.length
+    };
+}
+
+function setEmojiPickerOpen(isOpen) {
+    emojiPicker.hidden = !isOpen;
+    emojiPickerButton.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) emojiPickerSearch.focus();
+}
+
+function insertChatEmoji(emoji) {
+    const start = Math.min(savedChatSelection.start, chatInput.value.length);
+    const end = Math.min(savedChatSelection.end, chatInput.value.length);
+    const nextValue = chatInput.value.slice(0, start) + emoji + chatInput.value.slice(end);
+    const nextCursor = start + emoji.length;
+
+    chatInput.value = nextValue;
+    chatInput.focus();
+    chatInput.setSelectionRange(nextCursor, nextCursor);
+    rememberChatSelection();
+    resizeChatInput();
+    setEmojiPickerOpen(false);
+}
+
+function renderEmojiPicker(searchValue = "") {
+    const term = searchValue.trim().toLocaleLowerCase();
+    const filtered = CHAT_EMOJIS.filter((item) => {
+        const searchable = [item.emoji, ...item.codes, item.keywords]
+            .join(" ")
+            .toLocaleLowerCase();
+        return !term || searchable.includes(term);
+    });
+
+    emojiPickerGrid.replaceChildren();
+
+    if (!filtered.length) {
+        const empty = document.createElement("p");
+        empty.className = "emoji-picker-empty";
+        empty.textContent = "Eşleşen emoji bulunamadı.";
+        emojiPickerGrid.appendChild(empty);
+        return;
+    }
+
+    filtered.forEach((item) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "emoji-option";
+        option.textContent = item.emoji;
+        option.title = item.codes.length ? `:${item.codes[0]}:` : item.emoji;
+        option.setAttribute("aria-label", item.codes[0] || item.emoji);
+        option.addEventListener("click", () => insertChatEmoji(item.emoji));
+        emojiPickerGrid.appendChild(option);
+    });
+}
+
+renderEmojiPicker();
+
+emojiPickerButton.addEventListener("pointerdown", rememberChatSelection);
+emojiPickerButton.addEventListener("click", () => {
+    setEmojiPickerOpen(emojiPicker.hidden);
+});
+
+emojiPickerSearch.addEventListener("input", () => {
+    renderEmojiPicker(emojiPickerSearch.value);
+});
+
+document.addEventListener("click", (event) => {
+    if (!event.target.closest(".emoji-picker-wrap") && !emojiPicker.hidden) {
+        setEmojiPickerOpen(false);
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !emojiPicker.hidden) {
+        setEmojiPickerOpen(false);
+        emojiPickerButton.focus();
+    }
+});
+
+function handleChatInput() {
+    const originalValue = chatInput.value;
+    const cursor = chatInput.selectionStart ?? originalValue.length;
+    const convertedBeforeCursor = replaceEmojiShortcodes(originalValue.slice(0, cursor));
+    const convertedValue = replaceEmojiShortcodes(originalValue);
+
+    if (convertedValue !== originalValue) {
+        chatInput.value = convertedValue;
+        const nextCursor = convertedBeforeCursor.length;
+        chatInput.setSelectionRange(nextCursor, nextCursor);
+    }
+
+    rememberChatSelection();
+    resizeChatInput();
+}
+
+chatInput.addEventListener("click", rememberChatSelection);
+chatInput.addEventListener("keyup", rememberChatSelection);
+chatInput.addEventListener("select", rememberChatSelection);
+chatInput.addEventListener("input", handleChatInput);
+
 // SEND MESSAGE
 
 $("chatForm").addEventListener("submit", async (event) => {
@@ -754,7 +955,7 @@ $("chatForm").addEventListener("submit", async (event) => {
 
     const input = $("chatInput");
     const button = $("chatSendButton");
-    const text = input.value.trim();
+    const text = replaceEmojiShortcodes(input.value.trim());
 
     if (!text) return;
 
@@ -821,7 +1022,7 @@ function resizeChatInput() {
         : "hidden";
 }
 
-$("chatInput").addEventListener("input", resizeChatInput);
+// Input resizing is handled together with shortcode conversion in handleChatInput().
 
 window.addEventListener("resize", resizeChatInput);
 
