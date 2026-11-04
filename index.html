@@ -222,9 +222,31 @@
 
                                     <div class="room-toolbar-actions">
                                         <button id="membersToggleButton" class="members-toggle-button" type="button" aria-controls="roomMembersPanel" aria-expanded="true">Üyeler <span aria-hidden="true">▥</span></button>
+                                        <button id="roomManagementButton" class="room-management-button" type="button" hidden>Oda yönetimi</button>
                                         <button id="leaveRoomButton" class="danger-button" type="button">Odadan çık</button>
                                     </div>
                                 </div>
+
+                                <section id="roomManagementPanel" class="room-management-panel" role="dialog" aria-modal="true" aria-labelledby="roomManagementTitle" hidden>
+                                    <div class="room-management-card">
+                                        <div class="room-management-heading">
+                                            <div>
+                                                <span class="small-label">ROOM OWNER</span>
+                                                <h3 id="roomManagementTitle">Oda yönetimi</h3>
+                                                <p>Oda ayarları ve yönetim araçları.</p>
+                                            </div>
+                                            <button id="closeRoomManagementButton" class="icon-button" type="button" aria-label="Oda yönetimini kapat">×</button>
+                                        </div>
+                                        <div class="room-management-section">
+                                            <div>
+                                                <strong>Sohbet geçmişi</strong>
+                                                <p>Bu odadaki tüm mesajları siler. Oda ve üyelikler etkilenmez.</p>
+                                            </div>
+                                            <button id="clearChatHistoryButton" class="room-management-danger-button" type="button">Tüm sohbeti sil</button>
+                                        </div>
+                                        <p id="roomManagementStatus" class="room-management-status" role="status" aria-live="polite"></p>
+                                    </div>
+                                </section>
 
                                 <div id="roomChatLayout" class="room-chat-layout">
                                     <section class="chat-panel">
