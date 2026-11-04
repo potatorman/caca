@@ -147,6 +147,10 @@
                             </div>
                         </div>
 
+                        <button id="settingsButton" class="settings-button" type="button">
+                            Hesap ayarları
+                        </button>
+
                         <button id="logoutButton" class="logout-button">
                             Çıkış yap
                         </button>
@@ -305,6 +309,121 @@
 
                     </section>
 
+                    <!-- ACCOUNT SETTINGS -->
+
+                    <section id="settingsView" class="settings-view" hidden>
+
+                        <div class="settings-topbar">
+                            <button id="backFromSettings" class="back-button" type="button">
+                                ← Odalarıma dön
+                            </button>
+
+                            <div>
+                                <span class="small-label">YOUR ACCOUNT</span>
+                                <h2>Hesap ayarları</h2>
+                                <p>Hesabını ve güvenlik bilgilerini yönet.</p>
+                            </div>
+                        </div>
+
+                        <section class="settings-card">
+                            <span class="small-label">PROFILE</span>
+                            <h3>Profil bilgileri</h3>
+
+                            <label for="settingsUsername">Kullanıcı adı</label>
+                            <input id="settingsUsername" type="text" readonly>
+
+                            <p class="settings-note">
+                                Kullanıcı adın aynı zamanda giriş kimliğin. Giriş sistemini bozmamak için
+                                şimdilik buradan değiştirilemiyor.
+                            </p>
+                        </section>
+
+                        <section class="settings-card">
+                            <span class="small-label">SECURITY</span>
+                            <h3>Şifre değiştir</h3>
+                            <p class="settings-description">
+                                Şifreni değiştirmek için önce mevcut şifreni doğrulaman gerekir.
+                            </p>
+
+                            <form id="changePasswordForm" class="settings-form">
+                                <label for="currentPassword">Mevcut şifre</label>
+                                <input
+                                    id="currentPassword"
+                                    type="password"
+                                    autocomplete="current-password"
+                                    required
+                                >
+
+                                <label for="newPassword">Yeni şifre</label>
+                                <input
+                                    id="newPassword"
+                                    type="password"
+                                    minlength="8"
+                                    autocomplete="new-password"
+                                    placeholder="En az 8 karakter"
+                                    required
+                                >
+
+                                <label for="confirmNewPassword">Yeni şifreyi tekrar gir</label>
+                                <input
+                                    id="confirmNewPassword"
+                                    type="password"
+                                    minlength="8"
+                                    autocomplete="new-password"
+                                    required
+                                >
+
+                                <button type="submit" class="primary-button">
+                                    Şifreyi güncelle
+                                </button>
+                            </form>
+                        </section>
+
+                        <section class="settings-danger-zone">
+                            <span class="small-label">DANGER ZONE</span>
+                            <h3>Hesabı sil</h3>
+
+                            <p>
+                                Bu işlem hesabını kalıcı olarak siler. Sahibi olduğun odalar ve bu odaların
+                                üyelikleri, davet kodları ve ban kayıtları da silinir. Üyesi olduğun diğer
+                                odalardan da çıkarılırsın. Bu işlem geri alınamaz.
+                            </p>
+
+                            <form id="deleteAccountForm" class="settings-form">
+                                <label for="deleteAccountPassword">Mevcut şifren</label>
+                                <input
+                                    id="deleteAccountPassword"
+                                    type="password"
+                                    autocomplete="current-password"
+                                    required
+                                >
+
+                                <label for="deleteAccountConfirmation">
+                                    Onaylamak için SİL yaz
+                                </label>
+                                <input
+                                    id="deleteAccountConfirmation"
+                                    type="text"
+                                    placeholder="SİL"
+                                    autocomplete="off"
+                                    required
+                                >
+
+                                <button type="submit" class="delete-account-button">
+                                    Hesabımı kalıcı olarak sil
+                                </button>
+                            </form>
+                        </section>
+
+                        <p
+                            id="settingsMessage"
+                            class="status-message"
+                            role="status"
+                            aria-live="polite"
+                        ></p>
+
+                    </section>
+
                     <p
                         id="appMessage"
                         class="status-message"
@@ -325,6 +444,9 @@
 
     <!-- ROOM SYSTEM -->
     <script type="module" src="./js/rooms-ui.js"></script>
+
+    <!-- ACCOUNT SETTINGS -->
+    <script type="module" src="./js/settings.js"></script>
 
 </body>
 </html>
