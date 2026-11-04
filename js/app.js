@@ -17,7 +17,6 @@ import {
 
 const $ = (id) => document.getElementById(id);
 
-// Elements
 const authView = $("authView");
 const appView = $("appView");
 
@@ -30,10 +29,8 @@ const registerTab = $("registerTab");
 const authMessage = $("authMessage");
 const appMessage = $("appMessage");
 
-let currentMode = "login";
 let registrationInProgress = false;
 
-// Username rules
 function validateUsername(value) {
     const username = value.trim();
 
@@ -46,13 +43,10 @@ function validateUsername(value) {
     return username;
 }
 
-// Convert username into an internal Firebase email.
-// Users never need to enter or see this address.
 function usernameToEmail(username) {
     return `${username.toLowerCase()}@caca-dfe6.firebaseapp.com`;
 }
 
-// Messages
 function showAuthMessage(message, type = "error") {
     authMessage.textContent = message;
     authMessage.className = "status-message";
@@ -62,16 +56,6 @@ function showAuthMessage(message, type = "error") {
     }
 }
 
-function showAppMessage(message, type = "error") {
-    appMessage.textContent = message;
-    appMessage.className = "status-message";
-
-    if (type === "success") {
-        appMessage.classList.add("success");
-    }
-}
-
-// Firebase errors
 function friendlyError(error) {
     switch (error.code) {
         case "auth/email-already-in-use":
@@ -83,7 +67,7 @@ function friendlyError(error) {
             return "Kullanıcı adı veya şifre yanlış.";
 
         case "auth/weak-password":
-            return "Şifren çok kısa. En az 8 karakter kullan.";
+            return "Şifre en az 8 karakter olmalı.";
 
         case "auth/too-many-requests":
             return "Çok fazla deneme yapıldı. Daha sonra tekrar dene.";
@@ -91,25 +75,33 @@ function friendlyError(error) {
         case "auth/network-request-failed":
             return "İnternet bağlantını kontrol et.";
 
-        case "auth/operation-not-allowed":
-            return "Firebase Email/Password girişi etkin değil.";
-
-        case "auth/invalid-api-key":
-            return "Firebase API key hatalı. firebase.js dosyasını kontrol et.";
-
-        case "permission-denied":
-            return "Firestore izni reddedildi. Database Rules ayarlarını kontrol et.";
-
         default:
             console.error(error);
             return error.message || "Bir hata oluştu.";
     }
 }
 
-// Switch login / register
-function switchMode(mode) {
-    currentMode = mode;
+function setLoading(form, loading, normalText) {
+    const button = form.querySelector('button[type="submit"]');
 
+    button.disabled = loading;
+    button.textContent = loading ? "Lütfen bekle..." : normalText;
+}
+
+function showLoggedIn(username) {
+    $("welcomeUsername").textContent = username;
+    $("accountUsername").textContent = username;
+    $("userAvatar").textContent = username.charAt(0).toUpperCase();
+
+    // Hide login and left branding panel.
+    authView.hidden = true;
+    appView.hidden = false;
+
+    // IMPORTANT: This class hides the left Conversations panel.
+    document.body.classList.add("logged-in");
+}
+
+function switchMode(mode) {
     const isLogin = mode === "login";
 
     loginForm.hidden = !isLogin;
@@ -132,15 +124,8 @@ function switchMode(mode) {
 loginTab.addEventListener("click", () => switchMode("login"));
 registerTab.addEventListener("click", () => switchMode("register"));
 
-// Button loading
-function setLoading(form, loading, normalText) {
-    const button = form.querySelector('button[type="submit"]');
-
-    button.disabled = loading;
-    button.textContent = loading ? "Lütfen bekle..." : normalText;
-}
-
 // REGISTER
+
 registerForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -160,7 +145,9 @@ registerForm.addEventListener("submit", async (event) => {
         setLoading(registerForm, true, "Hesap oluştur");
 
         showAuthMessage("Hesabın oluşturuluyor...", "success");
+
         registrationInProgress = true;
+
         const credential = await createUserWithEmailAndPassword(
             auth,
             usernameToEmail(username),
@@ -169,26 +156,18 @@ registerForm.addEventListener("submit", async (event) => {
 
         newUser = credential.user;
 
-        // Save public profile in Firestore.
         await setDoc(doc(db, "users", newUser.uid), {
             username: username,
             usernameLower: username.toLowerCase(),
             createdAt: serverTimestamp()
         });
-        $("welcomeUsername").textContent = username;
-$("accountUsername").textContent = username;
-$("userAvatar").textContent = username.charAt(0).toUpperCase();
-
-authView.hidden = true;
-appView.hidden = false;
-
-        showAuthMessage("Hesabın oluşturuldu!", "success");
 
         registerForm.reset();
 
+        showLoggedIn(username);
+
     } catch (error) {
 
-        // Roll back the Auth account if profile creation fails.
         if (newUser) {
             try {
                 await deleteUser(newUser);
@@ -208,6 +187,7 @@ appView.hidden = false;
 });
 
 // LOGIN
+
 loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -219,7 +199,6 @@ loginForm.addEventListener("submit", async (event) => {
         const password = $("loginPassword").value;
 
         setLoading(loginForm, true, "Giriş yap");
-        
 
         showAuthMessage("Giriş yapılıyor...", "success");
 
@@ -243,11 +222,18 @@ loginForm.addEventListener("submit", async (event) => {
 });
 
 // AUTH STATE
+
 onAuthStateChanged(auth, async (user) => {
+
     if (registrationInProgress) return;
+
     if (!user) {
         authView.hidden = false;
         appView.hidden = true;
+
+        // Show the left branding panel again.
+        document.body.classList.remove("logged-in");
+
         return;
     }
 
@@ -259,33 +245,30 @@ onAuthStateChanged(auth, async (user) => {
             throw new Error("Kullanıcı profili bulunamadı.");
         }
 
-        const userData = userSnapshot.data();
-        const username = userData.username;
+        const username = userSnapshot.data().username;
 
-        $("welcomeUsername").textContent = username;
-        $("accountUsername").textContent = username;
-        $("userAvatar").textContent = username.charAt(0).toUpperCase();
-
-        authView.hidden = true;
-        appView.hidden = false;
+        showLoggedIn(username);
 
     } catch (error) {
         console.error("Profile loading error:", error);
+
         showAuthMessage("Profil yüklenemedi: " + error.message);
+
         await signOut(auth);
     }
-
 });
 
 // LOGOUT
+
 $("logoutButton").addEventListener("click", async () => {
     try {
         await signOut(auth);
-        showAppMessage("Çıkış yapıldı.", "success");
+        document.body.classList.remove("logged-in");
+
     } catch (error) {
-        showAppMessage(friendlyError(error));
+        console.error(error);
+        $("appMessage").textContent = friendlyError(error);
     }
 });
 
-// Start with login screen
 switchMode("login");
