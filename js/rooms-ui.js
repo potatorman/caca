@@ -5,11 +5,15 @@ import {
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 
 import {
+    addDoc,
     collection,
     doc,
     getDoc,
     getDocs,
     onSnapshot,
+    query,
+    orderBy,
+    limit,
     writeBatch,
     deleteDoc,
     serverTimestamp
@@ -28,6 +32,7 @@ let activeRoomId = null;
 let unsubscribeMembers = null;
 let unsubscribeMyMembership = null;
 let unsubscribeBanned = null;
+let unsubscribeMessages = null;
 let activeRoomOwnerId = null;
 let memberRenderVersion = 0;
 let bannedRenderVersion = 0;
@@ -92,6 +97,11 @@ function stopMemberListener() {
         unsubscribeBanned = null;
     }
 
+    if (unsubscribeMessages) {
+        unsubscribeMessages();
+        unsubscribeMessages = null;
+    }
+
     activeRoomId = null;
     activeRoomOwnerId = null;
 }
@@ -151,6 +161,7 @@ async function loadRooms() {
             const button = document.createElement("button");
             button.type = "button";
             button.className = "room-list-item";
+            button.classList.toggle("active", roomDoc.id === activeRoomId);
 
             const info = document.createElement("div");
 
@@ -179,6 +190,237 @@ async function loadRooms() {
         showRoomMessage(showError(error));
     }
 }
+
+
+// REAL-TIME ROOM CHAT
+
+function showChatStatus(message, success = false) {
+    const element = $("chatStatus");
+    if (!element) return;
+
+    element.textContent = message;
+    element.className = "chat-status";
+
+    if (success) {
+        element.classList.add("success");
+    }
+}
+
+function formatMessageTime(timestamp) {
+    if (!timestamp || typeof timestamp.toDate !== "function") {
+        return "Şimdi";
+    }
+
+    return new Intl.DateTimeFormat("tr-TR", {
+        hour: "2-digit",
+        minute: "2-digit"
+    }).format(timestamp.toDate());
+}
+
+function listenToMessages(roomId) {
+    if (unsubscribeMessages) {
+        unsubscribeMessages();
+        unsubscribeMessages = null;
+    }
+
+    const messagesList = $("chatMessages");
+    messagesList.replaceChildren();
+    showChatStatus("");
+
+    const messagesQuery = query(
+        collection(db, "rooms", roomId, "messages"),
+        orderBy("createdAt", "desc"),
+        limit(100)
+    );
+
+    let firstSnapshot = true;
+
+    unsubscribeMessages = onSnapshot(
+        messagesQuery,
+        (snapshot) => {
+            if (activeRoomId !== roomId) return;
+
+            const wasNearBottom =
+                firstSnapshot ||
+                messagesList.scrollHeight -
+                    messagesList.scrollTop -
+                    messagesList.clientHeight < 140;
+
+            messagesList.replaceChildren();
+
+            if (snapshot.empty) {
+                const empty = document.createElement("div");
+                empty.className = "chat-empty-state";
+
+                const icon = document.createElement("div");
+                icon.className = "chat-empty-icon";
+                icon.textContent = "✦";
+
+                const title = document.createElement("strong");
+                title.textContent = "İlk mesajı sen gönder";
+
+                const hint = document.createElement("span");
+                hint.textContent = "Bu odadaki sohbet burada başlayacak.";
+
+                empty.append(icon, title, hint);
+                messagesList.appendChild(empty);
+                firstSnapshot = false;
+                return;
+            }
+
+            // The query fetches the newest 100 messages in descending order.
+            // Reverse them so the chat reads from top to bottom.
+            const orderedMessages = [...snapshot.docs].reverse();
+
+            for (const messageDoc of orderedMessages) {
+                const message = messageDoc.data();
+                const senderName =
+                    typeof message.senderName === "string" && message.senderName.trim()
+                        ? message.senderName.trim()
+                        : "Kullanıcı";
+                const text =
+                    typeof message.text === "string" ? message.text : "";
+
+                if (!text) continue;
+
+                const isMine = message.senderId === currentUser?.uid;
+
+                const row = document.createElement("div");
+                row.className = "message-row" + (isMine ? " mine" : "");
+
+                const avatar = document.createElement("div");
+                avatar.className = "message-avatar";
+                avatar.textContent = senderName.charAt(0).toLocaleUpperCase("tr-TR");
+
+                const content = document.createElement("div");
+                content.className = "message-content";
+
+                const meta = document.createElement("div");
+                meta.className = "message-meta";
+
+                const author = document.createElement("strong");
+                author.textContent = senderName;
+
+                const time = document.createElement("time");
+                time.textContent = formatMessageTime(message.createdAt);
+                if (message.createdAt?.toDate) {
+                    time.dateTime = message.createdAt.toDate().toISOString();
+                }
+
+                meta.append(author, time);
+
+                const bubble = document.createElement("div");
+                bubble.className = "message-bubble";
+                bubble.textContent = text;
+
+                content.append(meta, bubble);
+                row.append(avatar, content);
+                messagesList.appendChild(row);
+            }
+
+            if (wasNearBottom) {
+                requestAnimationFrame(() => {
+                    messagesList.scrollTop = messagesList.scrollHeight;
+                });
+            }
+
+            firstSnapshot = false;
+        },
+        (error) => {
+            console.error("CACA chat listener failed:", error);
+            showChatStatus(
+                error.code === "permission-denied"
+                    ? "Mesajları okuyamıyorum. Firestore Rules içinde oda mesajı okuma iznini kontrol et."
+                    : "Mesajlar yüklenemedi: " + (error.message || "Bilinmeyen hata")
+            );
+        }
+    );
+}
+
+// SEND MESSAGE
+
+$("chatForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!currentUser || !activeRoomId) {
+        showChatStatus("Önce bir odaya katılmalısın.");
+        return;
+    }
+
+    const input = $("chatInput");
+    const button = $("chatSendButton");
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    if (text.length > 2000) {
+        showChatStatus("Mesaj en fazla 2.000 karakter olabilir.");
+        return;
+    }
+
+    button.disabled = true;
+    showChatStatus("");
+
+    try {
+        await addDoc(
+            collection(db, "rooms", activeRoomId, "messages"),
+            {
+                text,
+                senderId: currentUser.uid,
+                senderName: currentUsername || "Kullanıcı",
+                createdAt: serverTimestamp()
+            }
+        );
+
+        input.value = "";
+        input.style.height = "auto";
+        showChatStatus("");
+        input.focus();
+    } catch (error) {
+        console.error("CACA message send failed:", error);
+        showChatStatus(
+            error.code === "permission-denied"
+                ? "Mesaj gönderme izni yok. Firestore Rules mesaj yazma kuralını kontrol et."
+                : "Mesaj gönderilemedi: " + (error.message || "Bilinmeyen hata")
+        );
+    } finally {
+        button.disabled = false;
+    }
+});
+
+$("chatInput").addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        $("chatForm").requestSubmit();
+    }
+});
+
+$("chatInput").addEventListener("input", (event) => {
+    const input = event.currentTarget;
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 130) + "px";
+});
+
+function setMembersPanelOpen(isOpen) {
+    const layout = $("roomChatLayout");
+    const toggle = $("membersToggleButton");
+
+    layout.classList.toggle("members-collapsed", !isOpen);
+    toggle.setAttribute("aria-expanded", String(isOpen));
+    toggle.innerHTML = isOpen
+        ? 'Üyeler <span aria-hidden="true">▥</span>'
+        : 'Üyeleri göster <span aria-hidden="true">▥</span>';
+}
+
+$("membersToggleButton").addEventListener("click", () => {
+    const isOpen = $("membersToggleButton").getAttribute("aria-expanded") === "true";
+    setMembersPanelOpen(!isOpen);
+});
+
+$("closeMembersButton").addEventListener("click", () => {
+    setMembersPanelOpen(false);
+});
+
 
 // Keep the room module's current display name in sync with settings.
 
@@ -776,8 +1018,12 @@ async function openRoom(roomId) {
         $("dashboardView").hidden = true;
         $("roomView").hidden = false;
 
-        // Start live member updates
+        // Open the member panel by default for a newly selected room.
+        setMembersPanelOpen(true);
+
+        // Start live member and chat updates.
         listenToMembers(roomId, room.ownerId);
+        listenToMessages(roomId);
 
     } catch (error) {
         showRoomMessage(showError(error));
