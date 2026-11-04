@@ -24,6 +24,41 @@ import {
 
 const $ = (id) => document.getElementById(id);
 
+function filterMemberList() {
+    const list = $("membersList");
+    const search = $("membersSearch");
+    if (!list || !search) return;
+
+    const term = search.value.trim().toLocaleLowerCase("tr");
+    let visibleCount = 0;
+
+    list.querySelectorAll(".member-item").forEach((item) => {
+        const matches = !term || item.textContent.toLocaleLowerCase("tr").includes(term);
+        item.hidden = !matches;
+        if (matches) visibleCount++;
+    });
+
+    list.querySelectorAll(".member-group").forEach((group) => {
+        const hasVisible = Array.from(group.querySelectorAll(".member-item"))
+            .some(item => !item.hidden);
+        group.hidden = !hasVisible;
+    });
+
+    let empty = list.querySelector(".member-search-empty");
+    if (term && visibleCount === 0) {
+        if (!empty) {
+            empty = document.createElement("p");
+            empty.className = "member-search-empty";
+            empty.textContent = "Bu aramayla eşleşen üye yok.";
+            list.appendChild(empty);
+        }
+    } else if (empty) {
+        empty.remove();
+    }
+}
+
+$("membersSearch")?.addEventListener("input", filterMemberList);
+
 // USER STATE
 
 let currentUser = null;
@@ -207,6 +242,8 @@ function updateLiveProfileUI(userId, profile) {
             username.hidden = !usernameDiffers;
         }
     }
+
+    filterMemberList();
 
     const messagesList = $("chatMessages");
     if (!messagesList) return;
@@ -1533,7 +1570,8 @@ function listenToMembers(roomId, ownerId) {
 
             membersList.replaceChildren();
 
-            heading.textContent = `Oda üyeleri (${snapshot.size})`;
+            heading.textContent = "Üyeler";
+            $("membersCount").textContent = snapshot.size;
 
             if (snapshot.empty) {
                 const empty = document.createElement("p");
@@ -1565,20 +1603,61 @@ function listenToMembers(roomId, ownerId) {
                 return;
             }
 
-            // Show room owner first, then sort by nickname.
+            // Group the room owner separately; keep all other members alphabetical.
             members.sort((a, b) => {
-                if (a.role === "owner") return -1;
-                if (b.role === "owner") return 1;
+                if (a.id === ownerId) return -1;
+                if (b.id === ownerId) return 1;
 
                 return (a.displayNickname || "").localeCompare(
-                    b.displayNickname || ""
+                    b.displayNickname || "",
+                    "tr"
                 );
             });
 
+            const ownerMembers = members.filter(member =>
+                member.id === ownerId || member.role === "owner"
+            );
+            const regularMembers = members.filter(member =>
+                member.id !== ownerId && member.role !== "owner"
+            );
+
+            function createMemberGroup(label, groupMembers) {
+                if (!groupMembers.length) return null;
+
+                const group = document.createElement("section");
+                group.className = "member-group";
+
+                const groupHeading = document.createElement("div");
+                groupHeading.className = "member-group-heading";
+
+                const groupLabel = document.createElement("span");
+                groupLabel.textContent = label;
+
+                const groupCount = document.createElement("strong");
+                groupCount.textContent = groupMembers.length;
+
+                groupHeading.append(groupLabel, groupCount);
+
+                const groupItems = document.createElement("div");
+                groupItems.className = "member-group-items";
+
+                group.append(groupHeading, groupItems);
+                membersList.appendChild(group);
+
+                return groupItems;
+            }
+
+            const ownerGroup = createMemberGroup("ODA SAHİBİ", ownerMembers);
+            const regularGroup = createMemberGroup("ÜYELER", regularMembers);
+
             for (const member of members) {
+                const isOwner = member.id === ownerId || member.role === "owner";
+                const isSelf = member.id === currentUser.uid;
 
                 const item = document.createElement("div");
                 item.className = "member-item";
+                item.classList.toggle("owner", isOwner);
+                item.classList.toggle("is-self", isSelf);
                 item.dataset.userId = member.id;
 
                 const avatar = document.createElement("div");
@@ -1588,9 +1667,28 @@ function listenToMembers(roomId, ownerId) {
                 const info = document.createElement("div");
                 info.className = "member-info";
 
+                const nameLine = document.createElement("div");
+                nameLine.className = "member-name-line";
+
                 const nickname = document.createElement("strong");
                 nickname.className = "member-display-name";
                 nickname.textContent = member.displayNickname;
+
+                nameLine.appendChild(nickname);
+
+                if (isOwner) {
+                    const ownerBadge = document.createElement("span");
+                    ownerBadge.className = "member-badge owner-badge";
+                    ownerBadge.textContent = "KURUCU";
+                    nameLine.appendChild(ownerBadge);
+                }
+
+                if (isSelf) {
+                    const selfBadge = document.createElement("span");
+                    selfBadge.className = "member-badge self-badge";
+                    selfBadge.textContent = "SEN";
+                    nameLine.appendChild(selfBadge);
+                }
 
                 const username = document.createElement("span");
                 username.className = "member-account-username";
@@ -1600,16 +1698,11 @@ function listenToMembers(roomId, ownerId) {
                     member.displayNickname.trim().toLowerCase();
 
                 username.textContent = usernameDiffers
-                    ? `(${member.accountUsername})`
-                    : "";
+                    ? `@${member.accountUsername}`
+                    : `@${member.accountUsername}`;
                 username.hidden = !usernameDiffers;
 
-                const role = document.createElement("span");
-                role.className = "member-role";
-                role.textContent =
-                    member.role === "owner" ? "Oda sahibi" : "Üye";
-
-                info.append(nickname, username, role);
+                info.append(nameLine, username);
                 item.append(avatar, info);
 
                 const ownerIsViewing = currentUser.uid === activeRoomOwnerId;
@@ -1621,7 +1714,9 @@ function listenToMembers(roomId, ownerId) {
                     const kickButton = document.createElement("button");
                     kickButton.type = "button";
                     kickButton.className = "member-action-button";
-                    kickButton.textContent = "Kick";
+                    kickButton.textContent = "−";
+                    kickButton.title = "Üyeyi odadan çıkar";
+                    kickButton.setAttribute("aria-label", "Üyeyi odadan çıkar");
                     kickButton.addEventListener("click", () => {
                         manageMember(member, "kick");
                     });
@@ -1629,7 +1724,9 @@ function listenToMembers(roomId, ownerId) {
                     const banButton = document.createElement("button");
                     banButton.type = "button";
                     banButton.className = "member-action-button ban";
-                    banButton.textContent = "Ban";
+                    banButton.textContent = "⊘";
+                    banButton.title = "Üyeyi banla";
+                    banButton.setAttribute("aria-label", "Üyeyi banla");
                     banButton.addEventListener("click", () => {
                         manageMember(member, "ban");
                     });
@@ -1638,8 +1735,10 @@ function listenToMembers(roomId, ownerId) {
                     item.appendChild(actions);
                 }
 
-                membersList.appendChild(item);
+                (isOwner ? ownerGroup : regularGroup).appendChild(item);
             }
+
+            filterMemberList();
 
             console.log(
                 `CACA: Room ${roomId} member list updated. Total: ${snapshot.size}`
