@@ -146,6 +146,14 @@ onAuthStateChanged(auth, async (user) => {
 
 // CHANGE PROFILE AVATAR
 
+function publishAvatarChange(avatarId) {
+    document.dispatchEvent(
+        new CustomEvent("caca:avatar-changed", {
+            detail: { avatarId }
+        })
+    );
+}
+
 $("avatarPicker").addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-avatar-id]");
     if (!button) return;
@@ -157,8 +165,22 @@ $("avatarPicker").addEventListener("click", async (event) => {
     const user = auth.currentUser;
     if (!user) {
         showSettingsMessage("Oturumun sona ermiş. Tekrar giriş yap.");
+        $("avatarSaveMessage").textContent = "Oturum bulunamadı. Tekrar giriş yap.";
+        $("avatarSaveMessage").className = "avatar-save-status error";
         return;
     }
+
+    const previousAvatarId = currentAvatarId;
+
+    // Preview immediately, then persist. If Firestore rejects the write,
+    // restore the previous avatar and show the exact failure inline.
+    currentAvatarId = avatarId;
+    renderAvatarPicker();
+    publishAvatarChange(avatarId);
+
+    const status = $("avatarSaveMessage");
+    status.textContent = "Avatar kaydediliyor...";
+    status.className = "avatar-save-status saving";
 
     accountActionInProgress = true;
     document.querySelectorAll("#avatarPicker button").forEach((item) => {
@@ -170,20 +192,23 @@ $("avatarPicker").addEventListener("click", async (event) => {
             avatarId
         });
 
-        currentAvatarId = avatarId;
-        renderAvatarPicker();
-
-        document.dispatchEvent(
-            new CustomEvent("caca:avatar-changed", {
-                detail: { avatarId }
-            })
-        );
-
-        showSettingsMessage(`${AVATARS[avatarId].label} avatarı kaydedildi.`, true);
+        status.textContent = `${AVATARS[avatarId].label} avatarın kaydedildi.`;
+        status.className = "avatar-save-status success";
+        showSettingsMessage("Profil avatarın güncellendi.", true);
     } catch (error) {
-        showSettingsMessage(
-            "Avatar kaydedilemedi: " + friendlySettingsError(error)
-        );
+        console.error("CACA avatar save failed:", error);
+
+        currentAvatarId = previousAvatarId;
+        renderAvatarPicker();
+        publishAvatarChange(previousAvatarId);
+
+        const detail = error.code
+            ? `${error.code}: ${error.message || "İzin veya bağlantı hatası"}`
+            : (error.message || "Bilinmeyen hata");
+
+        status.textContent = "Avatar kaydedilemedi — " + detail;
+        status.className = "avatar-save-status error";
+        showSettingsMessage("Avatar kaydedilemedi. Ayrıntı avatar seçiminin altında gösteriliyor.");
     } finally {
         accountActionInProgress = false;
         document.querySelectorAll("#avatarPicker button").forEach((item) => {
