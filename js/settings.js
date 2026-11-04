@@ -1,0 +1,331 @@
+import { auth, db } from "./firebase.js";
+
+import {
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    updatePassword,
+    deleteUser,
+    onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+
+import {
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    writeBatch,
+    deleteDoc
+} from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+
+const $ = (id) => document.getElementById(id);
+
+let currentUsername = "";
+let accountActionInProgress = false;
+
+// MESSAGES
+
+function showSettingsMessage(message, success = false) {
+    const element = $("settingsMessage");
+    element.textContent = message;
+    element.className = "status-message";
+
+    if (success) {
+        element.classList.add("success");
+    }
+}
+
+function friendlySettingsError(error) {
+    console.error("CACA settings error:", error);
+
+    switch (error.code) {
+        case "auth/invalid-credential":
+        case "auth/wrong-password":
+            return "Mevcut şifren yanlış.";
+
+        case "auth/requires-recent-login":
+            return "Güvenlik nedeniyle tekrar giriş yapman gerekiyor. Çıkış yapıp yeniden giriş yap, sonra tekrar dene.";
+
+        case "auth/weak-password":
+            return "Yeni şifre en az 8 karakter olmalı.";
+
+        case "auth/too-many-requests":
+            return "Çok fazla deneme yapıldı. Daha sonra tekrar dene.";
+
+        case "auth/network-request-failed":
+            return "İnternet bağlantını kontrol et.";
+
+        case "permission-denied":
+            return "Firebase izin vermedi. Firestore Rules ayarlarını kontrol et.";
+
+        default:
+            return error.message || "Bir hata oluştu.";
+    }
+}
+
+function setFormLoading(form, loading, buttonText) {
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = loading;
+    button.textContent = loading ? "İşleniyor..." : buttonText;
+}
+
+function reauthenticateUser(user, password) {
+    if (!user || !user.email) {
+        throw new Error("Hesap bilgileri alınamadı. Tekrar giriş yap.");
+    }
+
+    const credential = EmailAuthProvider.credential(user.email, password);
+    return reauthenticateWithCredential(user, credential);
+}
+
+// SETTINGS NAVIGATION
+
+$("settingsButton").addEventListener("click", () => {
+    $("dashboardView").hidden = true;
+    $("roomView").hidden = true;
+    $("settingsView").hidden = false;
+
+    showSettingsMessage("");
+    document.dispatchEvent(new Event("caca:open-settings"));
+});
+
+$("backFromSettings").addEventListener("click", () => {
+    $("settingsView").hidden = true;
+    $("roomView").hidden = true;
+    $("dashboardView").hidden = false;
+    showSettingsMessage("");
+});
+
+// LOAD PROFILE
+
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        currentUsername = "";
+        $("settingsUsername").value = "";
+        return;
+    }
+
+    try {
+        const profileSnapshot = await getDoc(doc(db, "users", user.uid));
+
+        if (!profileSnapshot.exists()) {
+            throw new Error("Kullanıcı profili bulunamadı.");
+        }
+
+        currentUsername = profileSnapshot.data().username || "";
+        $("settingsUsername").value = currentUsername;
+    } catch (error) {
+        showSettingsMessage("Profil bilgileri yüklenemedi: " + friendlySettingsError(error));
+    }
+});
+
+// CHANGE PASSWORD
+
+$("changePasswordForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const buttonText = "Şifreyi güncelle";
+
+    if (accountActionInProgress) return;
+
+    const user = auth.currentUser;
+    const currentPassword = $("currentPassword").value;
+    const newPassword = $("newPassword").value;
+    const confirmPassword = $("confirmNewPassword").value;
+
+    if (!user) {
+        showSettingsMessage("Oturumun sona ermiş. Tekrar giriş yap.");
+        return;
+    }
+
+    if (newPassword.length < 8) {
+        showSettingsMessage("Yeni şifre en az 8 karakter olmalı.");
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        showSettingsMessage("Yeni şifreler birbiriyle eşleşmiyor.");
+        return;
+    }
+
+    if (newPassword === currentPassword) {
+        showSettingsMessage("Yeni şifren mevcut şifrenle aynı olamaz.");
+        return;
+    }
+
+    accountActionInProgress = true;
+    setFormLoading(form, true, buttonText);
+
+    try {
+        await reauthenticateUser(user, currentPassword);
+        await updatePassword(user, newPassword);
+
+        form.reset();
+        showSettingsMessage("Şifren başarıyla güncellendi.", true);
+    } catch (error) {
+        showSettingsMessage(friendlySettingsError(error));
+    } finally {
+        accountActionInProgress = false;
+        setFormLoading(form, false, buttonText);
+    }
+});
+
+// DELETE HELPERS
+
+async function commitDeleteChunks(references, chunkSize = 10) {
+    for (let index = 0; index < references.length; index += chunkSize) {
+        const batch = writeBatch(db);
+        const chunk = references.slice(index, index + chunkSize);
+
+        for (const reference of chunk) {
+            batch.delete(reference);
+        }
+
+        await batch.commit();
+    }
+}
+
+async function deleteOwnedRoom(roomId) {
+    const roomRef = doc(db, "rooms", roomId);
+    const roomSnapshot = await getDoc(roomRef);
+
+    if (!roomSnapshot.exists()) {
+        throw new Error("Sahibi olduğun odalardan biri bulunamadı: " + roomId);
+    }
+
+    const room = roomSnapshot.data();
+
+    if (room.ownerId !== auth.currentUser.uid) {
+        throw new Error("Oda sahipliği doğrulanamadı: " + roomId);
+    }
+
+    if (!room.inviteCode) {
+        throw new Error("Odanın davet kodu bulunamadı: " + roomId);
+    }
+
+    const [membersSnapshot, bansSnapshot] = await Promise.all([
+        getDocs(collection(db, "rooms", roomId, "members")),
+        getDocs(collection(db, "rooms", roomId, "bans"))
+    ]);
+
+    const referencesToDelete = [];
+
+    membersSnapshot.forEach((memberSnapshot) => {
+        if (memberSnapshot.id === auth.currentUser.uid) return;
+
+        referencesToDelete.push(memberSnapshot.ref);
+        referencesToDelete.push(
+            doc(db, "users", memberSnapshot.id, "rooms", roomId)
+        );
+    });
+
+    bansSnapshot.forEach((banSnapshot) => {
+        referencesToDelete.push(banSnapshot.ref);
+    });
+
+    await commitDeleteChunks(referencesToDelete, 10);
+
+    // Keep the owner's membership until this final atomic batch.
+    const finalBatch = writeBatch(db);
+
+    finalBatch.delete(
+        doc(db, "rooms", roomId, "members", auth.currentUser.uid)
+    );
+    finalBatch.delete(
+        doc(db, "users", auth.currentUser.uid, "rooms", roomId)
+    );
+    finalBatch.delete(doc(db, "roomInvites", room.inviteCode));
+    finalBatch.delete(roomRef);
+
+    await finalBatch.commit();
+}
+
+async function leaveMemberRoom(roomId, userId) {
+    const batch = writeBatch(db);
+
+    batch.delete(doc(db, "rooms", roomId, "members", userId));
+    batch.delete(doc(db, "users", userId, "rooms", roomId));
+
+    await batch.commit();
+}
+
+async function deleteAccountData(user) {
+    const roomList = await getDocs(
+        collection(db, "users", user.uid, "rooms")
+    );
+
+    // Delete every room membership. Owned rooms are removed completely;
+    // regular memberships are removed only for this account.
+    for (const roomEntry of roomList.docs) {
+        const roomId = roomEntry.id;
+        const roomData = roomEntry.data();
+
+        if (roomData.role === "owner") {
+            await deleteOwnedRoom(roomId);
+        } else if (roomData.role === "member") {
+            await leaveMemberRoom(roomId, user.uid);
+        } else {
+            throw new Error("Bilinmeyen oda üyeliği bulundu: " + roomId);
+        }
+    }
+
+    // Delete the user's profile after all owned rooms and memberships
+    // have been cleaned up. Firestore Rules must allow self-deletion.
+    await deleteDoc(doc(db, "users", user.uid));
+}
+
+// DELETE ACCOUNT
+
+$("deleteAccountForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const buttonText = "Hesabımı kalıcı olarak sil";
+
+    if (accountActionInProgress) return;
+
+    const user = auth.currentUser;
+    const password = $("deleteAccountPassword").value;
+    const confirmation = $("deleteAccountConfirmation").value.trim();
+
+    if (!user) {
+        showSettingsMessage("Oturumun sona ermiş. Tekrar giriş yap.");
+        return;
+    }
+
+    if (confirmation !== "SİL") {
+        showSettingsMessage('Devam etmek için onay alanına tam olarak "SİL" yaz.');
+        return;
+    }
+
+    const confirmed = window.confirm(
+        "Hesabın, sahibi olduğun odalar ve bu odaların kayıtları kalıcı olarak silinecek. Devam etmek istiyor musun?"
+    );
+
+    if (!confirmed) return;
+
+    accountActionInProgress = true;
+    setFormLoading(form, true, buttonText);
+    showSettingsMessage("Hesap ve oda kayıtların siliniyor. Bu sırada sayfayı kapatma.", true);
+
+    try {
+        // Reauthenticate before deleting any data. Firebase requires a
+        // recent sign-in for account deletion.
+        await reauthenticateUser(user, password);
+
+        await deleteAccountData(user);
+
+        // Delete the Firebase Authentication account last, while the
+        // authenticated session is still available for Firestore writes.
+        await deleteUser(user);
+
+        form.reset();
+        window.location.reload();
+    } catch (error) {
+        showSettingsMessage(
+            "Hesap silme tamamlanamadı: " + friendlySettingsError(error)
+        );
+        accountActionInProgress = false;
+        setFormLoading(form, false, buttonText);
+    }
+});
