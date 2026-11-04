@@ -374,7 +374,7 @@ $("chatForm").addEventListener("submit", async (event) => {
         );
 
         input.value = "";
-        input.style.height = "auto";
+        resizeChatInput();
         showChatStatus("");
         input.focus();
     } catch (error) {
@@ -396,11 +396,47 @@ $("chatInput").addEventListener("keydown", (event) => {
     }
 });
 
-$("chatInput").addEventListener("input", (event) => {
-    const input = event.currentTarget;
+// Automatically grow the composer as text wraps. Recalculate when
+// the chat panel width changes so resizing the desktop window never
+// leaves the textarea at a stale height.
+const CHAT_INPUT_MAX_HEIGHT = 130;
+
+function resizeChatInput() {
+    const input = $("chatInput");
+    if (!input) return;
+
     input.style.height = "auto";
-    input.style.height = Math.min(input.scrollHeight, 130) + "px";
-});
+
+    const fullHeight = input.scrollHeight;
+    const nextHeight = Math.min(fullHeight, CHAT_INPUT_MAX_HEIGHT);
+
+    input.style.height = nextHeight + "px";
+    input.style.overflowY = fullHeight > CHAT_INPUT_MAX_HEIGHT
+        ? "auto"
+        : "hidden";
+}
+
+$("chatInput").addEventListener("input", resizeChatInput);
+
+window.addEventListener("resize", resizeChatInput);
+
+if ("ResizeObserver" in window) {
+    const chatPanel = document.querySelector(".chat-panel");
+    if (chatPanel) {
+        let previousWidth = 0;
+
+        const chatPanelObserver = new ResizeObserver((entries) => {
+            const width = entries[0]?.contentRect.width || 0;
+
+            if (Math.abs(width - previousWidth) > 1) {
+                previousWidth = width;
+                resizeChatInput();
+            }
+        });
+
+        chatPanelObserver.observe(chatPanel);
+    }
+}
 
 function setMembersPanelOpen(isOpen) {
     const layout = $("roomChatLayout");
