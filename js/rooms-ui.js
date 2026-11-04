@@ -743,11 +743,11 @@ async function deleteActiveRoom() {
             referencesToDelete.push(banDoc.ref);
         });
 
-        // Firestore batches support at most 500 writes.
-        // Use 400 per batch so the deletion remains below that limit.
-        for (let index = 0; index < referencesToDelete.length; index += 400) {
+        // Keep batches small so security-rule document lookups stay
+        // comfortably below Firestore's per-request access-call limits.
+        for (let index = 0; index < referencesToDelete.length; index += 10) {
             const batch = writeBatch(db);
-            const chunk = referencesToDelete.slice(index, index + 400);
+            const chunk = referencesToDelete.slice(index, index + 10);
 
             for (const reference of chunk) {
                 batch.delete(reference);
