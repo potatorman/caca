@@ -199,6 +199,7 @@ registerForm.addEventListener("submit", async (event) => {
             {
                 username: username,
                 usernameLower: username.toLowerCase(),
+                nickname: username,
                 createdAt: serverTimestamp()
             }
         );
@@ -290,9 +291,10 @@ onAuthStateChanged(auth, async (user) => {
             throw new Error("Kullanıcı profili bulunamadı.");
         }
 
-        const username = userSnapshot.data().username;
+        const profile = userSnapshot.data();
+        const displayName = profile.nickname || profile.username;
 
-        showLoggedIn(username);
+        showLoggedIn(displayName);
 
     } catch (error) {
 
