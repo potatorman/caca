@@ -97,7 +97,12 @@ function setLoading(form, loading, normalText) {
 
 // SHOW DASHBOARD
 
-function showLoggedIn(username, nickname = username, avatarId = DEFAULT_AVATAR_ID) {
+function showLoggedIn(
+    username,
+    nickname = username,
+    avatarId = DEFAULT_AVATAR_ID,
+    avatarData = null
+) {
 
     const displayName = nickname || username;
     const hasDifferentUsername =
@@ -109,7 +114,7 @@ function showLoggedIn(username, nickname = username, avatarId = DEFAULT_AVATAR_I
         : "";
     $("accountUsername").hidden = !hasDifferentUsername;
 
-    setAvatarElement($("userAvatar"), avatarId);
+    setAvatarElement($("userAvatar"), avatarId, avatarData);
 
     // Hide login screen
     authView.hidden = true;
@@ -301,7 +306,8 @@ onAuthStateChanged(auth, async (user) => {
         showLoggedIn(
             profile.username,
             profile.nickname || profile.username,
-            profile.avatarId || DEFAULT_AVATAR_ID
+            profile.avatarId || DEFAULT_AVATAR_ID,
+            profile.avatarData || null
         );
 
     } catch (error) {
@@ -334,7 +340,8 @@ $("logoutButton").addEventListener("click", async () => {
 
 document.addEventListener("caca:avatar-changed", (event) => {
     const avatarId = event.detail?.avatarId || DEFAULT_AVATAR_ID;
-    setAvatarElement($("userAvatar"), avatarId);
+    const avatarData = event.detail?.avatarData || null;
+    setAvatarElement($("userAvatar"), avatarId, avatarData);
 });
 
 // INITIAL SCREEN
