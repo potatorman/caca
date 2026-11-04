@@ -1007,3 +1007,15 @@ body.logged-in .auth-card {
         padding: 18px;
     }
 }
+
+
+/* NICKNAME FORM */
+#nicknameForm {
+    margin-top: 16px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border);
+}
+
+#nicknameForm .settings-note {
+    margin-top: 3px;
+}
