@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 
 import {
     onAuthStateChanged
@@ -25,6 +26,7 @@ const $ = (id) => document.getElementById(id);
 
 let currentUser = null;
 let currentUsername = "";
+let currentAvatarId = DEFAULT_AVATAR_ID;
 let activeRoomCode = "";
 let activeRoomId = null;
 
@@ -37,6 +39,8 @@ let activeRoomOwnerId = null;
 let memberRenderVersion = 0;
 let bannedRenderVersion = 0;
 let isDeletingRoom = false;
+let messageRenderVersion = 0;
+const publicProfileCache = new Map();
 
 // ROOM CODE
 
@@ -102,32 +106,47 @@ function stopMemberListener() {
         unsubscribeMessages = null;
     }
 
+    messageRenderVersion += 1;
     activeRoomId = null;
     activeRoomOwnerId = null;
 }
 
 // Resolve the current public profile so older membership/ban records
 // still show the account username separately from the current nickname.
+async function getPublicProfile(userId) {
+    if (!userId) return null;
+
+    if (!publicProfileCache.has(userId)) {
+        const profileRequest = getDoc(doc(db, "users", userId))
+            .then((snapshot) => snapshot.exists() ? snapshot.data() : null)
+            .catch((error) => {
+                console.warn("CACA: Could not load public profile:", userId, error);
+                return null;
+            });
+
+        publicProfileCache.set(userId, profileRequest);
+    }
+
+    return publicProfileCache.get(userId);
+}
+
 async function getAccountDisplayNames(userId, fallbackName = "Bilinmeyen kullanıcı") {
-    try {
-        const profileSnapshot = await getDoc(doc(db, "users", userId));
+    const profile = await getPublicProfile(userId);
 
-        if (profileSnapshot.exists()) {
-            const profile = profileSnapshot.data();
-            const accountUsername = profile.username || fallbackName;
+    if (profile) {
+        const accountUsername = profile.username || fallbackName;
 
-            return {
-                accountUsername,
-                displayNickname: profile.nickname || accountUsername
-            };
-        }
-    } catch (error) {
-        console.warn("CACA: Could not load member profile:", userId, error);
+        return {
+            accountUsername,
+            displayNickname: profile.nickname || accountUsername,
+            avatarId: AVATARS[profile.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID
+        };
     }
 
     return {
         accountUsername: fallbackName,
-        displayNickname: fallbackName
+        displayNickname: fallbackName,
+        avatarId: DEFAULT_AVATAR_ID
     };
 }
 
@@ -238,18 +257,19 @@ function listenToMessages(roomId) {
 
     unsubscribeMessages = onSnapshot(
         messagesQuery,
-        (snapshot) => {
+        async (snapshot) => {
             if (activeRoomId !== roomId) return;
 
+            const renderVersion = ++messageRenderVersion;
             const wasNearBottom =
                 firstSnapshot ||
                 messagesList.scrollHeight -
                     messagesList.scrollTop -
                     messagesList.clientHeight < 140;
 
-            messagesList.replaceChildren();
-
             if (snapshot.empty) {
+                messagesList.replaceChildren();
+
                 const empty = document.createElement("div");
                 empty.className = "chat-empty-state";
 
@@ -273,50 +293,106 @@ function listenToMessages(roomId) {
             // Reverse them so the chat reads from top to bottom.
             const orderedMessages = [...snapshot.docs].reverse();
 
+            // Load each sender profile once per snapshot. This also makes old
+            // messages use the sender's current nickname and selected avatar.
+            const senderIds = [
+                ...new Set(
+                    orderedMessages
+                        .map((messageDoc) => messageDoc.data().senderId)
+                        .filter(Boolean)
+                )
+            ];
+
+            const senderProfiles = new Map(
+                await Promise.all(
+                    senderIds.map(async (senderId) => [
+                        senderId,
+                        await getPublicProfile(senderId)
+                    ])
+                )
+            );
+
+            // Ignore stale asynchronous profile reads after room changes
+            // or a newer message snapshot.
+            if (activeRoomId !== roomId || renderVersion !== messageRenderVersion) {
+                return;
+            }
+
+            messagesList.replaceChildren();
+
+            let previousMessage = null;
+
             for (const messageDoc of orderedMessages) {
                 const message = messageDoc.data();
+                const profile = senderProfiles.get(message.senderId);
                 const senderName =
-                    typeof message.senderName === "string" && message.senderName.trim()
-                        ? message.senderName.trim()
-                        : "Kullanıcı";
+                    (profile?.nickname || profile?.username ||
+                     (typeof message.senderName === "string" ? message.senderName.trim() : "")) ||
+                    "Kullanıcı";
                 const text =
                     typeof message.text === "string" ? message.text : "";
 
                 if (!text) continue;
 
                 const isMine = message.senderId === currentUser?.uid;
+                const avatarId = AVATARS[message.senderAvatarId]
+                    ? message.senderAvatarId
+                    : (AVATARS[profile?.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID);
+
+                const timestamp = message.createdAt?.toMillis
+                    ? message.createdAt.toMillis()
+                    : null;
+
+                const isGrouped = Boolean(
+                    previousMessage &&
+                    previousMessage.senderId === message.senderId &&
+                    timestamp !== null &&
+                    previousMessage.timestamp !== null &&
+                    timestamp >= previousMessage.timestamp &&
+                    timestamp - previousMessage.timestamp <= 5 * 60 * 1000
+                );
 
                 const row = document.createElement("div");
-                row.className = "message-row" + (isMine ? " mine" : "");
+                row.className = "message-row" +
+                    (isMine ? " mine" : "") +
+                    (isGrouped ? " grouped" : "");
 
                 const avatar = document.createElement("div");
                 avatar.className = "message-avatar";
-                avatar.textContent = senderName.charAt(0).toLocaleUpperCase("tr-TR");
+                setAvatarElement(avatar, avatarId);
 
                 const content = document.createElement("div");
                 content.className = "message-content";
 
-                const meta = document.createElement("div");
-                meta.className = "message-meta";
+                if (!isGrouped) {
+                    const meta = document.createElement("div");
+                    meta.className = "message-meta";
 
-                const author = document.createElement("strong");
-                author.textContent = senderName;
+                    const author = document.createElement("strong");
+                    author.textContent = senderName;
 
-                const time = document.createElement("time");
-                time.textContent = formatMessageTime(message.createdAt);
-                if (message.createdAt?.toDate) {
-                    time.dateTime = message.createdAt.toDate().toISOString();
+                    const time = document.createElement("time");
+                    time.textContent = formatMessageTime(message.createdAt);
+                    if (message.createdAt?.toDate) {
+                        time.dateTime = message.createdAt.toDate().toISOString();
+                    }
+
+                    meta.append(author, time);
+                    content.appendChild(meta);
                 }
-
-                meta.append(author, time);
 
                 const bubble = document.createElement("div");
                 bubble.className = "message-bubble";
                 bubble.textContent = text;
 
-                content.append(meta, bubble);
+                content.appendChild(bubble);
                 row.append(avatar, content);
                 messagesList.appendChild(row);
+
+                previousMessage = {
+                    senderId: message.senderId,
+                    timestamp
+                };
             }
 
             if (wasNearBottom) {
@@ -369,6 +445,7 @@ $("chatForm").addEventListener("submit", async (event) => {
                 text,
                 senderId: currentUser.uid,
                 senderName: currentUsername || "Kullanıcı",
+                senderAvatarId: currentAvatarId || DEFAULT_AVATAR_ID,
                 createdAt: serverTimestamp()
             }
         );
@@ -466,6 +543,26 @@ $("closeMembersButton").addEventListener("click", () => {
 document.addEventListener("caca:nickname-changed", (event) => {
     if (typeof event.detail?.nickname === "string") {
         currentUsername = event.detail.nickname;
+        if (currentUser) publicProfileCache.delete(currentUser.uid);
+
+        if (activeRoomId) {
+            listenToMessages(activeRoomId);
+        }
+    }
+});
+
+document.addEventListener("caca:avatar-changed", (event) => {
+    const avatarId = event.detail?.avatarId;
+    if (!AVATARS[avatarId]) return;
+
+    currentAvatarId = avatarId;
+    if (currentUser) publicProfileCache.delete(currentUser.uid);
+
+    if (activeRoomId) {
+        const roomId = activeRoomId;
+        const ownerId = activeRoomOwnerId;
+        listenToMembers(roomId, ownerId);
+        listenToMessages(roomId);
     }
 });
 
@@ -722,6 +819,10 @@ function listenToMembers(roomId, ownerId) {
                 const item = document.createElement("div");
                 item.className = "member-item";
 
+                const avatar = document.createElement("div");
+                avatar.className = "member-avatar";
+                setAvatarElement(avatar, member.avatarId);
+
                 const info = document.createElement("div");
                 info.className = "member-info";
 
@@ -747,7 +848,7 @@ function listenToMembers(roomId, ownerId) {
                     member.role === "owner" ? "Oda sahibi" : "Üye";
 
                 info.append(nickname, username, role);
-                item.appendChild(info);
+                item.append(avatar, info);
 
                 const ownerIsViewing = currentUser.uid === activeRoomOwnerId;
 
@@ -887,6 +988,10 @@ function listenToBannedMembers(roomId) {
                 const item = document.createElement("div");
                 item.className = "banned-user-item";
 
+                const avatar = document.createElement("div");
+                avatar.className = "member-avatar";
+                setAvatarElement(avatar, bannedUser.avatarId);
+
                 const info = document.createElement("div");
                 info.className = "member-info";
 
@@ -917,7 +1022,7 @@ function listenToBannedMembers(roomId) {
                     );
                 });
 
-                item.append(info, button);
+                item.append(avatar, info, button);
                 list.appendChild(item);
             }
         },
@@ -1257,6 +1362,8 @@ onAuthStateChanged(auth, async (user) => {
 
         currentUser = null;
         currentUsername = "";
+        currentAvatarId = DEFAULT_AVATAR_ID;
+        publicProfileCache.clear();
         activeRoomCode = "";
 
         $("roomsList").replaceChildren();
@@ -1279,7 +1386,11 @@ onAuthStateChanged(auth, async (user) => {
 
         const profile = profileSnapshot.data();
         currentUsername = profile.nickname || profile.username;
+        currentAvatarId = AVATARS[profile.avatarId]
+            ? profile.avatarId
+            : DEFAULT_AVATAR_ID;
 
+        publicProfileCache.clear();
         await loadRooms();
 
     } catch (error) {
