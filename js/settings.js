@@ -246,11 +246,14 @@ $("avatarPicker").addEventListener("click", (event) => {
     renderAvatarPicker();
 
     const status = $("avatarSaveMessage");
-    if (pendingAvatarId === currentAvatarId) {
+    if (
+        pendingAvatarId === currentAvatarId &&
+        pendingAvatarData === currentAvatarData
+    ) {
         status.textContent = "Kayıtlı avatarın seçili.";
         status.className = "avatar-save-status";
     } else {
-        status.textContent = "Seçimin hazır. Değişikliği uygulamak için Avatarı kaydet'e bas.";
+        status.textContent = "Seçimin hazır. Değişikliği uygulamak için kaydet'e bas.";
         status.className = "avatar-save-status";
     }
 });
