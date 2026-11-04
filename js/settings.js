@@ -205,9 +205,15 @@ $("nicknameForm").addEventListener("submit", async (event) => {
 
         currentNickname = nickname;
 
+        const usernameDiffers =
+            currentUsername.trim().toLowerCase() !== nickname.trim().toLowerCase();
+
         $("welcomeUsername").textContent = nickname;
         $("userAvatar").textContent = nickname.charAt(0).toUpperCase();
-        $("accountUsername").textContent = currentUsername;
+        $("accountUsername").textContent = usernameDiffers
+            ? `(${currentUsername})`
+            : "";
+        $("accountUsername").hidden = !usernameDiffers;
 
         document.dispatchEvent(
             new CustomEvent("caca:nickname-changed", {
