@@ -317,9 +317,10 @@ async function deleteOwnedRoom(roomId) {
         throw new Error("Odanın davet kodu bulunamadı: " + roomId);
     }
 
-    const [membersSnapshot, bansSnapshot] = await Promise.all([
+    const [membersSnapshot, bansSnapshot, messagesSnapshot] = await Promise.all([
         getDocs(collection(db, "rooms", roomId, "members")),
-        getDocs(collection(db, "rooms", roomId, "bans"))
+        getDocs(collection(db, "rooms", roomId, "bans")),
+        getDocs(collection(db, "rooms", roomId, "messages"))
     ]);
 
     const referencesToDelete = [];
@@ -335,6 +336,12 @@ async function deleteOwnedRoom(roomId) {
 
     bansSnapshot.forEach((banSnapshot) => {
         referencesToDelete.push(banSnapshot.ref);
+    });
+
+    // Delete room messages explicitly; Firestore keeps subcollections
+    // when the parent room document is removed.
+    messagesSnapshot.forEach((messageSnapshot) => {
+        referencesToDelete.push(messageSnapshot.ref);
     });
 
     await commitDeleteChunks(referencesToDelete, 10);
