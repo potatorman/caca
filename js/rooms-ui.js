@@ -153,6 +153,14 @@ async function loadRooms() {
     }
 }
 
+// Keep the room module's current display name in sync with settings.
+
+document.addEventListener("caca:nickname-changed", (event) => {
+    if (typeof event.detail?.nickname === "string") {
+        currentUsername = event.detail.nickname;
+    }
+});
+
 // CREATE ROOM
 
 $("createRoomForm").addEventListener("submit", async (event) => {
@@ -879,7 +887,8 @@ onAuthStateChanged(auth, async (user) => {
             throw new Error("Kullanıcı profili bulunamadı.");
         }
 
-        currentUsername = profileSnapshot.data().username;
+        const profile = profileSnapshot.data();
+        currentUsername = profile.nickname || profile.username;
 
         await loadRooms();
 
