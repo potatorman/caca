@@ -2086,13 +2086,143 @@ body.logged-in .auth-card {
 
 /* Settings and status content inside the new workspace */
 .settings-view {
-    width: min(820px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr);
+    align-content: start;
+    align-items: start;
+    gap: 18px;
+    width: 100%;
     max-width: none;
     flex: 1;
-    align-self: center;
+    align-self: stretch;
+    min-width: 0;
     min-height: 0;
-    padding: 5px 5px 25px;
+    padding: 0 4px 25px;
     overflow-y: auto;
+}
+
+.settings-view > .settings-topbar {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 22px;
+    margin: 0 0 2px;
+    padding: 0 0 17px;
+    border-bottom: 1px solid #202b3b;
+}
+
+.settings-view .settings-topbar .back-button {
+    width: fit-content;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.settings-view .settings-topbar h2 {
+    margin: 5px 0 3px;
+    font-size: 25px;
+}
+
+.settings-view .settings-topbar p {
+    color: #8795a9;
+    font-size: 12px;
+}
+
+.settings-view > .settings-card,
+.settings-view > .settings-danger-zone {
+    min-width: 0;
+    margin: 0;
+    padding: 22px;
+    background: #121d2b;
+    border: 1px solid #28394f;
+    border-radius: 14px;
+}
+
+.settings-view > .settings-danger-zone {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, .8fr);
+    align-items: start;
+    column-gap: 30px;
+}
+
+.settings-view > .settings-danger-zone .small-label,
+.settings-view > .settings-danger-zone h3,
+.settings-view > .settings-danger-zone > p {
+    grid-column: 1;
+}
+
+.settings-view > .settings-danger-zone .settings-form {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin-top: 0;
+}
+
+.settings-view .settings-card h3,
+.settings-view .settings-danger-zone h3 {
+    margin: 7px 0 15px;
+    color: #eaf1fb;
+}
+
+.settings-view .settings-card > .small-label,
+.settings-view .settings-danger-zone > .small-label,
+.settings-view .settings-topbar .small-label {
+    margin-top: 0 !important;
+}
+
+.avatar-save-status {
+    min-height: 0;
+    margin: 10px 0 0;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.avatar-save-status:empty {
+    display: none;
+}
+
+.avatar-save-status.saving {
+    color: #91baff;
+}
+
+.avatar-save-status.success {
+    color: #72d6a0;
+}
+
+.avatar-save-status.error {
+    color: #f08b8b;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 1050px) {
+    .settings-view {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .settings-view > .settings-topbar,
+    .settings-view > .settings-danger-zone {
+        grid-column: 1;
+    }
+
+    .settings-view > .settings-danger-zone {
+        display: block;
+    }
+
+    .settings-view > .settings-danger-zone .settings-form {
+        margin-top: 14px;
+    }
+}
+
+@media (max-width: 650px) {
+    .settings-view > .settings-topbar {
+        grid-template-columns: 1fr;
+        gap: 13px;
+    }
+
+    .settings-view > .settings-card,
+    .settings-view > .settings-danger-zone {
+        padding: 17px;
+    }
 }
 
 .settings-topbar {
