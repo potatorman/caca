@@ -41,6 +41,7 @@ let bannedRenderVersion = 0;
 let isDeletingRoom = false;
 let messageRenderVersion = 0;
 const publicProfileCache = new Map();
+const liveProfileUnsubscribers = new Map();
 
 // ROOM CODE
 
@@ -83,6 +84,16 @@ function showError(error) {
     return error.message || "Bir hata oluştu.";
 }
 
+// STOP LIVE PROFILE LISTENERS
+
+function stopLiveProfileListeners() {
+    for (const unsubscribe of liveProfileUnsubscribers.values()) {
+        unsubscribe();
+    }
+
+    liveProfileUnsubscribers.clear();
+}
+
 // STOP MEMBER LISTENER
 
 function stopMemberListener() {
@@ -105,6 +116,8 @@ function stopMemberListener() {
         unsubscribeMessages();
         unsubscribeMessages = null;
     }
+
+    stopLiveProfileListeners();
 
     messageRenderVersion += 1;
     activeRoomId = null;
@@ -148,6 +161,58 @@ async function getAccountDisplayNames(userId, fallbackName = "Bilinmeyen kullan�
         displayNickname: fallbackName,
         avatarId: DEFAULT_AVATAR_ID
     };
+}
+
+// Apply a live profile update to every visible representation of that user.
+// This keeps the member list, banned list and already-rendered chat messages
+// synchronized without restarting the room or requiring a page refresh.
+function updateLiveProfileUI(userId, profile) {
+    const accountUsername = profile?.username || "Bilinmeyen kullanıcı";
+    const displayNickname = profile?.nickname || accountUsername;
+    const avatarId = AVATARS[profile?.avatarId]
+        ? profile.avatarId
+        : DEFAULT_AVATAR_ID;
+
+    for (const list of [$("membersList"), $("bannedList")]) {
+        if (!list) continue;
+
+        const item = Array.from(
+            list.querySelectorAll("[data-user-id]")
+        ).find((element) => element.dataset.userId === userId);
+
+        if (!item) continue;
+
+        const avatar = item.querySelector(".member-avatar");
+        if (avatar) setAvatarElement(avatar, avatarId);
+
+        const nickname = item.querySelector(".member-display-name");
+        if (nickname) nickname.textContent = displayNickname;
+
+        const username = item.querySelector(".member-account-username");
+        if (username) {
+            const usernameDiffers =
+                accountUsername.trim().toLowerCase() !==
+                displayNickname.trim().toLowerCase();
+
+            username.textContent = usernameDiffers
+                ? `(${accountUsername})`
+                : "";
+            username.hidden = !usernameDiffers;
+        }
+    }
+
+    const messagesList = $("chatMessages");
+    if (!messagesList) return;
+
+    for (const row of messagesList.querySelectorAll(".message-row")) {
+        if (row.dataset.senderId !== userId) continue;
+
+        const avatar = row.querySelector(".message-avatar");
+        if (avatar) setAvatarElement(avatar, avatarId);
+
+        const author = row.querySelector(".message-meta strong");
+        if (author) author.textContent = displayNickname;
+    }
 }
 
 // LOAD MY ROOMS
@@ -335,9 +400,13 @@ function listenToMessages(roomId) {
                 if (!text) continue;
 
                 const isMine = message.senderId === currentUser?.uid;
-                const avatarId = AVATARS[message.senderAvatarId]
-                    ? message.senderAvatarId
-                    : (AVATARS[profile?.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID);
+                // Prefer the current profile avatar so old messages update
+                // immediately when their sender changes their avatar.
+                const avatarId = AVATARS[profile?.avatarId]
+                    ? profile.avatarId
+                    : (AVATARS[message.senderAvatarId]
+                        ? message.senderAvatarId
+                        : DEFAULT_AVATAR_ID);
 
                 const timestamp = message.createdAt?.toMillis
                     ? message.createdAt.toMillis()
@@ -353,6 +422,7 @@ function listenToMessages(roomId) {
                 );
 
                 const row = document.createElement("div");
+                row.dataset.senderId = message.senderId || "";
                 row.className = "message-row" +
                     (isMine ? " mine" : "") +
                     (isGrouped ? " grouped" : "");
@@ -770,6 +840,58 @@ function listenToMembers(roomId, ownerId) {
             const membersList = $("membersList");
             const heading = $("membersHeading");
 
+            // Keep a real-time listener on every current member's public
+            // profile. Profile changes then reach everyone in this room live.
+            const currentMemberIds = new Set(
+                snapshot.docs.map((memberDoc) => memberDoc.id)
+            );
+
+            for (const [profileUserId, unsubscribe] of liveProfileUnsubscribers) {
+                if (!currentMemberIds.has(profileUserId)) {
+                    unsubscribe();
+                    liveProfileUnsubscribers.delete(profileUserId);
+                    publicProfileCache.delete(profileUserId);
+                }
+            }
+
+            for (const memberDoc of snapshot.docs) {
+                const profileUserId = memberDoc.id;
+                if (liveProfileUnsubscribers.has(profileUserId)) continue;
+
+                const unsubscribe = onSnapshot(
+                    doc(db, "users", profileUserId),
+                    (profileSnapshot) => {
+                        const profile = profileSnapshot.exists()
+                            ? profileSnapshot.data()
+                            : null;
+
+                        publicProfileCache.set(
+                            profileUserId,
+                            Promise.resolve(profile)
+                        );
+
+                        if (activeRoomId === roomId) {
+                            updateLiveProfileUI(profileUserId, profile);
+                        }
+                    },
+                    (error) => {
+                        console.warn(
+                            "CACA: Live profile listener failed:",
+                            profileUserId,
+                            error
+                        );
+                    }
+                );
+
+                liveProfileUnsubscribers.set(profileUserId, unsubscribe);
+            }
+
+            // Do not reuse stale profile reads when a room member snapshot
+            // changes; the following reads are refreshed for this render.
+            for (const profileUserId of currentMemberIds) {
+                publicProfileCache.delete(profileUserId);
+            }
+
             membersList.replaceChildren();
 
             heading.textContent = `Oda üyeleri (${snapshot.size})`;
@@ -818,6 +940,7 @@ function listenToMembers(roomId, ownerId) {
 
                 const item = document.createElement("div");
                 item.className = "member-item";
+                item.dataset.userId = member.id;
 
                 const avatar = document.createElement("div");
                 avatar.className = "member-avatar";
@@ -987,6 +1110,7 @@ function listenToBannedMembers(roomId) {
             for (const bannedUser of bannedUsers) {
                 const item = document.createElement("div");
                 item.className = "banned-user-item";
+                item.dataset.userId = bannedUser.id;
 
                 const avatar = document.createElement("div");
                 avatar.className = "member-avatar";
