@@ -3246,9 +3246,15 @@ body.logged-in .auth-card {
 }
 .room-management-panel[hidden] { display: none; }
 .room-management-card {
-    width: min(100%, 520px); padding: 23px; color: #e4edfa;
-    background: #111c2b; border: 1px solid #2c405b;
-    border-radius: 16px; box-shadow: 0 24px 80px rgba(0, 0, 0, .5);
+    width: min(100%, 700px);
+    max-height: min(90vh, 820px);
+    padding: 23px;
+    overflow-y: auto;
+    color: #e4edfa;
+    background: #111c2b;
+    border: 1px solid #2c405b;
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .5);
 }
 .room-management-heading {
     display: flex; align-items: flex-start; justify-content: space-between;
@@ -3274,6 +3280,167 @@ body.logged-in .auth-card {
 .room-management-status {
     min-height: 18px; margin: 12px 2px 0; color: #a8caff;
     font-size: 11px; line-height: 1.5;
+}
+
+.admin-assignment-section {
+    display: block;
+    margin-bottom: 14px;
+    padding: 15px;
+}
+
+.room-management-section-copy {
+    margin-bottom: 12px;
+}
+
+.admin-assignment-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(110px, .8fr) auto;
+    gap: 7px;
+}
+
+.admin-assignment-controls select {
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    padding: 0 9px;
+    color: #e7f0ff;
+    background: #0d1725;
+    border: 1px solid #30445f;
+    border-radius: 7px;
+    font-size: 10px;
+}
+
+.admin-assignment-controls select:focus {
+    border-color: #4b8cff;
+    outline: 0;
+}
+
+.admin-grant-button {
+    min-height: 36px;
+    padding: 0 12px;
+    color: #ffffff;
+    background: #2868bb;
+    border: 1px solid #4786d0;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 750;
+    white-space: nowrap;
+}
+
+.admin-grant-button:hover { background: #347bd0; }
+.admin-grant-button:disabled { opacity: .55; cursor: wait; }
+
+.admin-management-status {
+    min-height: 16px;
+    margin: 8px 1px 0;
+    color: #a8caff;
+    font-size: 10px;
+}
+
+.admin-list-heading,
+.banned-management-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 15px 0 8px;
+    padding-top: 12px;
+    border-top: 1px solid #2a3e58;
+}
+
+.admin-list-heading strong,
+.banned-management-heading strong {
+    color: #dceaff;
+    font-size: 11px;
+}
+
+.admin-list-heading span,
+.banned-management-heading span {
+    color: #7f93ad;
+    font-size: 9px;
+}
+
+.room-admins-list {
+    display: grid;
+    gap: 5px;
+}
+
+.room-admin-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    background: #101e2d;
+    border: 1px solid #293e57;
+    border-radius: 8px;
+}
+
+.room-admin-item .member-avatar {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+}
+
+.room-admin-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.room-admin-info strong {
+    display: block;
+    overflow: hidden;
+    color: #e7f0fd;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.room-admin-info span {
+    display: block;
+    margin-top: 3px;
+    color: #8ba1bd;
+    font-size: 9px;
+}
+
+.admin-expired-label {
+    color: #e2a4a9 !important;
+}
+
+.admin-revoke-button {
+    min-height: 27px;
+    padding: 0 8px;
+    color: #ffc1c6;
+    background: #3b242d;
+    border: 1px solid #63414b;
+    border-radius: 6px;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.admin-revoke-button:hover { background: #56303b; }
+
+.management-banned-section {
+    margin: 0 0 14px;
+    padding: 14px;
+}
+
+.management-banned-section[hidden] { display: none !important; }
+.banned-management-heading { margin-top: 0; padding-top: 0; border-top: 0; }
+.management-banned-section .banned-user-item {
+    flex-direction: row;
+    align-items: center;
+    gap: 9px;
+}
+.management-banned-section .member-info { flex: 1; }
+.management-banned-section .unban-button {
+    flex: 0 0 auto;
+    min-height: 28px;
+    color: #ffc5cb;
+    background: #3a252d;
+    border: 1px solid #63414b;
+    border-radius: 6px;
+    font-size: 9px;
 }
 .message-content { position: relative; }
 .message-actions { position: absolute; z-index: 5; top: -13px; right: -2px; }
@@ -3329,4 +3496,21 @@ body.logged-in .auth-card {
     .room-toolbar-actions { flex-wrap: wrap; justify-content: flex-end; }
     .room-management-section { align-items: stretch; flex-direction: column; }
     .room-management-danger-button { width: 100%; }
+}
+
+
+/* Room admin and ban management responsive layout */
+@media (max-width: 620px) {
+    .admin-assignment-controls {
+        grid-template-columns: 1fr 1fr;
+    }
+    .admin-assignment-controls select:first-child {
+        grid-column: 1 / -1;
+    }
+    .admin-grant-button {
+        width: 100%;
+    }
+    .room-admin-item {
+        flex-wrap: wrap;
+    }
 }
