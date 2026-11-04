@@ -1844,10 +1844,17 @@ body.logged-in .auth-card {
 }
 
 .chat-composer textarea {
+    display: block;
     width: 100%;
+    min-width: 0;
     min-height: 38px;
     max-height: 130px;
-    resize: vertical;
+    resize: none;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
     padding: 3px 2px;
     color: #edf4ff;
     background: transparent;
