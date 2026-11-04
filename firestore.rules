@@ -159,6 +159,7 @@ service cloud.firestore {
         allow update: if false;
 
         allow delete: if signedIn()
+          && !existsAfter(memberPath(roomId, userId))
           && (
             request.auth.uid == userId
             || isRoomOwner(roomId)
