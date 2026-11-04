@@ -1,5 +1,5 @@
 import { auth, db } from "./firebase.js";
-import { AVATARS, DEFAULT_AVATAR_ID } from "./avatars.js";
+import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 
 import {
     EmailAuthProvider,
@@ -326,7 +326,7 @@ $("nicknameForm").addEventListener("submit", async (event) => {
             currentUsername.trim().toLowerCase() !== nickname.trim().toLowerCase();
 
         $("welcomeUsername").textContent = nickname;
-        $("userAvatar").textContent = nickname.charAt(0).toUpperCase();
+        setAvatarElement($("userAvatar"), currentAvatarId);
         $("accountUsername").textContent = usernameDiffers
             ? `(${currentUsername})`
             : "";
