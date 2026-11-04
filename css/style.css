@@ -2138,6 +2138,11 @@ body.logged-in .auth-card {
     border-radius: 14px;
 }
 
+.settings-view > #settingsMessage {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
 .settings-view > .settings-danger-zone {
     grid-column: 1 / -1;
     display: grid;
