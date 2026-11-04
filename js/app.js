@@ -31,6 +31,7 @@ const authMessage = $("authMessage");
 const appMessage = $("appMessage");
 
 let currentMode = "login";
+let registrationInProgress = false;
 
 // Username rules
 function validateUsername(value) {
@@ -159,7 +160,7 @@ registerForm.addEventListener("submit", async (event) => {
         setLoading(registerForm, true, "Hesap oluştur");
 
         showAuthMessage("Hesabın oluşturuluyor...", "success");
-
+        registrationInProgress = true;
         const credential = await createUserWithEmailAndPassword(
             auth,
             usernameToEmail(username),
@@ -174,6 +175,12 @@ registerForm.addEventListener("submit", async (event) => {
             usernameLower: username.toLowerCase(),
             createdAt: serverTimestamp()
         });
+        $("welcomeUsername").textContent = username;
+$("accountUsername").textContent = username;
+$("userAvatar").textContent = username.charAt(0).toUpperCase();
+
+authView.hidden = true;
+appView.hidden = false;
 
         showAuthMessage("Hesabın oluşturuldu!", "success");
 
@@ -195,6 +202,7 @@ registerForm.addEventListener("submit", async (event) => {
         );
 
     } finally {
+        registrationInProgress = false;
         setLoading(registerForm, false, "Hesap oluştur");
     }
 });
@@ -211,6 +219,7 @@ loginForm.addEventListener("submit", async (event) => {
         const password = $("loginPassword").value;
 
         setLoading(loginForm, true, "Giriş yap");
+        
 
         showAuthMessage("Giriş yapılıyor...", "success");
 
@@ -235,7 +244,7 @@ loginForm.addEventListener("submit", async (event) => {
 
 // AUTH STATE
 onAuthStateChanged(auth, async (user) => {
-
+    if (registrationInProgress) return;
     if (!user) {
         authView.hidden = false;
         appView.hidden = true;
