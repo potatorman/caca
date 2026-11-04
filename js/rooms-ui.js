@@ -683,6 +683,15 @@ async function openRoom(roomId) {
     }
 }
 
+// SETTINGS NAVIGATION: stop any open room listeners before leaving the room.
+
+document.addEventListener("caca:open-settings", () => {
+    stopMemberListener();
+    $("roomView").hidden = true;
+    $("dashboardView").hidden = true;
+    $("bannedSection").hidden = true;
+});
+
 // BACK TO DASHBOARD
 
 $("backToDashboard").addEventListener("click", () => {
