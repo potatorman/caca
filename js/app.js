@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+import { DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 
 import {
     createUserWithEmailAndPassword,
@@ -96,7 +97,7 @@ function setLoading(form, loading, normalText) {
 
 // SHOW DASHBOARD
 
-function showLoggedIn(username, nickname = username) {
+function showLoggedIn(username, nickname = username, avatarId = DEFAULT_AVATAR_ID) {
 
     const displayName = nickname || username;
     const hasDifferentUsername =
@@ -108,8 +109,7 @@ function showLoggedIn(username, nickname = username) {
         : "";
     $("accountUsername").hidden = !hasDifferentUsername;
 
-    $("userAvatar").textContent =
-        displayName.charAt(0).toUpperCase();
+    setAvatarElement($("userAvatar"), avatarId);
 
     // Hide login screen
     authView.hidden = true;
@@ -298,7 +298,11 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         const profile = userSnapshot.data();
-        showLoggedIn(profile.username, profile.nickname || profile.username);
+        showLoggedIn(
+            profile.username,
+            profile.nickname || profile.username,
+            profile.avatarId || DEFAULT_AVATAR_ID
+        );
 
     } catch (error) {
 
@@ -324,6 +328,13 @@ $("logoutButton").addEventListener("click", async () => {
 
         showAuthMessage(friendlyError(error));
     }
+});
+
+// Sync the top-bar avatar when the account avatar changes in settings.
+
+document.addEventListener("caca:avatar-changed", (event) => {
+    const avatarId = event.detail?.avatarId || DEFAULT_AVATAR_ID;
+    setAvatarElement($("userAvatar"), avatarId);
 });
 
 // INITIAL SCREEN
