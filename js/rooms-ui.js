@@ -59,6 +59,33 @@ function filterMemberList() {
 
 $("membersSearch")?.addEventListener("input", filterMemberList);
 
+document.addEventListener("keydown", (event) => {
+    if (
+        event.key !== "/" ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        (event.target instanceof Element &&
+            event.target.closest("input, textarea, select, button, [contenteditable='true']"))
+    ) {
+        return;
+    }
+
+    const roomView = $("roomView");
+    const roomLayout = $("roomChatLayout");
+    if (
+        !roomView ||
+        roomView.hidden ||
+        !roomLayout ||
+        roomLayout.classList.contains("members-collapsed")
+    ) {
+        return;
+    }
+
+    event.preventDefault();
+    $("membersSearch").focus();
+});
+
 // USER STATE
 
 let currentUser = null;
