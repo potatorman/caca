@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+import { AVATARS, DEFAULT_AVATAR_ID } from "./avatars.js";
 
 import {
     EmailAuthProvider,
@@ -22,6 +23,7 @@ const $ = (id) => document.getElementById(id);
 
 let currentUsername = "";
 let currentNickname = "";
+let currentAvatarId = DEFAULT_AVATAR_ID;
 let accountActionInProgress = false;
 
 // MESSAGES
@@ -79,6 +81,18 @@ function reauthenticateUser(user, password) {
     return reauthenticateWithCredential(user, credential);
 }
 
+// Keep the selected avatar and its accessible state in sync.
+function renderAvatarPicker() {
+    const currentAvatar = AVATARS[currentAvatarId] || AVATARS[DEFAULT_AVATAR_ID];
+    $("avatarPickerCurrent").textContent = currentAvatar.label;
+
+    document.querySelectorAll("#avatarPicker [data-avatar-id]").forEach((button) => {
+        const selected = button.dataset.avatarId === currentAvatarId;
+        button.classList.toggle("selected", selected);
+        button.setAttribute("aria-pressed", String(selected));
+    });
+}
+
 // SETTINGS NAVIGATION
 
 $("settingsButton").addEventListener("click", () => {
@@ -103,8 +117,10 @@ onAuthStateChanged(auth, async (user) => {
     if (!user) {
         currentUsername = "";
         currentNickname = "";
+        currentAvatarId = DEFAULT_AVATAR_ID;
         $("settingsUsername").value = "";
         $("nicknameInput").value = "";
+        renderAvatarPicker();
         return;
     }
 
@@ -118,11 +134,61 @@ onAuthStateChanged(auth, async (user) => {
         const profile = profileSnapshot.data();
         currentUsername = profile.username || "";
         currentNickname = profile.nickname || currentUsername;
+        currentAvatarId = AVATARS[profile.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID;
 
         $("settingsUsername").value = currentUsername;
         $("nicknameInput").value = currentNickname;
+        renderAvatarPicker();
     } catch (error) {
         showSettingsMessage("Profil bilgileri yüklenemedi: " + friendlySettingsError(error));
+    }
+});
+
+// CHANGE PROFILE AVATAR
+
+$("avatarPicker").addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-avatar-id]");
+    if (!button) return;
+
+    const avatarId = button.dataset.avatarId;
+    if (!AVATARS[avatarId] || avatarId === currentAvatarId) return;
+    if (accountActionInProgress) return;
+
+    const user = auth.currentUser;
+    if (!user) {
+        showSettingsMessage("Oturumun sona ermiş. Tekrar giriş yap.");
+        return;
+    }
+
+    accountActionInProgress = true;
+    document.querySelectorAll("#avatarPicker button").forEach((item) => {
+        item.disabled = true;
+    });
+
+    try {
+        await updateDoc(doc(db, "users", user.uid), {
+            avatarId
+        });
+
+        currentAvatarId = avatarId;
+        renderAvatarPicker();
+
+        document.dispatchEvent(
+            new CustomEvent("caca:avatar-changed", {
+                detail: { avatarId }
+            })
+        );
+
+        showSettingsMessage(`${AVATARS[avatarId].label} avatarı kaydedildi.`, true);
+    } catch (error) {
+        showSettingsMessage(
+            "Avatar kaydedilemedi: " + friendlySettingsError(error)
+        );
+    } finally {
+        accountActionInProgress = false;
+        document.querySelectorAll("#avatarPicker button").forEach((item) => {
+            item.disabled = false;
+        });
     }
 });
 
