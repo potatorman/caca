@@ -13,6 +13,7 @@ import {
     doc,
     getDoc,
     getDocs,
+    updateDoc,
     writeBatch,
     deleteDoc
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
@@ -20,6 +21,7 @@ import {
 const $ = (id) => document.getElementById(id);
 
 let currentUsername = "";
+let currentNickname = "";
 let accountActionInProgress = false;
 
 // MESSAGES
@@ -100,7 +102,9 @@ $("backFromSettings").addEventListener("click", () => {
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         currentUsername = "";
+        currentNickname = "";
         $("settingsUsername").value = "";
+        $("nicknameInput").value = "";
         return;
     }
 
@@ -111,10 +115,114 @@ onAuthStateChanged(auth, async (user) => {
             throw new Error("Kullanıcı profili bulunamadı.");
         }
 
-        currentUsername = profileSnapshot.data().username || "";
+        const profile = profileSnapshot.data();
+        currentUsername = profile.username || "";
+        currentNickname = profile.nickname || currentUsername;
+
         $("settingsUsername").value = currentUsername;
+        $("nicknameInput").value = currentNickname;
     } catch (error) {
         showSettingsMessage("Profil bilgileri yüklenemedi: " + friendlySettingsError(error));
+    }
+});
+
+// CHANGE NICKNAME
+
+$("nicknameForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const buttonText = "Nickname'i kaydet";
+
+    if (accountActionInProgress) return;
+
+    const user = auth.currentUser;
+    const nickname = $("nicknameInput").value.trim();
+
+    if (!user) {
+        showSettingsMessage("Oturumun sona ermiş. Tekrar giriş yap.");
+        return;
+    }
+
+    if (nickname.length < 2 || nickname.length > 24) {
+        showSettingsMessage("Nickname 2-24 karakter arasında olmalı.");
+        return;
+    }
+
+    if (nickname === currentNickname) {
+        showSettingsMessage("Bu nickname zaten kullanılıyor.");
+        return;
+    }
+
+    accountActionInProgress = true;
+    setFormLoading(form, true, buttonText);
+
+    try {
+        const roomList = await getDocs(
+            collection(db, "users", user.uid, "rooms")
+        );
+
+        const memberReferences = [];
+
+        // Collect this account's membership documents. Updating them
+        // makes the new nickname appear in every room immediately.
+        for (const roomEntry of roomList.docs) {
+            const memberRef = doc(
+                db,
+                "rooms",
+                roomEntry.id,
+                "members",
+                user.uid
+            );
+
+            const memberSnapshot = await getDoc(memberRef);
+            if (memberSnapshot.exists()) {
+                memberReferences.push(memberRef);
+            }
+        }
+
+        // Keep the nickname update atomic and within Firestore's
+        // 500-write batch limit.
+        if (memberReferences.length > 490) {
+            throw new Error(
+                "Çok fazla oda üyeliğin var. Nickname değişikliği için destek gerekiyor."
+            );
+        }
+
+        const batch = writeBatch(db);
+
+        batch.update(doc(db, "users", user.uid), {
+            nickname: nickname
+        });
+
+        for (const memberRef of memberReferences) {
+            batch.update(memberRef, {
+                username: nickname
+            });
+        }
+
+        await batch.commit();
+
+        currentNickname = nickname;
+
+        $("welcomeUsername").textContent = nickname;
+        $("userAvatar").textContent = nickname.charAt(0).toUpperCase();
+        $("accountUsername").textContent = currentUsername;
+
+        document.dispatchEvent(
+            new CustomEvent("caca:nickname-changed", {
+                detail: { nickname }
+            })
+        );
+
+        showSettingsMessage("Nickname başarıyla güncellendi.", true);
+    } catch (error) {
+        showSettingsMessage(
+            "Nickname güncellenemedi: " + friendlySettingsError(error)
+        );
+    } finally {
+        accountActionInProgress = false;
+        setFormLoading(form, false, buttonText);
     }
 });
 
