@@ -1543,7 +1543,8 @@ async function openRoom(roomId) {
             ? "Odayı, üyelikleri, davet kodunu ve ban kayıtlarını kalıcı olarak siler."
             : "Bu odadan ayrıl.";
 
-        // Show room
+        // Show room and close account settings before opening the chat.
+        $("settingsView").hidden = true;
         $("dashboardView").hidden = true;
         $("roomView").hidden = false;
 
