@@ -1857,6 +1857,8 @@ body.logged-in .auth-card {
 }
 
 .chat-composer {
+    position: relative;
+    z-index: 2;
     display: flex;
     flex-direction: column;
     gap: 9px;
@@ -1896,6 +1898,86 @@ body.logged-in .auth-card {
 
 .chat-composer textarea::placeholder {
     color: #687a91;
+}
+
+.emoji-autocomplete {
+    position: absolute;
+    z-index: 40;
+    left: 12px;
+    bottom: calc(100% - 4px);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: min(340px, calc(100% - 24px));
+    max-height: 300px;
+    padding: 7px;
+    overflow-y: auto;
+    background: #111c2b;
+    border: 1px solid #344a67;
+    border-radius: 11px;
+    box-shadow: 0 16px 42px rgba(0, 0, 0, .48);
+}
+
+.emoji-autocomplete[hidden] {
+    display: none;
+}
+
+.emoji-autocomplete-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 39px;
+    padding: 5px 9px;
+    color: #eaf2ff;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.emoji-autocomplete-option:hover,
+.emoji-autocomplete-option.active {
+    background: #243a56;
+    border-color: #3c6594;
+}
+
+.emoji-autocomplete-symbol {
+    display: grid;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    font-size: 22px;
+}
+
+.emoji-autocomplete-copy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+}
+
+.emoji-autocomplete-code {
+    color: #e6efff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.emoji-autocomplete-name {
+    overflow: hidden;
+    color: #7f93ad;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.emoji-autocomplete-empty {
+    padding: 12px 9px;
+    color: #8294ad;
+    font-size: 11px;
 }
 
 .composer-footer {
