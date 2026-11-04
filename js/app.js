@@ -96,14 +96,20 @@ function setLoading(form, loading, normalText) {
 
 // SHOW DASHBOARD
 
-function showLoggedIn(username) {
+function showLoggedIn(username, nickname = username) {
 
-    $("welcomeUsername").textContent = username;
+    const displayName = nickname || username;
+    const hasDifferentUsername =
+        username.trim().toLowerCase() !== displayName.trim().toLowerCase();
 
-    $("accountUsername").textContent = username;
+    $("welcomeUsername").textContent = displayName;
+    $("accountUsername").textContent = hasDifferentUsername
+        ? `(${username})`
+        : "";
+    $("accountUsername").hidden = !hasDifferentUsername;
 
     $("userAvatar").textContent =
-        username.charAt(0).toUpperCase();
+        displayName.charAt(0).toUpperCase();
 
     // Hide login screen
     authView.hidden = true;
@@ -292,9 +298,7 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         const profile = userSnapshot.data();
-        const displayName = profile.nickname || profile.username;
-
-        showLoggedIn(displayName);
+        showLoggedIn(profile.username, profile.nickname || profile.username);
 
     } catch (error) {
 
