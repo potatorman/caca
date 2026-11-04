@@ -2595,6 +2595,12 @@ body.logged-in .auth-card {
     border: 1px solid rgba(73, 139, 216, .28);
 }
 
+.member-badge.admin-badge {
+    color: #b9e5d0;
+    background: rgba(45, 132, 91, .18);
+    border: 1px solid rgba(72, 159, 117, .32);
+}
+
 .member-role {
     display: none;
 }
