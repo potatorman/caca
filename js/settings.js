@@ -24,6 +24,7 @@ const $ = (id) => document.getElementById(id);
 let currentUsername = "";
 let currentNickname = "";
 let currentAvatarId = DEFAULT_AVATAR_ID;
+let pendingAvatarId = DEFAULT_AVATAR_ID;
 let accountActionInProgress = false;
 
 // MESSAGES
@@ -83,14 +84,20 @@ function reauthenticateUser(user, password) {
 
 // Keep the selected avatar and its accessible state in sync.
 function renderAvatarPicker() {
-    const currentAvatar = AVATARS[currentAvatarId] || AVATARS[DEFAULT_AVATAR_ID];
-    $("avatarPickerCurrent").textContent = currentAvatar.label;
+    const selectedAvatar = AVATARS[pendingAvatarId] || AVATARS[DEFAULT_AVATAR_ID];
+    $("avatarPickerCurrent").textContent = selectedAvatar.label;
 
     document.querySelectorAll("#avatarPicker [data-avatar-id]").forEach((button) => {
-        const selected = button.dataset.avatarId === currentAvatarId;
+        const selected = button.dataset.avatarId === pendingAvatarId;
         button.classList.toggle("selected", selected);
         button.setAttribute("aria-pressed", String(selected));
     });
+
+    const saveButton = $("saveAvatarButton");
+    saveButton.disabled =
+        accountActionInProgress || pendingAvatarId === currentAvatarId;
+    saveButton.textContent =
+        pendingAvatarId === currentAvatarId ? "Avatar güncel" : "Avatarı kaydet";
 }
 
 // SETTINGS NAVIGATION
@@ -118,6 +125,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUsername = "";
         currentNickname = "";
         currentAvatarId = DEFAULT_AVATAR_ID;
+        pendingAvatarId = DEFAULT_AVATAR_ID;
         $("settingsUsername").value = "";
         $("nicknameInput").value = "";
         renderAvatarPicker();
@@ -135,6 +143,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUsername = profile.username || "";
         currentNickname = profile.nickname || currentUsername;
         currentAvatarId = AVATARS[profile.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID;
+        pendingAvatarId = currentAvatarId;
 
         $("settingsUsername").value = currentUsername;
         $("nicknameInput").value = currentNickname;
@@ -144,7 +153,30 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// CHANGE PROFILE AVATAR
+// SELECT PROFILE AVATAR
+
+$("avatarPicker").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-avatar-id]");
+    if (!button || accountActionInProgress) return;
+
+    const avatarId = button.dataset.avatarId;
+    if (!AVATARS[avatarId]) return;
+
+    pendingAvatarId = avatarId;
+    renderAvatarPicker();
+
+    const status = $("avatarSaveMessage");
+    if (pendingAvatarId === currentAvatarId) {
+        status.textContent = "Kayıtlı avatarın seçili.";
+        status.className = "avatar-save-status";
+    } else {
+        status.textContent = "Seçimin hazır. Değişikliği uygulamak için Avatarı kaydet'e bas.";
+        status.className = "avatar-save-status";
+    }
+});
+
+
+// SAVE PROFILE AVATAR
 
 function publishAvatarChange(avatarId) {
     document.dispatchEvent(
@@ -154,51 +186,47 @@ function publishAvatarChange(avatarId) {
     );
 }
 
-$("avatarPicker").addEventListener("click", async (event) => {
-    const button = event.target.closest("button[data-avatar-id]");
-    if (!button) return;
-
-    const avatarId = button.dataset.avatarId;
-    if (!AVATARS[avatarId] || avatarId === currentAvatarId) return;
-    if (accountActionInProgress) return;
+$("saveAvatarButton").addEventListener("click", async () => {
+    if (accountActionInProgress || pendingAvatarId === currentAvatarId) return;
 
     const user = auth.currentUser;
     if (!user) {
-        showSettingsMessage("Oturumun sona ermiş. Tekrar giriş yap.");
-        $("avatarSaveMessage").textContent = "Oturum bulunamadı. Tekrar giriş yap.";
-        $("avatarSaveMessage").className = "avatar-save-status error";
+        const status = $("avatarSaveMessage");
+        status.textContent = "Oturum bulunamadı. Tekrar giriş yap.";
+        status.className = "avatar-save-status error";
         return;
     }
 
     const previousAvatarId = currentAvatarId;
+    const nextAvatarId = pendingAvatarId;
 
-    // Preview immediately, then persist. If Firestore rejects the write,
-    // restore the previous avatar and show the exact failure inline.
-    currentAvatarId = avatarId;
+    if (!AVATARS[nextAvatarId]) return;
+
+    accountActionInProgress = true;
     renderAvatarPicker();
-    publishAvatarChange(avatarId);
 
     const status = $("avatarSaveMessage");
     status.textContent = "Avatar kaydediliyor...";
     status.className = "avatar-save-status saving";
 
-    accountActionInProgress = true;
-    document.querySelectorAll("#avatarPicker button").forEach((item) => {
-        item.disabled = true;
-    });
+    // Show the new avatar immediately. Roll it back if Firestore rejects
+    // the update, so the interface never silently displays an unsaved choice.
+    currentAvatarId = nextAvatarId;
+    publishAvatarChange(nextAvatarId);
 
     try {
         await updateDoc(doc(db, "users", user.uid), {
-            avatarId
+            avatarId: nextAvatarId
         });
 
-        status.textContent = `${AVATARS[avatarId].label} avatarın kaydedildi.`;
+        status.textContent = `${AVATARS[nextAvatarId].label} avatarın kaydedildi.`;
         status.className = "avatar-save-status success";
         showSettingsMessage("Profil avatarın güncellendi.", true);
     } catch (error) {
         console.error("CACA avatar save failed:", error);
 
         currentAvatarId = previousAvatarId;
+        pendingAvatarId = previousAvatarId;
         renderAvatarPicker();
         publishAvatarChange(previousAvatarId);
 
@@ -211,9 +239,7 @@ $("avatarPicker").addEventListener("click", async (event) => {
         showSettingsMessage("Avatar kaydedilemedi. Ayrıntı avatar seçiminin altında gösteriliyor.");
     } finally {
         accountActionInProgress = false;
-        document.querySelectorAll("#avatarPicker button").forEach((item) => {
-            item.disabled = false;
-        });
+        renderAvatarPicker();
     }
 });
 
