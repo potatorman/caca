@@ -16,10 +16,17 @@ import {
 
 const $ = (id) => document.getElementById(id);
 
+// USER STATE
+
 let currentUser = null;
 let currentUsername = "";
 let activeRoomCode = "";
+let activeRoomId = null;
+
+// Realtime listener for room members
 let unsubscribeMembers = null;
+
+// ROOM CODE
 
 const roomChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -27,8 +34,13 @@ function generateRoomCode() {
     const bytes = new Uint8Array(8);
     crypto.getRandomValues(bytes);
 
-    return Array.from(bytes, byte => roomChars[byte % roomChars.length]).join("");
+    return Array.from(
+        bytes,
+        byte => roomChars[byte % roomChars.length]
+    ).join("");
 }
+
+// MESSAGES
 
 function showRoomMessage(message, success = false) {
     const element = $("roomMessage");
@@ -42,10 +54,10 @@ function showRoomMessage(message, success = false) {
 }
 
 function showError(error) {
-    console.error(error);
+    console.error("CACA error:", error);
 
     if (error.code === "permission-denied") {
-        return "Firebase güvenlik kuralları işlemi reddetti. Firestore Rules bölümünü kontrol et.";
+        return "Firebase izin vermedi. Firestore Rules ayarlarını kontrol et.";
     }
 
     if (error.code === "unavailable") {
@@ -55,7 +67,19 @@ function showError(error) {
     return error.message || "Bir hata oluştu.";
 }
 
-// LOAD USER'S ROOMS
+// STOP MEMBER LISTENER
+
+function stopMemberListener() {
+    if (unsubscribeMembers) {
+        unsubscribeMembers();
+        unsubscribeMembers = null;
+    }
+
+    activeRoomId = null;
+}
+
+// LOAD MY ROOMS
+
 async function loadRooms() {
     if (!currentUser) return;
 
@@ -73,16 +97,14 @@ async function loadRooms() {
             const empty = document.createElement("p");
             empty.className = "empty-rooms";
             empty.textContent = "Henüz bir odan yok. İlk odanı oluştur!";
+
             roomsList.appendChild(empty);
             return;
         }
 
-        const rooms = snapshot.docs.map(roomDoc => ({
-            id: roomDoc.id,
-            ...roomDoc.data()
-        }));
+        snapshot.forEach((roomDoc) => {
+            const room = roomDoc.data();
 
-        for (const room of rooms) {
             const button = document.createElement("button");
             button.type = "button";
             button.className = "room-list-item";
@@ -93,9 +115,8 @@ async function loadRooms() {
             name.textContent = room.name;
 
             const role = document.createElement("span");
-            role.textContent = room.role === "owner"
-                ? "Oda sahibi"
-                : "Üye";
+            role.textContent =
+                room.role === "owner" ? "Oda sahibi" : "Üye";
 
             info.append(name, role);
 
@@ -105,11 +126,11 @@ async function loadRooms() {
             button.append(info, arrow);
 
             button.addEventListener("click", () => {
-                openRoom(room.id);
+                openRoom(roomDoc.id);
             });
 
             roomsList.appendChild(button);
-        }
+        });
 
     } catch (error) {
         showRoomMessage(showError(error));
@@ -117,6 +138,7 @@ async function loadRooms() {
 }
 
 // CREATE ROOM
+
 $("createRoomForm").addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -141,7 +163,7 @@ $("createRoomForm").addEventListener("submit", async (event) => {
 
         const batch = writeBatch(db);
 
-        // Main room document
+        // Main room
         batch.set(roomRef, {
             name: name,
             ownerId: currentUser.uid,
@@ -149,7 +171,7 @@ $("createRoomForm").addEventListener("submit", async (event) => {
             createdAt: serverTimestamp()
         });
 
-        // Private invite-code lookup
+        // Invite code
         batch.set(doc(db, "roomInvites", code), {
             roomId: roomRef.id,
             roomName: name,
@@ -195,6 +217,7 @@ $("createRoomForm").addEventListener("submit", async (event) => {
 });
 
 // JOIN ROOM
+
 $("joinRoomForm").addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -214,7 +237,6 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
     button.textContent = "Katılınıyor...";
 
     try {
-        // Find room using its invite code
         const inviteSnapshot = await getDoc(
             doc(db, "roomInvites", code)
         );
@@ -226,9 +248,12 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
         const invite = inviteSnapshot.data();
         const roomId = invite.roomId;
 
-        // Prevent duplicate membership
         const ownRoomRef = doc(
-            db, "users", currentUser.uid, "rooms", roomId
+            db,
+            "users",
+            currentUser.uid,
+            "rooms",
+            roomId
         );
 
         const existingRoom = await getDoc(ownRoomRef);
@@ -239,7 +264,7 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
 
         const batch = writeBatch(db);
 
-        // Add user to room
+        // Add member to room
         batch.set(
             doc(db, "rooms", roomId, "members", currentUser.uid),
             {
@@ -275,11 +300,112 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
     }
 });
 
+// REAL-TIME MEMBER LIST
+
+function listenToMembers(roomId) {
+
+    // Stop previous room listener
+    stopMemberListener();
+
+    activeRoomId = roomId;
+
+    const membersReference = collection(
+        db,
+        "rooms",
+        roomId,
+        "members"
+    );
+
+    // This listener runs once immediately and again whenever
+    // a member is added, changed or removed.
+    unsubscribeMembers = onSnapshot(
+        membersReference,
+
+        (snapshot) => {
+
+            // Ignore events from a room that is no longer open.
+            if (activeRoomId !== roomId) return;
+
+            const membersList = $("membersList");
+            const heading = $("membersHeading");
+
+            membersList.replaceChildren();
+
+            heading.textContent = `Oda üyeleri (${snapshot.size})`;
+
+            if (snapshot.empty) {
+                const empty = document.createElement("p");
+                empty.className = "empty-rooms";
+                empty.textContent = "Bu odada henüz üye yok.";
+
+                membersList.appendChild(empty);
+                return;
+            }
+
+            const members = snapshot.docs.map(memberDoc => ({
+                id: memberDoc.id,
+                ...memberDoc.data()
+            }));
+
+            // Show room owner first, then sort by username.
+            members.sort((a, b) => {
+                if (a.role === "owner") return -1;
+                if (b.role === "owner") return 1;
+
+                return (a.username || "").localeCompare(
+                    b.username || ""
+                );
+            });
+
+            for (const member of members) {
+
+                const item = document.createElement("div");
+                item.className = "member-item";
+
+                const username = document.createElement("strong");
+                username.textContent = member.username || "Bilinmeyen kullanıcı";
+
+                const role = document.createElement("span");
+                role.textContent =
+                    member.role === "owner" ? "Oda sahibi" : "Üye";
+
+                item.append(username, role);
+                membersList.appendChild(item);
+            }
+
+            console.log(
+                `CACA: Room ${roomId} member list updated. Total: ${snapshot.size}`
+            );
+        },
+
+        (error) => {
+            console.error("CACA member listener failed:", error);
+
+            if (activeRoomId === roomId) {
+                showRoomMessage(
+                    "Üye listesi canlı güncellenemedi: " + showError(error)
+                );
+            }
+        }
+    );
+}
+
 // OPEN ROOM
+
 async function openRoom(roomId) {
     if (!currentUser) return;
 
     try {
+
+        // Verify that this user belongs to the room.
+        const membership = await getDoc(
+            doc(db, "users", currentUser.uid, "rooms", roomId)
+        );
+
+        if (!membership.exists()) {
+            throw new Error("Bu odaya erişim iznin yok.");
+        }
+
         const roomSnapshot = await getDoc(
             doc(db, "rooms", roomId)
         );
@@ -295,47 +421,12 @@ async function openRoom(roomId) {
 
         activeRoomCode = room.inviteCode;
 
-        // Stop listening to the previous room
-if (unsubscribeMembers) {
-    unsubscribeMembers();
-    unsubscribeMembers = null;
-}
-
-// Listen for real-time member changes
-unsubscribeMembers = onSnapshot(
-    collection(db, "rooms", roomId, "members"),
-
-    (snapshot) => {
-        const membersList = $("membersList");
-        membersList.replaceChildren();
-
-        snapshot.forEach((memberDoc) => {
-            const member = memberDoc.data();
-
-            const item = document.createElement("div");
-            item.className = "member-item";
-
-            const username = document.createElement("strong");
-            username.textContent = member.username;
-
-            const role = document.createElement("span");
-            role.textContent = member.role === "owner"
-                ? "Oda sahibi"
-                : "Üye";
-
-            item.append(username, role);
-            membersList.appendChild(item);
-        });
-    },
-
-    (error) => {
-        console.error("Member listener error:", error);
-        showRoomMessage(showError(error));
-    }
-);
-
+        // Show room
         $("dashboardView").hidden = true;
         $("roomView").hidden = false;
+
+        // Start live member updates
+        listenToMembers(roomId);
 
     } catch (error) {
         showRoomMessage(showError(error));
@@ -343,12 +434,10 @@ unsubscribeMembers = onSnapshot(
 }
 
 // BACK TO DASHBOARD
+
 $("backToDashboard").addEventListener("click", () => {
 
-    if (unsubscribeMembers) {
-        unsubscribeMembers();
-        unsubscribeMembers = null;
-    }
+    stopMemberListener();
 
     $("roomView").hidden = true;
     $("dashboardView").hidden = false;
@@ -357,7 +446,9 @@ $("backToDashboard").addEventListener("click", () => {
 });
 
 // COPY INVITE CODE
+
 $("copyRoomCode").addEventListener("click", async () => {
+
     try {
         await navigator.clipboard.writeText(activeRoomCode);
 
@@ -374,27 +465,34 @@ $("copyRoomCode").addEventListener("click", async () => {
 });
 
 // AUTH STATE
-onAuthStateChanged(auth, async (user) => {
-    currentUser = user;
 
-    document.body.classList.toggle("logged-in", !!user);
+onAuthStateChanged(auth, async (user) => {
 
     if (!user) {
+        stopMemberListener();
+
+        currentUser = null;
         currentUsername = "";
+        activeRoomCode = "";
+
         $("roomsList").replaceChildren();
         $("roomCount").textContent = "0 oda";
+
         return;
     }
 
+    currentUser = user;
+
     try {
-        // Load the saved username
         const profileSnapshot = await getDoc(
             doc(db, "users", user.uid)
         );
 
-        currentUsername = profileSnapshot.exists()
-            ? profileSnapshot.data().username
-            : user.email.split("@")[0];
+        if (!profileSnapshot.exists()) {
+            throw new Error("Kullanıcı profili bulunamadı.");
+        }
+
+        currentUsername = profileSnapshot.data().username;
 
         await loadRooms();
 
