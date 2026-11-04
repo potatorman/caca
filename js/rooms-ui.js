@@ -27,6 +27,7 @@ const $ = (id) => document.getElementById(id);
 let currentUser = null;
 let currentUsername = "";
 let currentAvatarId = DEFAULT_AVATAR_ID;
+let currentAvatarData = null;
 let activeRoomCode = "";
 let activeRoomId = null;
 
@@ -152,14 +153,16 @@ async function getAccountDisplayNames(userId, fallbackName = "Bilinmeyen kullanÄ
         return {
             accountUsername,
             displayNickname: profile.nickname || accountUsername,
-            avatarId: AVATARS[profile.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID
+            avatarId: AVATARS[profile.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID,
+            avatarData: profile.avatarData || null
         };
     }
 
     return {
         accountUsername: fallbackName,
         displayNickname: fallbackName,
-        avatarId: DEFAULT_AVATAR_ID
+        avatarId: DEFAULT_AVATAR_ID,
+        avatarData: null
     };
 }
 
@@ -172,6 +175,7 @@ function updateLiveProfileUI(userId, profile) {
     const avatarId = AVATARS[profile?.avatarId]
         ? profile.avatarId
         : DEFAULT_AVATAR_ID;
+    const avatarData = profile?.avatarData || null;
 
     for (const list of [$("membersList"), $("bannedList")]) {
         if (!list) continue;
@@ -183,7 +187,7 @@ function updateLiveProfileUI(userId, profile) {
         if (!item) continue;
 
         const avatar = item.querySelector(".member-avatar");
-        if (avatar) setAvatarElement(avatar, avatarId);
+        if (avatar) setAvatarElement(avatar, avatarId, avatarData);
 
         const nickname = item.querySelector(".member-display-name");
         if (nickname) nickname.textContent = displayNickname;
@@ -208,7 +212,7 @@ function updateLiveProfileUI(userId, profile) {
         if (row.dataset.senderId !== userId) continue;
 
         const avatar = row.querySelector(".message-avatar");
-        if (avatar) setAvatarElement(avatar, avatarId);
+        if (avatar) setAvatarElement(avatar, avatarId, avatarData);
 
         const author = row.querySelector(".message-meta strong");
         if (author) author.textContent = displayNickname;
@@ -429,7 +433,7 @@ function listenToMessages(roomId) {
 
                 const avatar = document.createElement("div");
                 avatar.className = "message-avatar";
-                setAvatarElement(avatar, avatarId);
+                setAvatarElement(avatar, avatarId, profile?.avatarData || null);
 
                 const content = document.createElement("div");
                 content.className = "message-content";
@@ -626,6 +630,7 @@ document.addEventListener("caca:avatar-changed", (event) => {
     if (!AVATARS[avatarId]) return;
 
     currentAvatarId = avatarId;
+    currentAvatarData = event.detail?.avatarData || null;
     if (currentUser) publicProfileCache.delete(currentUser.uid);
 
     if (activeRoomId) {
@@ -944,7 +949,7 @@ function listenToMembers(roomId, ownerId) {
 
                 const avatar = document.createElement("div");
                 avatar.className = "member-avatar";
-                setAvatarElement(avatar, member.avatarId);
+                setAvatarElement(avatar, member.avatarId, member.avatarData);
 
                 const info = document.createElement("div");
                 info.className = "member-info";
@@ -1114,7 +1119,7 @@ function listenToBannedMembers(roomId) {
 
                 const avatar = document.createElement("div");
                 avatar.className = "member-avatar";
-                setAvatarElement(avatar, bannedUser.avatarId);
+                setAvatarElement(avatar, bannedUser.avatarId, bannedUser.avatarData);
 
                 const info = document.createElement("div");
                 info.className = "member-info";
@@ -1487,6 +1492,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = null;
         currentUsername = "";
         currentAvatarId = DEFAULT_AVATAR_ID;
+        currentAvatarData = null;
         publicProfileCache.clear();
         activeRoomCode = "";
 
@@ -1513,6 +1519,7 @@ onAuthStateChanged(auth, async (user) => {
         currentAvatarId = AVATARS[profile.avatarId]
             ? profile.avatarId
             : DEFAULT_AVATAR_ID;
+        currentAvatarData = profile.avatarData || null;
 
         publicProfileCache.clear();
         await loadRooms();
