@@ -573,15 +573,19 @@ async function deleteOwnedRoom(roomId) {
         throw new Error("Odanın davet kodu bulunamadı: " + roomId);
     }
 
-    const [membersSnapshot, bansSnapshot, messagesSnapshot] = await Promise.all([
+    const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot] = await Promise.all([
         getDocs(collection(db, "rooms", roomId, "members")),
         getDocs(collection(db, "rooms", roomId, "bans")),
-        getDocs(collection(db, "rooms", roomId, "messages"))
+        getDocs(collection(db, "rooms", roomId, "messages")),
+        getDoc(doc(db, "rooms", roomId, "pranks", "active"))
     ]);
 
     const referencesToDelete = [];
 
     membersSnapshot.forEach((memberSnapshot) => {
+        referencesToDelete.push(
+            doc(db, "rooms", roomId, "prankInbox", memberSnapshot.id)
+        );
         if (memberSnapshot.id === auth.currentUser.uid) return;
 
         referencesToDelete.push(memberSnapshot.ref);
@@ -599,6 +603,9 @@ async function deleteOwnedRoom(roomId) {
     messagesSnapshot.forEach((messageSnapshot) => {
         referencesToDelete.push(messageSnapshot.ref);
     });
+    if (activePrankSnapshot.exists()) {
+        referencesToDelete.push(activePrankSnapshot.ref);
+    }
 
     await commitDeleteChunks(referencesToDelete, 10);
 
@@ -622,6 +629,7 @@ async function leaveMemberRoom(roomId, userId) {
 
     batch.delete(doc(db, "rooms", roomId, "members", userId));
     batch.delete(doc(db, "users", userId, "rooms", roomId));
+    batch.delete(doc(db, "rooms", roomId, "prankInbox", userId));
 
     await batch.commit();
 }
