@@ -253,6 +253,7 @@ function stopMemberListener() {
     activeRoomOwnerId = null;
     currentRoomMemberRecord = null;
     if ($("roomManagementPanel")) $("roomManagementPanel").hidden = true;
+    if ($("adminPanel")) $("adminPanel").hidden = true;
 }
 
 // Resolve the current public profile so older membership/ban records
@@ -533,18 +534,32 @@ async function deleteChatMessage(messageId) {
     }
 }
 
-// Room management panel: room owner and active room admins.
+// Owner-only room management panel.
 function setRoomManagementOpen(isOpen) {
     const panel = $("roomManagementPanel");
-    if (!panel || (isOpen && !canCurrentUserKickMembers())) return;
+    if (!panel || (isOpen && activeRoomOwnerId !== currentUser?.uid)) return;
     panel.hidden = !isOpen;
 
     if (isOpen) {
         $("roomManagementStatus").textContent = "";
         $("adminManagementStatus").textContent = "";
-        $("jumpscareButton")?.focus();
+        $("adminTargetSelect")?.focus();
     } else {
         $("roomManagementButton")?.focus();
+    }
+}
+
+// Admin panel: the room owner and active room admins can use troll tools.
+function setAdminPanelOpen(isOpen) {
+    const panel = $("adminPanel");
+    if (!panel || (isOpen && !canCurrentUserKickMembers())) return;
+    panel.hidden = !isOpen;
+
+    if (isOpen) {
+        $("trollManagementStatus").textContent = "";
+        $("jumpscareButton")?.focus();
+    } else {
+        $("adminPanelButton")?.focus();
     }
 }
 
@@ -553,10 +568,15 @@ $("closeRoomManagementButton").addEventListener("click", () => setRoomManagement
 $("roomManagementPanel").addEventListener("click", (event) => {
     if (event.target === $("roomManagementPanel")) setRoomManagementOpen(false);
 });
+$("adminPanelButton").addEventListener("click", () => setAdminPanelOpen(true));
+$("closeAdminPanelButton").addEventListener("click", () => setAdminPanelOpen(false));
+$("adminPanel").addEventListener("click", (event) => {
+    if (event.target === $("adminPanel")) setAdminPanelOpen(false);
+});
 document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !$("roomManagementPanel").hidden) {
-        setRoomManagementOpen(false);
-    }
+    if (event.key !== "Escape") return;
+    if (!$("roomManagementPanel").hidden) setRoomManagementOpen(false);
+    if (!$("adminPanel").hidden) setAdminPanelOpen(false);
 });
 
 async function clearRoomChatHistory() {
@@ -1946,10 +1966,10 @@ function listenToMembers(roomId, ownerId) {
                 : null;
 
             const isOwnerViewing = activeRoomOwnerId === currentUser?.uid;
-            const canAccessRoomManagement =
+            const canAccessAdminPanel =
                 isOwnerViewing || isCurrentUserRoomAdmin();
-            $("roomManagementButton").hidden = !canAccessRoomManagement;
-            $("trollManagementSection").hidden = !canAccessRoomManagement;
+            $("roomManagementButton").hidden = !isOwnerViewing;
+            $("adminPanelButton").hidden = !canAccessAdminPanel;
             $("adminAssignmentSection").hidden = !isOwnerViewing;
             $("bannedSection").hidden = !isOwnerViewing;
             $("clearChatManagementSection").hidden = !isOwnerViewing;
@@ -2533,12 +2553,13 @@ async function openRoom(roomId) {
         const isOwner = room.ownerId === currentUser.uid;
         $("bannedSection").hidden = !isOwner;
         $("roomManagementButton").hidden = true;
+        $("adminPanelButton").hidden = true;
         $("adminAssignmentSection").hidden = !isOwner;
         $("clearChatManagementSection").hidden = !isOwner;
-        $("trollManagementSection").hidden = true;
         $("adminManagementStatus").textContent = "";
         $("trollManagementStatus").textContent = "";
         $("roomManagementPanel").hidden = true;
+        $("adminPanel").hidden = true;
 
         const leaveButton = $("leaveRoomButton");
         leaveButton.disabled = false;
