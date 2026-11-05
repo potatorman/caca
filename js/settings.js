@@ -646,6 +646,9 @@ async function deleteAccountData(user) {
         }
     }
 
+    // Remove the user's private jumpscare library before deleting the profile.
+    await deleteDoc(doc(db, "users", user.uid, "jumpscares", "library"));
+
     // Delete the user's profile after all owned rooms and memberships
     // have been cleaned up. Firestore Rules must allow self-deletion.
     await deleteDoc(doc(db, "users", user.uid));
