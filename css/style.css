@@ -4109,3 +4109,42 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     box-shadow: none;
 }
 .room-prank-custom-image[hidden] { display: none !important; }
+
+
+/* Admin-selected automatic dismissal for personal jumpscares */
+.jumpscare-duration-section { align-items: center; }
+.jumpscare-duration-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+    color: #aebbd0;
+    font-size: 11px;
+    font-weight: 650;
+}
+.jumpscare-duration-control select {
+    min-width: 132px;
+    height: 36px;
+    padding: 0 10px;
+    color: #e7f0ff;
+    background: #0d1725;
+    border: 1px solid #30445f;
+    border-radius: 7px;
+    font-size: 11px;
+}
+.jumpscare-duration-control select:focus {
+    outline: 0;
+    border-color: #4b8cff;
+}
+@media (max-width: 640px) {
+    .jumpscare-duration-section {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .jumpscare-duration-control {
+        justify-content: space-between;
+    }
+    .jumpscare-duration-control select {
+        flex: 1;
+    }
+}
