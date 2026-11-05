@@ -21,7 +21,10 @@ import {
     deleteDoc,
     updateDoc,
     setDoc,
-    serverTimestamp
+    serverTimestamp,
+    arrayUnion,
+    arrayRemove,
+    runTransaction
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
 const $ = (id) => document.getElementById(id);
@@ -106,6 +109,9 @@ let unsubscribeBanned = null;
 let unsubscribeMessages = null;
 let unsubscribePranks = null;
 let unsubscribePersonalPranks = null;
+let unsubscribeGameSession = null;
+let gameSessionData = null;
+let gameSessionStartInProgress = false;
 let activeRoomOwnerId = null;
 let currentRoomMemberRecord = null;
 let memberRenderVersion = 0;
@@ -245,6 +251,12 @@ function stopMemberListener() {
         unsubscribePersonalPranks();
         unsubscribePersonalPranks = null;
     }
+    if (unsubscribeGameSession) {
+        unsubscribeGameSession();
+        unsubscribeGameSession = null;
+    }
+    gameSessionData = null;
+    gameSessionStartInProgress = false;
 
     if (prankOverlayTimer) {
         clearTimeout(prankOverlayTimer);
@@ -269,6 +281,7 @@ function stopMemberListener() {
     if ($("adminPanel")) $("adminPanel").hidden = true;
     if ($("jumpscarePanel")) $("jumpscarePanel").hidden = true;
     if ($("jumpscareOpenButton")) $("jumpscareOpenButton").hidden = true;
+    if ($("gameCenterPanel")) $("gameCenterPanel").hidden = true;
 }
 
 // Resolve the current public profile so older membership/ban records
@@ -564,7 +577,7 @@ function setRoomManagementOpen(isOpen) {
     }
 }
 
-// Admin panel: the room owner and active room admins can use troll tools.
+// Admin panel: the room owner and active room admins can use management tools.
 function setAdminPanelOpen(isOpen) {
     const panel = $("adminPanel");
     if (!panel || (isOpen && !canCurrentUserKickMembers())) return;
@@ -588,10 +601,10 @@ $("closeAdminPanelButton").addEventListener("click", () => setAdminPanelOpen(fal
 $("adminPanel").addEventListener("click", (event) => {
     if (event.target === $("adminPanel")) setAdminPanelOpen(false);
 });
-// Member jumpscare panel: every room member can use their own private library.
+// Personal jumpscare is available from the Admin Panel only.
 function setJumpscarePanelOpen(isOpen) {
     const panel = $("jumpscarePanel");
-    if (!panel || (isOpen && (!currentUser || !activeRoomId))) return;
+    if (!panel || (isOpen && (!currentUser || !activeRoomId || !canCurrentUserKickMembers()))) return;
     panel.hidden = !isOpen;
     if (isOpen) {
         $("personalJumpscareStatus").textContent = "";
@@ -614,6 +627,7 @@ document.addEventListener("keydown", (event) => {
     if (!$("roomManagementPanel").hidden) setRoomManagementOpen(false);
     if (!$("adminPanel").hidden) setAdminPanelOpen(false);
     if (!$("jumpscarePanel").hidden) setJumpscarePanelOpen(false);
+    if (!$("gameCenterPanel").hidden) setGameCenterOpen(false);
 });
 
 async function clearRoomChatHistory() {
@@ -1134,7 +1148,7 @@ async function loadJumpscareLibrary() {
 }
 
 async function sendPersonalJumpscare() {
-    if (!currentUser || !activeRoomId) return;
+    if (!currentUser || !activeRoomId || !canCurrentUserKickMembers()) return;
     const targetId = $("jumpscareTargetSelect").value;
     const target = activeRoomMembers.find((member) => member.id === targetId);
     const imageData = currentJumpscareSlots[selectedJumpscareSlot];
@@ -1185,6 +1199,333 @@ async function sendPersonalJumpscare() {
 }
 
 $("sendPersonalJumpscareButton").addEventListener("click", sendPersonalJumpscare);
+
+// ROOM GAME CENTER — shared lobby, readiness, spectators and next-round queue.
+
+function getGameSessionRef(roomId = activeRoomId) {
+    return doc(db, "rooms", roomId, "gameSessions", "active");
+}
+
+function setGameCenterStatus(message, isError = false) {
+    const status = $("gameCenterStatus");
+    if (!status) return;
+    status.textContent = message || "";
+    status.classList.toggle("error", Boolean(isError));
+}
+
+function renderGameMemberList(containerId, memberIds, statusForMember = null) {
+    const container = $(containerId);
+    if (!container) return;
+    container.replaceChildren();
+
+    const ids = Array.isArray(memberIds) ? memberIds : [];
+    if (!ids.length) {
+        const empty = document.createElement("span");
+        empty.className = "game-session-empty";
+        empty.textContent = "Henüz kimse yok.";
+        container.appendChild(empty);
+        return;
+    }
+
+    ids.forEach((userId) => {
+        const member = activeRoomMembers.find((item) => item.id === userId);
+        const row = document.createElement("div");
+        row.className = "game-session-member";
+        const name = document.createElement("span");
+        name.textContent = member?.displayNickname || member?.username || "Odadan ayrılmış üye";
+        row.appendChild(name);
+        const state = statusForMember?.(userId);
+        if (state) {
+            const badge = document.createElement("span");
+            badge.className = "game-session-member-state";
+            badge.textContent = state;
+            row.appendChild(badge);
+        }
+        container.appendChild(row);
+    });
+}
+
+function renderGameCenter() {
+    const session = gameSessionData;
+    const emptyState = $("gameCenterEmptyState");
+    const content = $("gameSessionContent");
+    if (!emptyState || !content) return;
+
+    emptyState.hidden = Boolean(session);
+    content.hidden = !session;
+    if (!session) return;
+
+    const players = Array.isArray(session.playerIds) ? session.playerIds : [];
+    const readyIds = Array.isArray(session.readyIds) ? session.readyIds : [];
+    const nextRoundPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
+    const nextRoundReady = Array.isArray(session.nextRoundReadyIds) ? session.nextRoundReadyIds : [];
+    const isPlaying = session.status === "playing";
+    const isPlayer = players.includes(currentUser?.uid);
+    const isQueued = nextRoundPlayers.includes(currentUser?.uid);
+    const canManage = Boolean(currentUser && (
+        session.hostId === currentUser.uid || canCurrentUserKickMembers()
+    ));
+
+    $("gameSessionName").textContent = session.gameName || "Oda oyunu";
+    $("gameSessionStatus").textContent = isPlaying ? "Oyun başladı" : "Lobi açık";
+    $("gameSessionStatus").classList.toggle("is-playing", isPlaying);
+    $("gameSessionSummary").textContent = isPlaying
+        ? `Tur ${session.round || 1} sürüyor. Oyuncular devam ederken diğer oda üyeleri izleyebilir.`
+        : `Tur ${session.round || 1} lobisi. Katılan herkes hazır olduğunda oyun otomatik başlayacak.`;
+
+    $("gamePlayersHeading").textContent = isPlaying ? "Bu turun oyuncuları" : "Lobi oyuncuları";
+    $("gamePlayersCount").textContent = String(players.length);
+    renderGameMemberList("gamePlayersList", players, (userId) => {
+        if (isPlaying) return "Oyunda";
+        return readyIds.includes(userId) ? "Hazır" : "Hazır bekliyor";
+    });
+
+    const spectators = activeRoomMembers
+        .filter((member) => !players.includes(member.id))
+        .map((member) => member.id);
+    $("gameSpectatorsCount").textContent = String(spectators.length);
+    renderGameMemberList("gameSpectatorsList", spectators, (userId) =>
+        nextRoundPlayers.includes(userId) ? "Sonraki turda" : "İzliyor"
+    );
+
+    $("gameNextRoundSection").hidden = !isPlaying || nextRoundPlayers.length === 0;
+    if (nextRoundPlayers.length) {
+        renderGameMemberList("gameNextRoundList", nextRoundPlayers, (userId) =>
+            nextRoundReady.includes(userId) ? "Hazır" : "Bekliyor"
+        );
+    }
+
+    $("joinGameSessionButton").hidden = isPlaying || isPlayer;
+    $("readyGameSessionButton").hidden = isPlaying || !isPlayer;
+    $("leaveGameSessionButton").hidden = isPlaying || !isPlayer;
+    $("queueNextRoundButton").hidden = !isPlaying || isQueued;
+    $("queueNextRoundButton").textContent = isPlayer
+        ? "Sonraki turda da oyna ve hazır ol"
+        : "Sonraki tur için sıraya gir ve hazır ol";
+    $("finishGameRoundButton").hidden = !isPlaying || !canManage;
+    $("closeGameSessionButton").hidden = !canManage;
+    $("closeGameSessionButton").textContent = isPlaying ? "Oyun oturumunu kapat" : "Lobiyi kapat";
+
+    if (!isPlaying && isPlayer) {
+        $("readyGameSessionButton").textContent = readyIds.includes(currentUser?.uid)
+            ? "Hazırım ✓ (geri al)"
+            : "Hazırım";
+    }
+
+    if (isPlaying && isPlayer) {
+        setGameCenterStatus("Oyuncu olarak bu turdasın. Sonraki tur için sıraya şimdi girebilirsin.");
+    } else if (isPlaying) {
+        setGameCenterStatus("Şu an izleyicisin. Sonraki turda oynamak için sıraya gir.");
+    } else if (isPlayer) {
+        setGameCenterStatus("Lobidesin. Herkes hazır olduğunda oturum otomatik başlayacak.");
+    } else {
+        setGameCenterStatus("Lobiye katılarak oyuncu olabilirsin.");
+    }
+}
+
+async function maybeStartGameWhenReady(roomId, sessionData) {
+    if (
+        !sessionData ||
+        sessionData.status !== "lobby" ||
+        !Array.isArray(sessionData.playerIds) ||
+        sessionData.playerIds.length < 2 ||
+        !sessionData.playerIds.every((id) => sessionData.readyIds?.includes(id)) ||
+        gameSessionStartInProgress
+    ) return;
+
+    gameSessionStartInProgress = true;
+    try {
+        await runTransaction(db, async (transaction) => {
+            const ref = getGameSessionRef(roomId);
+            const snapshot = await transaction.get(ref);
+            if (!snapshot.exists()) return;
+            const latest = snapshot.data();
+            const players = Array.isArray(latest.playerIds) ? latest.playerIds : [];
+            const ready = Array.isArray(latest.readyIds) ? latest.readyIds : [];
+            if (latest.status !== "lobby" || players.length < 2 || !players.every((id) => ready.includes(id))) return;
+            transaction.update(ref, {
+                status: "playing",
+                startedAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+        });
+    } catch (error) {
+        if (activeRoomId === roomId) {
+            console.warn("CACA game auto-start failed:", error);
+            if (error.code === "permission-denied") {
+                setGameCenterStatus("Oyun başlatılamadı. Firestore Rules içindeki oyun lobisi izinlerini yayımla.", true);
+            }
+        }
+    } finally {
+        gameSessionStartInProgress = false;
+    }
+}
+
+function listenToGameCenter(roomId) {
+    if (unsubscribeGameSession) unsubscribeGameSession();
+    unsubscribeGameSession = onSnapshot(getGameSessionRef(roomId), (snapshot) => {
+        if (activeRoomId !== roomId) return;
+        gameSessionData = snapshot.exists() ? snapshot.data() : null;
+        renderGameCenter();
+        if (gameSessionData) maybeStartGameWhenReady(roomId, gameSessionData);
+    }, (error) => {
+        if (activeRoomId !== roomId) return;
+        console.warn("CACA game center listener failed:", error);
+        setGameCenterStatus(
+            error.code === "permission-denied"
+                ? "Oyun lobisi okunamadı. Firestore Rules güncel olmalı."
+                : "Oyun lobisi yüklenemedi: " + (error.message || "Bilinmeyen hata"),
+            true
+        );
+    });
+}
+
+function setGameCenterOpen(isOpen) {
+    const panel = $("gameCenterPanel");
+    if (!panel || (isOpen && (!currentUser || !activeRoomId))) return;
+    panel.hidden = !isOpen;
+    if (isOpen) {
+        renderGameCenter();
+        $("closeGameCenterButton").focus();
+    } else {
+        $("funCenterOpenButton").focus();
+    }
+}
+
+$("funCenterOpenButton").addEventListener("click", () => setGameCenterOpen(true));
+$("closeGameCenterButton").addEventListener("click", () => setGameCenterOpen(false));
+$("gameCenterPanel").addEventListener("click", (event) => {
+    if (event.target === $("gameCenterPanel")) setGameCenterOpen(false);
+});
+
+async function createGameSession() {
+    if (!currentUser || !activeRoomId || gameSessionData) return;
+    const button = $("createGameSessionButton");
+    button.disabled = true;
+    setGameCenterStatus("Oyun lobisi oluşturuluyor...");
+    try {
+        await setDoc(getGameSessionRef(), {
+            gameId: "room-game",
+            gameName: "Oda oyunu",
+            status: "lobby",
+            round: 1,
+            hostId: currentUser.uid,
+            playerIds: [currentUser.uid],
+            readyIds: [],
+            nextRoundPlayerIds: [],
+            nextRoundReadyIds: [],
+            createdAt: serverTimestamp(),
+            startedAt: null,
+            updatedAt: serverTimestamp()
+        });
+        setGameCenterStatus("Lobi açıldı. Diğer oyuncular katılabilir.");
+    } catch (error) {
+        setGameCenterStatus(
+            error.code === "permission-denied"
+                ? "Lobi açılamadı. Firestore Rules içindeki oyun lobisi izinlerini yayımla."
+                : "Lobi açılamadı: " + (error.message || "Bilinmeyen hata"),
+            true
+        );
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function joinGameSession() {
+    if (!currentUser || !gameSessionData || gameSessionData.status !== "lobby") return;
+    try {
+        await updateDoc(getGameSessionRef(), {
+            playerIds: arrayUnion(currentUser.uid),
+            updatedAt: serverTimestamp()
+        });
+        setGameCenterStatus("Lobiye katıldın. Oyun başlaması için hazır ol.");
+    } catch (error) {
+        setGameCenterStatus("Lobiye katılamadın: " + (error.message || "Bilinmeyen hata"), true);
+    }
+}
+
+async function toggleGameReady() {
+    if (!currentUser || !gameSessionData || gameSessionData.status !== "lobby") return;
+    const ready = (gameSessionData.readyIds || []).includes(currentUser.uid);
+    try {
+        await updateDoc(getGameSessionRef(), {
+            readyIds: ready ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
+            updatedAt: serverTimestamp()
+        });
+    } catch (error) {
+        setGameCenterStatus("Hazır durumu değiştirilemedi: " + (error.message || "Bilinmeyen hata"), true);
+    }
+}
+
+async function leaveGameLobby() {
+    if (!currentUser || !gameSessionData || gameSessionData.status !== "lobby") return;
+    try {
+        await updateDoc(getGameSessionRef(), {
+            playerIds: arrayRemove(currentUser.uid),
+            readyIds: arrayRemove(currentUser.uid),
+            updatedAt: serverTimestamp()
+        });
+    } catch (error) {
+        setGameCenterStatus("Lobiden ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
+    }
+}
+
+async function queueForNextGameRound() {
+    if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") return;
+    try {
+        await updateDoc(getGameSessionRef(), {
+            nextRoundPlayerIds: arrayUnion(currentUser.uid),
+            nextRoundReadyIds: arrayUnion(currentUser.uid),
+            updatedAt: serverTimestamp()
+        });
+        setGameCenterStatus("Sonraki tur için sıraya girdin ve hazır durumdasın.");
+    } catch (error) {
+        setGameCenterStatus("Sonraki tur sırasına eklenemedin: " + (error.message || "Bilinmeyen hata"), true);
+    }
+}
+
+async function finishGameRound() {
+    if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") return;
+    const session = gameSessionData;
+    if (session.hostId !== currentUser.uid && !canCurrentUserKickMembers()) return;
+    const nextPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
+    const nextReady = Array.isArray(session.nextRoundReadyIds) ? session.nextRoundReadyIds : [];
+    try {
+        await updateDoc(getGameSessionRef(), {
+            status: "lobby",
+            round: (Number(session.round) || 1) + 1,
+            playerIds: nextPlayers,
+            readyIds: nextReady,
+            nextRoundPlayerIds: [],
+            nextRoundReadyIds: [],
+            startedAt: null,
+            updatedAt: serverTimestamp()
+        });
+        setGameCenterStatus("Yeni tur lobisi açıldı. Sıradaki oyuncular hazır durumlarını koruyor.");
+    } catch (error) {
+        setGameCenterStatus("Sonraki tur açılamadı: " + (error.message || "Bilinmeyen hata"), true);
+    }
+}
+
+async function closeGameSession() {
+    if (!currentUser || !gameSessionData) return;
+    if (gameSessionData.hostId !== currentUser.uid && !canCurrentUserKickMembers()) return;
+    if (!window.confirm("Bu odanın oyun oturumunu kapatmak istiyor musun?")) return;
+    try {
+        await deleteDoc(getGameSessionRef());
+        setGameCenterStatus("Oyun oturumu kapatıldı.");
+    } catch (error) {
+        setGameCenterStatus("Oturum kapatılamadı: " + (error.message || "Bilinmeyen hata"), true);
+    }
+}
+
+$("createGameSessionButton").addEventListener("click", createGameSession);
+$("joinGameSessionButton").addEventListener("click", joinGameSession);
+$("readyGameSessionButton").addEventListener("click", toggleGameReady);
+$("leaveGameSessionButton").addEventListener("click", leaveGameLobby);
+$("queueNextRoundButton").addEventListener("click", queueForNextGameRound);
+$("finishGameRoundButton").addEventListener("click", finishGameRound);
+$("closeGameSessionButton").addEventListener("click", closeGameSession);
 
 // ROOM-WIDE PRANK EVENTS
 
@@ -2309,6 +2650,7 @@ function listenToMembers(roomId, ownerId) {
             $("adminAssignmentSection").hidden = !isOwnerViewing;
             $("bannedSection").hidden = !isOwnerViewing;
             $("clearChatManagementSection").hidden = !isOwnerViewing;
+            $("jumpscareOpenButton").hidden = !canAccessAdminPanel;
 
             // Keep a real-time listener on every current member's public
             // profile. Profile changes then reach everyone in this room live.
@@ -2374,6 +2716,7 @@ function listenToMembers(roomId, ownerId) {
 
                 activeRoomMembers = [];
                 renderJumpscareTargets();
+                renderGameCenter();
                 membersList.appendChild(empty);
                 return;
             }
@@ -2401,7 +2744,7 @@ function listenToMembers(roomId, ownerId) {
 
             activeRoomMembers = members;
             renderJumpscareTargets();
-            $("jumpscareOpenButton").hidden = false;
+            renderGameCenter();
 
             // Group the room owner separately; keep all other members alphabetical.
             members.sort((a, b) => {
@@ -2897,7 +3240,7 @@ async function openRoom(roomId) {
         $("bannedSection").hidden = !isOwner;
         $("roomManagementButton").hidden = true;
         $("adminPanelButton").hidden = true;
-        $("jumpscareOpenButton").hidden = false;
+        $("jumpscareOpenButton").hidden = true;
         $("adminAssignmentSection").hidden = !isOwner;
         $("clearChatManagementSection").hidden = !isOwner;
         $("adminManagementStatus").textContent = "";
@@ -2932,6 +3275,7 @@ async function openRoom(roomId) {
         listenToMessages(roomId);
         listenToRoomPranks(roomId);
         listenToPersonalPranks(roomId);
+        listenToGameCenter(roomId);
 
     } catch (error) {
         if (requestVersion === roomOpenRequestVersion) {
