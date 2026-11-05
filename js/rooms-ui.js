@@ -105,6 +105,7 @@ let unsubscribeMyMembership = null;
 let unsubscribeBanned = null;
 let unsubscribeMessages = null;
 let unsubscribePranks = null;
+let unsubscribePersonalPranks = null;
 let activeRoomOwnerId = null;
 let currentRoomMemberRecord = null;
 let memberRenderVersion = 0;
@@ -113,6 +114,13 @@ let isDeletingRoom = false;
 let messageRenderVersion = 0;
 const publicProfileCache = new Map();
 const liveProfileUnsubscribers = new Map();
+let activeRoomMembers = [];
+let currentJumpscareSlots = { slot1: null, slot2: null, slot3: null };
+let jumpscareLibraryLoadedFor = null;
+let jumpscareLibraryLoadPromise = null;
+let selectedJumpscareSlot = "slot1";
+let lastPersonalPrankSentAt = 0;
+let lastSeenPersonalPrankEventId = null;
 let lastSeenPrankEventId = null;
 let lastPrankDispatchAt = 0;
 let prankOverlayTimer = null;
@@ -233,6 +241,10 @@ function stopMemberListener() {
         unsubscribePranks();
         unsubscribePranks = null;
     }
+    if (unsubscribePersonalPranks) {
+        unsubscribePersonalPranks();
+        unsubscribePersonalPranks = null;
+    }
 
     if (prankOverlayTimer) {
         clearTimeout(prankOverlayTimer);
@@ -252,8 +264,11 @@ function stopMemberListener() {
     activeRoomId = null;
     activeRoomOwnerId = null;
     currentRoomMemberRecord = null;
+    activeRoomMembers = [];
     if ($("roomManagementPanel")) $("roomManagementPanel").hidden = true;
     if ($("adminPanel")) $("adminPanel").hidden = true;
+    if ($("jumpscarePanel")) $("jumpscarePanel").hidden = true;
+    if ($("jumpscareOpenButton")) $("jumpscareOpenButton").hidden = true;
 }
 
 // Resolve the current public profile so older membership/ban records
@@ -557,7 +572,7 @@ function setAdminPanelOpen(isOpen) {
 
     if (isOpen) {
         $("trollManagementStatus").textContent = "";
-        $("jumpscareButton")?.focus();
+        $("shakeButton")?.focus();
     } else {
         $("adminPanelButton")?.focus();
     }
@@ -573,10 +588,32 @@ $("closeAdminPanelButton").addEventListener("click", () => setAdminPanelOpen(fal
 $("adminPanel").addEventListener("click", (event) => {
     if (event.target === $("adminPanel")) setAdminPanelOpen(false);
 });
+// Member jumpscare panel: every room member can use their own private library.
+function setJumpscarePanelOpen(isOpen) {
+    const panel = $("jumpscarePanel");
+    if (!panel || (isOpen && (!currentUser || !activeRoomId))) return;
+    panel.hidden = !isOpen;
+    if (isOpen) {
+        $("personalJumpscareStatus").textContent = "";
+        renderJumpscareTargets();
+        $("jumpscareTargetSelect").focus();
+        loadJumpscareLibrary();
+    } else {
+        $("jumpscareOpenButton")?.focus();
+    }
+}
+
+$("jumpscareOpenButton").addEventListener("click", () => setJumpscarePanelOpen(true));
+$("closeJumpscarePanelButton").addEventListener("click", () => setJumpscarePanelOpen(false));
+$("jumpscarePanel").addEventListener("click", (event) => {
+    if (event.target === $("jumpscarePanel")) setJumpscarePanelOpen(false);
+});
+
 document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (!$("roomManagementPanel").hidden) setRoomManagementOpen(false);
     if (!$("adminPanel").hidden) setAdminPanelOpen(false);
+    if (!$("jumpscarePanel").hidden) setJumpscarePanelOpen(false);
 });
 
 async function clearRoomChatHistory() {
@@ -893,30 +930,290 @@ function listenToMessages(roomId) {
     );
 }
 
+// PERSONAL JUMPSCARE LIBRARY AND TARGETED DELIVERY
+
+const JUMPSCARE_IMAGE_MAX_CHARS = 180000;
+const JUMPSCARE_SLOT_FIELDS = ["slot1", "slot2", "slot3"];
+
+function updateJumpscareSendButton() {
+    const hasImage = Boolean(currentJumpscareSlots[selectedJumpscareSlot]);
+    const hasTarget = Boolean($("jumpscareTargetSelect")?.value);
+    $("sendPersonalJumpscareButton").disabled = !hasImage || !hasTarget;
+}
+
+function renderJumpscareSlots() {
+    JUMPSCARE_SLOT_FIELDS.forEach((slot, index) => {
+        const n = index + 1;
+        const image = $(`jumpscareSlotPreview${n}`);
+        const empty = $(`jumpscareSlotEmpty${n}`);
+        const selectButton = $(`jumpscareSlotSelect${n}`);
+        const clearButton = $(`jumpscareSlotClear${n}`);
+        const data = currentJumpscareSlots[slot];
+
+        image.src = data || "";
+        image.hidden = !data;
+        empty.hidden = Boolean(data);
+        selectButton.classList.toggle("selected", selectedJumpscareSlot === slot);
+        selectButton.setAttribute("aria-pressed", String(selectedJumpscareSlot === slot));
+        clearButton.disabled = !data;
+    });
+    updateJumpscareSendButton();
+}
+
+function renderJumpscareTargets() {
+    const select = $("jumpscareTargetSelect");
+    if (!select) return;
+
+    const previousTarget = select.value;
+    select.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Gönderilecek üyeyi seç...";
+    select.appendChild(placeholder);
+
+    const eligible = activeRoomMembers.filter((member) =>
+        member.id !== currentUser?.uid &&
+        member.id !== activeRoomOwnerId &&
+        member.role !== "owner" &&
+        !isActiveRoomAdmin(member)
+    );
+    eligible.forEach((member) => {
+        const option = document.createElement("option");
+        option.value = member.id;
+        option.textContent = member.displayNickname || member.username || "Üye";
+        select.appendChild(option);
+    });
+
+    if (eligible.some((member) => member.id === previousTarget)) select.value = previousTarget;
+    if (!eligible.length) placeholder.textContent = "Hedef alınabilecek normal üye yok.";
+    updateJumpscareSendButton();
+}
+
+$("jumpscareTargetSelect").addEventListener("change", updateJumpscareSendButton);
+
+function selectJumpscareSlot(slot) {
+    if (!JUMPSCARE_SLOT_FIELDS.includes(slot)) return;
+    selectedJumpscareSlot = slot;
+    renderJumpscareSlots();
+}
+
+[1, 2, 3].forEach((n) => {
+    const slot = `slot${n}`;
+    $(`jumpscareSlotSelect${n}`).addEventListener("click", () => selectJumpscareSlot(slot));
+
+    $(`jumpscareSlotFile${n}`).addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        $("jumpscareLibraryStatus").textContent = "Görsel hazırlanıyor...";
+        try {
+            const dataUrl = await compressJumpscareImage(file);
+            const userId = currentUser?.uid;
+            if (!userId) throw new Error("Oturum bulunamadı.");
+            const next = { ...currentJumpscareSlots, [slot]: dataUrl };
+            await setDoc(doc(db, "users", userId, "jumpscares", "library"), {
+                ...next, updatedAt: serverTimestamp()
+            });
+            if (currentUser?.uid !== userId) return;
+            currentJumpscareSlots = next;
+            jumpscareLibraryLoadedFor = userId;
+            selectedJumpscareSlot = slot;
+            renderJumpscareSlots();
+            $("jumpscareLibraryStatus").textContent = `Jumpscare ${n} kaydedildi. Sadece senin hesabında saklanıyor.`;
+        } catch (error) {
+            console.error("CACA jumpscare upload failed:", error);
+            $("jumpscareLibraryStatus").textContent = error.message || "Görsel kaydedilemedi.";
+        } finally {
+            event.target.value = "";
+        }
+    });
+
+    $(`jumpscareSlotClear${n}`).addEventListener("click", async () => {
+        if (!currentUser) return;
+        const userId = currentUser.uid;
+        const next = { ...currentJumpscareSlots, [slot]: null };
+        const button = $(`jumpscareSlotClear${n}`);
+        button.disabled = true;
+        try {
+            await setDoc(doc(db, "users", userId, "jumpscares", "library"), {
+                ...next, updatedAt: serverTimestamp()
+            });
+            if (currentUser?.uid !== userId) return;
+            currentJumpscareSlots = next;
+            renderJumpscareSlots();
+            $("jumpscareLibraryStatus").textContent = `Jumpscare ${n} silindi.`;
+        } catch (error) {
+            $("jumpscareLibraryStatus").textContent = error.message || "Görsel silinemedi.";
+        } finally {
+            button.disabled = !currentJumpscareSlots[slot];
+        }
+    });
+});
+
+async function compressJumpscareImage(file) {
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+        throw new Error("Yalnızca PNG, JPG veya WebP görsel yükleyebilirsin.");
+    }
+    if (file.size > 12 * 1024 * 1024) throw new Error("Dosya en fazla 12 MB olabilir.");
+    if (typeof createImageBitmap !== "function") {
+        throw new Error("Tarayıcın görsel sıkıştırmayı desteklemiyor. Güncel bir tarayıcı kullan.");
+    }
+
+    const bitmap = await createImageBitmap(file);
+    try {
+        for (const maxSize of [900, 800, 700, 600, 520, 440, 360]) {
+            const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+            const width = Math.max(1, Math.round(bitmap.width * scale));
+            const height = Math.max(1, Math.round(bitmap.height * scale));
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext("2d");
+            if (!context) throw new Error("Görsel işlenemedi.");
+            context.fillStyle = "#080910";
+            context.fillRect(0, 0, width, height);
+            context.drawImage(bitmap, 0, 0, width, height);
+
+            for (const quality of [0.82, 0.72, 0.62, 0.52]) {
+                let dataUrl = canvas.toDataURL("image/webp", quality);
+                if (!dataUrl.startsWith("data:image/webp;base64,")) {
+                    dataUrl = canvas.toDataURL("image/jpeg", quality);
+                }
+                if (dataUrl.length <= JUMPSCARE_IMAGE_MAX_CHARS &&
+                    /^data:image\/(webp|jpeg);base64,/.test(dataUrl)) return dataUrl;
+            }
+        }
+    } finally {
+        bitmap.close?.();
+    }
+    throw new Error("Görsel hâlâ büyük. Daha küçük bir görsel dene.");
+}
+
+async function loadJumpscareLibrary() {
+    const userId = currentUser?.uid;
+    if (!userId || jumpscareLibraryLoadedFor === userId) {
+        renderJumpscareSlots();
+        return;
+    }
+    if (jumpscareLibraryLoadPromise) return jumpscareLibraryLoadPromise;
+
+    jumpscareLibraryLoadPromise = (async () => {
+        $("jumpscareLibraryStatus").textContent = "Kayıtlı görseller yükleniyor...";
+        try {
+            const snapshot = await getDoc(doc(db, "users", userId, "jumpscares", "library"));
+            if (currentUser?.uid !== userId) return;
+            const data = snapshot.exists() ? snapshot.data() : {};
+            currentJumpscareSlots = {
+                slot1: typeof data.slot1 === "string" ? data.slot1 : null,
+                slot2: typeof data.slot2 === "string" ? data.slot2 : null,
+                slot3: typeof data.slot3 === "string" ? data.slot3 : null
+            };
+            jumpscareLibraryLoadedFor = userId;
+            renderJumpscareSlots();
+            $("jumpscareLibraryStatus").textContent = "Üç görsel alanın hazır.";
+        } catch (error) {
+            console.error("CACA jumpscare library read failed:", error);
+            $("jumpscareLibraryStatus").textContent = error.code === "permission-denied"
+                ? "Kişisel jumpscare kütüphanesi için Firestore Rules yayımlanmalı."
+                : "Görseller yüklenemedi: " + (error.message || "Bilinmeyen hata");
+        } finally {
+            jumpscareLibraryLoadPromise = null;
+        }
+    })();
+    return jumpscareLibraryLoadPromise;
+}
+
+async function sendPersonalJumpscare() {
+    if (!currentUser || !activeRoomId) return;
+    const targetId = $("jumpscareTargetSelect").value;
+    const target = activeRoomMembers.find((member) => member.id === targetId);
+    const imageData = currentJumpscareSlots[selectedJumpscareSlot];
+
+    if (!imageData) {
+        $("personalJumpscareStatus").textContent = "Önce göndermek istediğin görseli yükle.";
+        return;
+    }
+    if (!target || target.id === currentUser.uid || target.id === activeRoomOwnerId ||
+        target.role === "owner" || isActiveRoomAdmin(target)) {
+        $("personalJumpscareStatus").textContent = "Oda sahibi ve aktif yöneticiler hedef alınamaz.";
+        renderJumpscareTargets();
+        return;
+    }
+    if (Date.now() - lastPersonalPrankSentAt < 6000) {
+        $("personalJumpscareStatus").textContent = "Yeni bir jumpscare göndermeden önce birkaç saniye bekle.";
+        return;
+    }
+
+    const button = $("sendPersonalJumpscareButton");
+    button.disabled = true;
+    $("personalJumpscareStatus").textContent = "Gönderiliyor...";
+    try {
+        await setDoc(doc(db, "rooms", activeRoomId, "prankInbox", target.id), {
+            eventId: crypto.randomUUID(),
+            type: "custom-jumpscare",
+            senderId: currentUser.uid,
+            senderName: currentUsername || "Bir oda üyesi",
+            imageData,
+            sentAt: serverTimestamp()
+        });
+        lastPersonalPrankSentAt = Date.now();
+        $("personalJumpscareStatus").textContent =
+            `Jumpscare ${target.displayNickname || target.username} kullanıcısına gönderildi.`;
+    } catch (error) {
+        console.error("CACA targeted jumpscare send failed:", error);
+        $("personalJumpscareStatus").textContent = error.code === "permission-denied"
+            ? "Gönderilemedi. Hedef odadan ayrılmış veya yönetici olmuş olabilir. Firestore Rules güncel olmalı."
+            : "Gönderilemedi: " + (error.message || "Bilinmeyen hata");
+    } finally {
+        updateJumpscareSendButton();
+    }
+}
+
+$("sendPersonalJumpscareButton").addEventListener("click", sendPersonalJumpscare);
+
 // ROOM-WIDE PRANK EVENTS
 
 function hideRoomPrank() {
     const overlay = $("roomPrankOverlay");
     if (!overlay) return;
-
     overlay.hidden = true;
     overlay.classList.remove("is-active");
 
+    const customImage = $("roomPrankCustomImage");
+    if (customImage) {
+        customImage.hidden = true;
+        customImage.removeAttribute("src");
+    }
+    const monster = document.querySelector(".room-prank-monster");
+    if (monster) monster.hidden = false;
     if (prankOverlayTimer) {
         clearTimeout(prankOverlayTimer);
         prankOverlayTimer = null;
     }
 }
 
-function showRoomPrank(type) {
-    if (type === "jumpscare") {
+function showRoomPrank(type, imageData = null, senderName = "") {
+    if (type === "custom-jumpscare" || type === "jumpscare") {
         const overlay = $("roomPrankOverlay");
         if (!overlay) return;
-
         hideRoomPrank();
+
+        const customImage = $("roomPrankCustomImage");
+        const monster = document.querySelector(".room-prank-monster");
+        const subtitle = $("roomPrankSubtitle");
+        if (type === "custom-jumpscare" && imageData) {
+            customImage.src = imageData;
+            customImage.hidden = false;
+            monster.hidden = true;
+            subtitle.textContent = senderName
+                ? `${senderName} sana bir jumpscare gönderdi.`
+                : "Sana özel bir jumpscare gönderildi.";
+        } else {
+            subtitle.textContent = "Bu sadece bir oda şakası.";
+        }
+
         overlay.hidden = false;
         requestAnimationFrame(() => overlay.classList.add("is-active"));
-        prankOverlayTimer = setTimeout(hideRoomPrank, 2600);
+        prankOverlayTimer = setTimeout(hideRoomPrank, 3000);
         return;
     }
 
@@ -975,6 +1272,35 @@ function listenToRoomPranks(roomId) {
     );
 }
 
+function listenToPersonalPranks(roomId) {
+    if (unsubscribePersonalPranks) {
+        unsubscribePersonalPranks();
+        unsubscribePersonalPranks = null;
+    }
+    const inboxRef = doc(db, "rooms", roomId, "prankInbox", currentUser.uid);
+    unsubscribePersonalPranks = onSnapshot(inboxRef, (snapshot) => {
+        if (activeRoomId !== roomId || !snapshot.exists()) return;
+        const prank = snapshot.data();
+        const eventId = prank.eventId;
+        const sentAt = prank.sentAt?.toMillis ? prank.sentAt.toMillis() : null;
+        if (
+            typeof eventId !== "string" || !eventId ||
+            eventId === lastSeenPersonalPrankEventId ||
+            prank.type !== "custom-jumpscare" ||
+            typeof prank.imageData !== "string" ||
+            !/^data:image\/(webp|jpeg);base64,/.test(prank.imageData) ||
+            sentAt === null ||
+            Date.now() - sentAt > 12000 ||
+            sentAt - Date.now() > 10000
+        ) return;
+
+        lastSeenPersonalPrankEventId = eventId;
+        showRoomPrank("custom-jumpscare", prank.imageData, prank.senderName || "");
+    }, (error) => {
+        if (activeRoomId === roomId) console.warn("CACA personal jumpscare listener failed:", error);
+    });
+}
+
 async function dispatchRoomPrank(type) {
     if (!currentUser || !activeRoomId || !canCurrentUserKickMembers()) {
         $("trollManagementStatus").textContent =
@@ -982,7 +1308,7 @@ async function dispatchRoomPrank(type) {
         return;
     }
 
-    if (!["jumpscare", "shake"].includes(type)) return;
+    if (type !== "shake") return;
 
     const now = Date.now();
     if (now - lastPrankDispatchAt < 6000) {
@@ -991,7 +1317,7 @@ async function dispatchRoomPrank(type) {
         return;
     }
 
-    const button = type === "jumpscare" ? $("jumpscareButton") : $("shakeButton");
+    const button = $("shakeButton");
     const originalText = button.textContent;
     button.disabled = true;
     lastPrankDispatchAt = now;
@@ -1009,10 +1335,7 @@ async function dispatchRoomPrank(type) {
             }
         );
 
-        $("trollManagementStatus").textContent =
-            type === "jumpscare"
-                ? "Jumpscare odaya gönderildi. Odaya bağlı üyelerin ekranında kısa süre görünecek."
-                : "Ekran sallama efekti odaya gönderildi.";
+        $("trollManagementStatus").textContent = "Ekran sallama efekti odaya gönderildi.";
     } catch (error) {
         lastPrankDispatchAt = 0;
         $("trollManagementStatus").textContent =
@@ -1025,9 +1348,6 @@ async function dispatchRoomPrank(type) {
     }
 }
 
-$("jumpscareButton")?.addEventListener("click", () => {
-    dispatchRoomPrank("jumpscare");
-});
 $("shakeButton")?.addEventListener("click", () => {
     dispatchRoomPrank("shake");
 });
@@ -2036,6 +2356,8 @@ function listenToMembers(roomId, ownerId) {
                 empty.className = "empty-rooms";
                 empty.textContent = "Bu odada henüz üye yok.";
 
+                activeRoomMembers = [];
+                renderJumpscareTargets();
                 membersList.appendChild(empty);
                 return;
             }
@@ -2055,6 +2377,9 @@ function listenToMembers(roomId, ownerId) {
                     return { ...member, ...names };
                 })
             );
+
+            activeRoomMembers = members;
+            renderJumpscareTargets();
 
             // A newer snapshot may have arrived while profile reads were running.
             if (activeRoomId !== roomId || renderVersion !== memberRenderVersion) {
@@ -2554,12 +2879,14 @@ async function openRoom(roomId) {
         $("bannedSection").hidden = !isOwner;
         $("roomManagementButton").hidden = true;
         $("adminPanelButton").hidden = true;
+        $("jumpscareOpenButton").hidden = false;
         $("adminAssignmentSection").hidden = !isOwner;
         $("clearChatManagementSection").hidden = !isOwner;
         $("adminManagementStatus").textContent = "";
         $("trollManagementStatus").textContent = "";
         $("roomManagementPanel").hidden = true;
         $("adminPanel").hidden = true;
+        $("jumpscarePanel").hidden = true;
 
         const leaveButton = $("leaveRoomButton");
         leaveButton.disabled = false;
@@ -2586,6 +2913,7 @@ async function openRoom(roomId) {
         listenToMembers(roomId, room.ownerId);
         listenToMessages(roomId);
         listenToRoomPranks(roomId);
+        listenToPersonalPranks(roomId);
 
     } catch (error) {
         if (requestVersion === roomOpenRequestVersion) {
@@ -2638,11 +2966,12 @@ async function deleteActiveRoom() {
 
     try {
         // Fetch all child records while the owner still has access.
-        const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot] = await Promise.all([
+        const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot, prankInboxSnapshot] = await Promise.all([
             getDocs(collection(db, "rooms", roomId, "members")),
             getDocs(collection(db, "rooms", roomId, "bans")),
             getDocs(collection(db, "rooms", roomId, "messages")),
-            getDoc(doc(db, "rooms", roomId, "pranks", "active"))
+            getDoc(doc(db, "rooms", roomId, "pranks", "active")),
+            getDocs(collection(db, "rooms", roomId, "prankInbox"))
         ]);
 
         // Remove other members and their personal room-list entries.
@@ -2671,6 +3000,7 @@ async function deleteActiveRoom() {
         if (activePrankSnapshot.exists()) {
             referencesToDelete.push(activePrankSnapshot.ref);
         }
+        prankInboxSnapshot.forEach((prankDoc) => referencesToDelete.push(prankDoc.ref));
 
         // Keep batches small so security-rule document lookups stay
         // comfortably below Firestore's per-request access-call limits.
