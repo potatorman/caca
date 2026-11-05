@@ -1542,6 +1542,7 @@ $("closeGameSessionButton").addEventListener("click", closeGameSession);
 function hideRoomPrank() {
     const overlay = $("roomPrankOverlay");
     if (!overlay) return;
+
     overlay.hidden = true;
     overlay.classList.remove("is-active");
 
@@ -1550,37 +1551,29 @@ function hideRoomPrank() {
         customImage.hidden = true;
         customImage.removeAttribute("src");
     }
-    const monster = document.querySelector(".room-prank-monster");
-    if (monster) monster.hidden = false;
+
     if (prankOverlayTimer) {
         clearTimeout(prankOverlayTimer);
         prankOverlayTimer = null;
     }
 }
 
-function showRoomPrank(type, imageData = null, senderName = "") {
+function showRoomPrank(type, imageData = null) {
     if (type === "custom-jumpscare" || type === "jumpscare") {
-        const overlay = $("roomPrankOverlay");
-        if (!overlay) return;
-        hideRoomPrank();
-
-        const customImage = $("roomPrankCustomImage");
-        const monster = document.querySelector(".room-prank-monster");
-        const subtitle = $("roomPrankSubtitle");
-        if (type === "custom-jumpscare" && imageData) {
-            customImage.src = imageData;
-            customImage.hidden = false;
-            monster.hidden = true;
-            subtitle.textContent = senderName
-                ? `${senderName} sana bir jumpscare gönderdi.`
-                : "Sana özel bir jumpscare gönderildi.";
-        } else {
-            subtitle.textContent = "Bu sadece bir oda şakası.";
+        if (typeof imageData !== "string" || !/^data:image\/(webp|jpeg);base64,/.test(imageData)) {
+            return;
         }
 
+        const overlay = $("roomPrankOverlay");
+        const customImage = $("roomPrankCustomImage");
+        if (!overlay || !customImage) return;
+
+        hideRoomPrank();
+        customImage.src = imageData;
+        customImage.hidden = false;
         overlay.hidden = false;
         requestAnimationFrame(() => overlay.classList.add("is-active"));
-        prankOverlayTimer = setTimeout(hideRoomPrank, 3000);
+        // No automatic timeout: the recipient dismisses it with Escape only.
         return;
     }
 
@@ -1718,10 +1711,10 @@ async function dispatchRoomPrank(type) {
 $("shakeButton")?.addEventListener("click", () => {
     dispatchRoomPrank("shake");
 });
-$("roomPrankDismiss")?.addEventListener("click", hideRoomPrank);
 
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !$("roomPrankOverlay")?.hidden) {
+        event.preventDefault();
         hideRoomPrank();
     }
 });
