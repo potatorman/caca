@@ -224,6 +224,7 @@
                                         <button id="membersToggleButton" class="members-toggle-button" type="button" aria-controls="roomMembersPanel" aria-expanded="true">Üyeler <span aria-hidden="true">▥</span></button>
                                         <button id="roomManagementButton" class="room-management-button" type="button" hidden>Yönetim Paneli</button>
                                         <button id="adminPanelButton" class="room-management-button admin-panel-button" type="button" hidden>Admin Panel</button>
+                                        <button id="jumpscareOpenButton" class="room-management-button jumpscare-open-button" type="button" hidden>Jumpscare</button>
                                         <button id="leaveRoomButton" class="danger-button" type="button">Odadan çık</button>
                                     </div>
                                 </div>
@@ -291,23 +292,82 @@
                                             <div>
                                                 <span class="small-label">ADMIN TOOLS</span>
                                                 <h3 id="adminPanelTitle">Admin Panel</h3>
-                                                <p>Oda sahibi ve aktif yöneticilere açık troll araçları.</p>
+                                                <p>Oda sahibi ve aktif yöneticilere açık oda efektleri.</p>
                                             </div>
                                             <button id="closeAdminPanelButton" class="icon-button" type="button" aria-label="Admin panelini kapat">×</button>
                                         </div>
                                                                                 <section id="trollManagementSection" class="room-management-section troll-management-section">
                                             <div class="troll-section-heading">
-                                                <strong>Troll merkezi</strong>
-                                                <p>Odadaki herkese kısa süreli, sessiz efektler gönder.</p>
+                                                <strong>Oda efektleri</strong>
+                                                <p>Oda genelinde kısa süreli görsel efektler kullan.</p>
                                             </div>
                                             <div class="troll-controls">
-                                                <button id="jumpscareButton" class="troll-button jumpscare" type="button">Jumpscare gönder</button>
                                                 <button id="shakeButton" class="troll-button shake" type="button">Ekranı salla</button>
                                             </div>
                                             <p id="trollManagementStatus" class="troll-management-status" role="status" aria-live="polite"></p>
                                         </section>
 
 
+                                    </div>
+                                </section>
+
+                                <section id="jumpscarePanel" class="room-management-panel personal-jumpscare-panel" role="dialog" aria-modal="true" aria-labelledby="jumpscarePanelTitle" hidden>
+                                    <div class="room-management-card jumpscare-panel-card">
+                                        <div class="room-management-heading">
+                                            <div>
+                                                <span class="small-label">PERSONAL JUMPSCARE</span>
+                                                <h3 id="jumpscarePanelTitle">Kişiye özel jumpscare</h3>
+                                                <p>Kendi 3 görselini kaydet ve odadaki normal üyelerden birine gönder. Oda sahibi ve aktif yöneticiler korunur.</p>
+                                            </div>
+                                            <button id="closeJumpscarePanelButton" class="icon-button" type="button" aria-label="Jumpscare panelini kapat">×</button>
+                                        </div>
+
+                                        <div class="jumpscare-library-heading">
+                                            <strong>Benim 3 jumpscare görselim</strong>
+                                            <span>PNG, JPG veya WebP · Otomatik küçültülür</span>
+                                        </div>
+                                        <div class="jumpscare-slot-grid">
+                                            <article class="jumpscare-slot-card" data-slot="slot1">
+                                                <button id="jumpscareSlotSelect1" class="jumpscare-slot-select selected" type="button" aria-pressed="true">
+                                                    <img id="jumpscareSlotPreview1" alt="Jumpscare 1 önizlemesi" hidden>
+                                                    <span id="jumpscareSlotEmpty1">1. görsel boş</span>
+                                                    <span class="jumpscare-slot-number">1</span>
+                                                </button>
+                                                <label class="jumpscare-upload-label" for="jumpscareSlotFile1">Görsel yükle</label>
+                                                <input id="jumpscareSlotFile1" class="jumpscare-file-input" type="file" accept="image/png,image/jpeg,image/webp">
+                                                <button id="jumpscareSlotClear1" class="jumpscare-clear-button" type="button" disabled>Sil</button>
+                                            </article>
+                                            <article class="jumpscare-slot-card" data-slot="slot2">
+                                                <button id="jumpscareSlotSelect2" class="jumpscare-slot-select" type="button" aria-pressed="false">
+                                                    <img id="jumpscareSlotPreview2" alt="Jumpscare 2 önizlemesi" hidden>
+                                                    <span id="jumpscareSlotEmpty2">2. görsel boş</span>
+                                                    <span class="jumpscare-slot-number">2</span>
+                                                </button>
+                                                <label class="jumpscare-upload-label" for="jumpscareSlotFile2">Görsel yükle</label>
+                                                <input id="jumpscareSlotFile2" class="jumpscare-file-input" type="file" accept="image/png,image/jpeg,image/webp">
+                                                <button id="jumpscareSlotClear2" class="jumpscare-clear-button" type="button" disabled>Sil</button>
+                                            </article>
+                                            <article class="jumpscare-slot-card" data-slot="slot3">
+                                                <button id="jumpscareSlotSelect3" class="jumpscare-slot-select" type="button" aria-pressed="false">
+                                                    <img id="jumpscareSlotPreview3" alt="Jumpscare 3 önizlemesi" hidden>
+                                                    <span id="jumpscareSlotEmpty3">3. görsel boş</span>
+                                                    <span class="jumpscare-slot-number">3</span>
+                                                </button>
+                                                <label class="jumpscare-upload-label" for="jumpscareSlotFile3">Görsel yükle</label>
+                                                <input id="jumpscareSlotFile3" class="jumpscare-file-input" type="file" accept="image/png,image/jpeg,image/webp">
+                                                <button id="jumpscareSlotClear3" class="jumpscare-clear-button" type="button" disabled>Sil</button>
+                                            </article>
+                                        </div>
+                                        <p id="jumpscareLibraryStatus" class="jumpscare-status" role="status" aria-live="polite"></p>
+
+                                        <div class="jumpscare-send-section">
+                                            <label for="jumpscareTargetSelect">Kime göndermek istiyorsun?</label>
+                                            <select id="jumpscareTargetSelect">
+                                                <option value="">Önce üye listesi yüklensin...</option>
+                                            </select>
+                                            <button id="sendPersonalJumpscareButton" class="troll-button jumpscare" type="button" disabled>Seçili görseli gönder</button>
+                                        </div>
+                                        <p id="personalJumpscareStatus" class="jumpscare-status" role="status" aria-live="polite"></p>
                                     </div>
                                 </section>
 
@@ -566,6 +626,7 @@
 
                             <div id="roomPrankOverlay" class="room-prank-overlay" hidden role="alert" aria-live="assertive" aria-label="Sürpriz jumpscare">
                                 <div class="room-prank-glow" aria-hidden="true"></div>
+                                <img id="roomPrankCustomImage" class="room-prank-custom-image" alt="Gönderilen jumpscare görseli" hidden>
                                 <div class="room-prank-monster" aria-hidden="true">
                                     <svg viewBox="0 0 320 320" role="presentation">
                                         <defs>
