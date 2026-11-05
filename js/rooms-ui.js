@@ -971,11 +971,14 @@ function renderJumpscareTargets() {
     placeholder.textContent = "Gönderilecek üyeyi seç...";
     select.appendChild(placeholder);
 
+    const canTargetAdmins =
+        activeRoomOwnerId === currentUser?.uid || isCurrentUserRoomAdmin();
+
     const eligible = activeRoomMembers.filter((member) =>
         member.id !== currentUser?.uid &&
         member.id !== activeRoomOwnerId &&
         member.role !== "owner" &&
-        !isActiveRoomAdmin(member)
+        (canTargetAdmins || !isActiveRoomAdmin(member))
     );
     eligible.forEach((member) => {
         const option = document.createElement("option");
@@ -1140,9 +1143,14 @@ async function sendPersonalJumpscare() {
         $("personalJumpscareStatus").textContent = "Önce göndermek istediğin görseli yükle.";
         return;
     }
+    const canTargetAdmins =
+        activeRoomOwnerId === currentUser.uid || isCurrentUserRoomAdmin();
+
     if (!target || target.id === currentUser.uid || target.id === activeRoomOwnerId ||
-        target.role === "owner" || isActiveRoomAdmin(target)) {
-        $("personalJumpscareStatus").textContent = "Oda sahibi ve aktif yöneticiler hedef alınamaz.";
+        target.role === "owner" || (isActiveRoomAdmin(target) && !canTargetAdmins)) {
+        $("personalJumpscareStatus").textContent = canTargetAdmins
+            ? "Kendini veya oda sahibini hedef alamazsın."
+            : "Oda sahibi ve aktif yöneticiler hedef alınamaz.";
         renderJumpscareTargets();
         return;
     }
