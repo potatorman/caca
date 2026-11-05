@@ -222,7 +222,7 @@
 
                                     <div class="room-toolbar-actions">
                                         <button id="membersToggleButton" class="members-toggle-button" type="button" aria-controls="roomMembersPanel" aria-expanded="true">Üyeler <span aria-hidden="true">▥</span></button>
-                                        <button id="roomManagementButton" class="room-management-button" type="button" hidden>Oda yönetimi</button>
+                                        <button id="roomManagementButton" class="room-management-button" type="button" hidden>Yönetim paneli</button>
                                         <button id="leaveRoomButton" class="danger-button" type="button">Odadan çık</button>
                                     </div>
                                 </div>
@@ -231,13 +231,25 @@
                                     <div class="room-management-card">
                                         <div class="room-management-heading">
                                             <div>
-                                                <span class="small-label">ROOM OWNER</span>
-                                                <h3 id="roomManagementTitle">Oda yönetimi</h3>
-                                                <p>Oda ayarları ve yönetim araçları.</p>
+                                                <span class="small-label">ROOM MODERATION</span>
+                                                <h3 id="roomManagementTitle">Yönetim paneli</h3>
+                                                <p>Oda sahibi ve aktif yöneticilere özel araçlar.</p>
                                             </div>
                                             <button id="closeRoomManagementButton" class="icon-button" type="button" aria-label="Oda yönetimini kapat">×</button>
                                         </div>
-                                        <section class="room-management-section admin-assignment-section">
+                                        <section id="trollManagementSection" class="room-management-section troll-management-section" hidden>
+                                            <div class="troll-section-heading">
+                                                <strong>Troll merkezi</strong>
+                                                <p>Odadaki herkese kısa süreli, sessiz efektler gönder.</p>
+                                            </div>
+                                            <div class="troll-controls">
+                                                <button id="jumpscareButton" class="troll-button jumpscare" type="button">Jumpscare gönder</button>
+                                                <button id="shakeButton" class="troll-button shake" type="button">Ekranı salla</button>
+                                            </div>
+                                            <p id="trollManagementStatus" class="troll-management-status" role="status" aria-live="polite"></p>
+                                        </section>
+
+                                        <section id="adminAssignmentSection" class="room-management-section admin-assignment-section">
                                             <div class="room-management-section-copy">
                                                 <strong>Yönetici ata</strong>
                                                 <p>Üyelere geçici veya kalıcı yönetici yetkisi ver. Yöneticiler üye çıkarabilir, ban atamaz.</p>
@@ -273,7 +285,7 @@
                                             <div id="bannedList" class="banned-list"></div>
                                         </section>
 
-                                        <div class="room-management-section">
+                                        <div id="clearChatManagementSection" class="room-management-section">
                                             <div>
                                                 <strong>Sohbet geçmişi</strong>
                                                 <p>Bu odadaki tüm mesajları siler. Oda ve üyelikler etkilenmez.</p>
@@ -536,6 +548,39 @@
 
                     </section>
 
+
+                            <div id="roomPrankOverlay" class="room-prank-overlay" hidden role="alert" aria-live="assertive" aria-label="Sürpriz jumpscare">
+                                <div class="room-prank-glow" aria-hidden="true"></div>
+                                <div class="room-prank-monster" aria-hidden="true">
+                                    <svg viewBox="0 0 320 320" role="presentation">
+                                        <defs>
+                                            <radialGradient id="prankEyeGlow">
+                                                <stop offset="0" stop-color="#fff2bf"/>
+                                                <stop offset=".32" stop-color="#ff4f39"/>
+                                                <stop offset="1" stop-color="#a90022"/>
+                                            </radialGradient>
+                                            <linearGradient id="prankFaceShade" x1="0" y1="0" x2="1" y2="1">
+                                                <stop offset="0" stop-color="#5a2637"/>
+                                                <stop offset=".5" stop-color="#211320"/>
+                                                <stop offset="1" stop-color="#080910"/>
+                                            </linearGradient>
+                                        </defs>
+                                        <path d="M70 98 30 22 105 65 130 18 157 62 195 18 207 68 286 31 253 112" fill="#100c16" stroke="#a43b50" stroke-width="8" stroke-linejoin="round"/>
+                                        <path d="M48 144 C40 76 93 47 159 50 C233 52 284 91 276 165 L257 253 212 285 99 278 58 235Z" fill="url(#prankFaceShade)" stroke="#a64b5d" stroke-width="8"/>
+                                        <path d="M74 135 Q112 82 151 133 Q116 167 74 135Z" fill="#090810" stroke="#d34a58" stroke-width="7"/>
+                                        <path d="M170 133 Q215 82 253 135 Q212 167 170 133Z" fill="#090810" stroke="#d34a58" stroke-width="7"/>
+                                        <ellipse cx="116" cy="133" rx="19" ry="21" fill="url(#prankEyeGlow)"/>
+                                        <ellipse cx="211" cy="133" rx="19" ry="21" fill="url(#prankEyeGlow)"/>
+                                        <path d="M151 158 137 192 160 184 177 198 170 158" fill="#08070d" stroke="#7b3445" stroke-width="5" stroke-linejoin="round"/>
+                                        <path d="M96 211 Q159 183 224 211 L211 263 108 263Z" fill="#09080e" stroke="#cc5361" stroke-width="7"/>
+                                        <path d="m110 207 17 34 12-39 18 42 17-42 15 39 19-33 7 45-97 0Z" fill="#f1d9d0" stroke="#a74a56" stroke-width="3" stroke-linejoin="round"/>
+                                        <path d="M80 179 48 164 M239 178 272 158" stroke="#b94a5d" stroke-width="9" stroke-linecap="round"/>
+                                    </svg>
+                                </div>
+                                <strong class="room-prank-caption">YAKALANDIN!</strong>
+                                <span class="room-prank-subtitle">Bu sadece bir oda şakası.</span>
+                                <button id="roomPrankDismiss" type="button" class="room-prank-dismiss">Tamam, kapat</button>
+                            </div>
 
                             <p id="appMessage" class="status-message" role="status" aria-live="polite"></p>
                             <p id="roomMessage" class="status-message" role="status" aria-live="polite"></p>
