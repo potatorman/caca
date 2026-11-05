@@ -4068,3 +4068,44 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .admin-jumpscare-section { align-items: stretch; flex-direction: column; }
     .admin-jumpscare-section .jumpscare-open-button { width: 100%; }
 }
+
+
+/* Image-only jumpscare: full-viewport crop, no labels or controls. */
+.room-prank-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 200000;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #000;
+    opacity: 1;
+    text-align: initial;
+}
+.room-prank-overlay.is-active {
+    animation: none;
+    opacity: 1;
+}
+.room-prank-custom-image {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
+    object-position: center;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+.room-prank-custom-image[hidden] { display: none !important; }
