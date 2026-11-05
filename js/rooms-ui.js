@@ -3129,6 +3129,24 @@ async function manageMember(member, action) {
             );
         }
 
+        const gameSessionRef = doc(db, "rooms", activeRoomId, "gameSessions", "active");
+        const gameSessionSnapshot = await getDoc(gameSessionRef);
+        if (gameSessionSnapshot.exists()) {
+            const gameSession = gameSessionSnapshot.data();
+            const participantFields = {};
+            for (const field of ["playerIds", "readyIds", "nextRoundPlayerIds", "nextRoundReadyIds"]) {
+                if (Array.isArray(gameSession[field]) && gameSession[field].includes(member.id)) {
+                    participantFields[field] = arrayRemove(member.id);
+                }
+            }
+            if (Object.keys(participantFields).length) {
+                batch.update(gameSessionRef, {
+                    ...participantFields,
+                    updatedAt: serverTimestamp()
+                });
+            }
+        }
+
         batch.delete(memberRef);
         batch.delete(userRoomRef);
         batch.delete(doc(db, "rooms", activeRoomId, "prankInbox", member.id));
@@ -3328,11 +3346,12 @@ async function deleteActiveRoom() {
 
     try {
         // Fetch all child records while the owner still has access.
-        const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot] = await Promise.all([
+        const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot, gameSessionSnapshot] = await Promise.all([
             getDocs(collection(db, "rooms", roomId, "members")),
             getDocs(collection(db, "rooms", roomId, "bans")),
             getDocs(collection(db, "rooms", roomId, "messages")),
-            getDoc(doc(db, "rooms", roomId, "pranks", "active"))
+            getDoc(doc(db, "rooms", roomId, "pranks", "active")),
+            getDoc(doc(db, "rooms", roomId, "gameSessions", "active"))
         ]);
 
         // Remove other members and their personal room-list entries.
@@ -3366,6 +3385,9 @@ async function deleteActiveRoom() {
         });
         if (activePrankSnapshot.exists()) {
             referencesToDelete.push(activePrankSnapshot.ref);
+        }
+        if (gameSessionSnapshot.exists()) {
+            referencesToDelete.push(gameSessionSnapshot.ref);
         }
         // Keep batches small so security-rule document lookups stay
         // comfortably below Firestore's per-request access-call limits.
@@ -3413,6 +3435,31 @@ async function deleteActiveRoom() {
     }
 }
 
+async function removeSelfFromActiveGame(roomId) {
+    if (!currentUser || !roomId) return;
+    try {
+        const sessionRef = doc(db, "rooms", roomId, "gameSessions", "active");
+        const snapshot = await getDoc(sessionRef);
+        if (!snapshot.exists()) return;
+        const session = snapshot.data();
+        const uid = currentUser.uid;
+        const fields = {};
+        for (const field of ["playerIds", "readyIds", "nextRoundPlayerIds", "nextRoundReadyIds"]) {
+            if (Array.isArray(session[field]) && session[field].includes(uid)) {
+                fields[field] = arrayRemove(uid);
+            }
+        }
+        if (Object.keys(fields).length) {
+            await updateDoc(sessionRef, {
+                ...fields,
+                updatedAt: serverTimestamp()
+            });
+        }
+    } catch (error) {
+        console.warn("CACA game participant cleanup failed:", error);
+    }
+}
+
 $("leaveRoomButton").addEventListener("click", async () => {
     if (!currentUser || !activeRoomId) return;
 
@@ -3428,6 +3475,8 @@ $("leaveRoomButton").addEventListener("click", async () => {
     button.disabled = true;
 
     try {
+        await removeSelfFromActiveGame(roomId);
+
         // Stop listeners before removing our own membership document.
         stopMemberListener();
 
