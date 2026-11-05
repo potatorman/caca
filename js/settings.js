@@ -28,6 +28,7 @@ let pendingAvatarId = DEFAULT_AVATAR_ID;
 let currentAvatarData = null;
 let pendingAvatarData = null;
 let accountActionInProgress = false;
+let settingsReturnToRoom = false;
 
 // MESSAGES
 
@@ -177,18 +178,31 @@ function renderAvatarPicker() {
 // SETTINGS NAVIGATION
 
 $("settingsButton").addEventListener("click", () => {
+    // Remember whether settings were opened over a live room or the dashboard.
+    settingsReturnToRoom = !$("roomView").hidden;
+
     $("dashboardView").hidden = true;
-    $("roomView").hidden = true;
+    // Do not hide the room: the settings view is a visual overlay above it.
     $("settingsView").hidden = false;
+    $("backFromSettings").textContent = settingsReturnToRoom
+        ? "← Sohbete dön"
+        : "← Odalarıma dön";
 
     showSettingsMessage("");
-    document.dispatchEvent(new Event("caca:open-settings"));
 });
 
 $("backFromSettings").addEventListener("click", () => {
     $("settingsView").hidden = true;
-    $("roomView").hidden = true;
-    $("dashboardView").hidden = false;
+
+    if (settingsReturnToRoom && !$("roomView").hidden) {
+        $("dashboardView").hidden = true;
+        $("roomView").hidden = false;
+    } else {
+        $("roomView").hidden = true;
+        $("dashboardView").hidden = false;
+    }
+
+    settingsReturnToRoom = false;
     showSettingsMessage("");
 });
 
