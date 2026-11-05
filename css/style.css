@@ -3245,6 +3245,12 @@ body.logged-in .auth-card {
     border-radius: 8px; font-size: 11px; font-weight: 700; white-space: nowrap;
 }
 .room-management-button:hover { background: #29486f; }
+.admin-panel-button {
+    color: #f4e9ff;
+    background: #49336d;
+    border-color: #7654a6;
+}
+.admin-panel-button:hover { background: #5b4384; }
 .room-management-panel {
     position: fixed; inset: 0; z-index: 1000; display: grid;
     place-items: center; padding: 22px;
