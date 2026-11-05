@@ -224,7 +224,7 @@
                                         <button id="membersToggleButton" class="members-toggle-button" type="button" aria-controls="roomMembersPanel" aria-expanded="true">Üyeler <span aria-hidden="true">▥</span></button>
                                         <button id="roomManagementButton" class="room-management-button" type="button" hidden>Yönetim Paneli</button>
                                         <button id="adminPanelButton" class="room-management-button admin-panel-button" type="button" hidden>Admin Panel</button>
-                                        <button id="jumpscareOpenButton" class="room-management-button jumpscare-open-button" type="button" hidden>Jumpscare</button>
+                                        <button id="funCenterOpenButton" class="room-management-button fun-center-open-button" type="button">Eğlence Merkezi</button>
                                         <button id="leaveRoomButton" class="danger-button" type="button">Odadan çık</button>
                                     </div>
                                 </div>
@@ -292,19 +292,26 @@
                                             <div>
                                                 <span class="small-label">ADMIN TOOLS</span>
                                                 <h3 id="adminPanelTitle">Admin Panel</h3>
-                                                <p>Oda sahibi ve aktif yöneticilere açık oda efektleri.</p>
+                                                <p>Oda sahibi ve aktif yöneticilere açık yönetim araçları.</p>
                                             </div>
                                             <button id="closeAdminPanelButton" class="icon-button" type="button" aria-label="Admin panelini kapat">×</button>
                                         </div>
                                                                                 <section id="trollManagementSection" class="room-management-section troll-management-section">
                                             <div class="troll-section-heading">
-                                                <strong>Eğlence Merkezi</strong>
-                                                <p>Oda genelinde kısa süreli ve eğlenceli efektler kullan.</p>
+                                                <strong>Oda efektleri</strong>
+                                                <p>Yönetici araçlarıyla oda genelinde kısa süreli efektler kullan.</p>
                                             </div>
                                             <div class="troll-controls">
                                                 <button id="shakeButton" class="troll-button shake" type="button">Ekranı salla</button>
                                             </div>
                                             <p id="trollManagementStatus" class="troll-management-status" role="status" aria-live="polite"></p>
+                                        </section>
+                                        <section class="room-management-section admin-jumpscare-section">
+                                            <div>
+                                                <strong>Kişisel Jumpscare</strong>
+                                                <p>Kaydettiğin görselleri odadaki uygun üyelere gönder.</p>
+                                            </div>
+                                            <button id="jumpscareOpenButton" class="room-management-button jumpscare-open-button" type="button" hidden>Jumpscare panelini aç</button>
                                         </section>
 
 
@@ -317,7 +324,7 @@
                                             <div>
                                                 <span class="small-label">PERSONAL JUMPSCARE</span>
                                                 <h3 id="jumpscarePanelTitle">Kişiye özel jumpscare</h3>
-                                                <p>Kendi 3 görselini kaydet ve odadaki normal üyelerden birine gönder. Oda sahibi ve aktif yöneticiler korunur.</p>
+                                                <p>Kendi 3 görselini kaydet ve izin verilen oda üyelerinden birine gönder.</p>
                                             </div>
                                             <button id="closeJumpscarePanelButton" class="icon-button" type="button" aria-label="Jumpscare panelini kapat">×</button>
                                         </div>
@@ -368,6 +375,69 @@
                                             <button id="sendPersonalJumpscareButton" class="troll-button jumpscare" type="button" disabled>Seçili görseli gönder</button>
                                         </div>
                                         <p id="personalJumpscareStatus" class="jumpscare-status" role="status" aria-live="polite"></p>
+                                    </div>
+                                </section>
+
+                                <section id="gameCenterPanel" class="room-management-panel game-center-panel" role="dialog" aria-modal="true" aria-labelledby="gameCenterTitle" hidden>
+                                    <div class="room-management-card game-center-card">
+                                        <div class="room-management-heading">
+                                            <div>
+                                                <span class="small-label">ROOM GAMES</span>
+                                                <h3 id="gameCenterTitle">Eğlence Merkezi</h3>
+                                                <p>Oda oyunlarının lobisi, oyuncuları ve izleyicileri burada buluşur.</p>
+                                            </div>
+                                            <button id="closeGameCenterButton" class="icon-button" type="button" aria-label="Eğlence merkezini kapat">×</button>
+                                        </div>
+                                        <div class="game-center-intro">
+                                            <strong>Oyun alanı</strong>
+                                            <p>UNO ve benzeri oyunlar bu alana eklenecek. Şimdilik canlı lobi, hazır olma, izleyici ve sonraki tur sırası altyapısı kullanılabilir.</p>
+                                        </div>
+                                        <section id="gameCenterEmptyState" class="game-center-empty">
+                                            <div class="game-center-empty-icon">🎮</div>
+                                            <strong>Henüz açık bir oyun lobisi yok</strong>
+                                            <p>Bir lobi oluştur. Odaya katılan oyuncular hazır olduğunda oturum otomatik başlar.</p>
+                                            <button id="createGameSessionButton" class="primary-button" type="button">Oyun lobisi oluştur</button>
+                                        </section>
+                                        <section id="gameSessionContent" class="game-session-content" hidden>
+                                            <div class="game-session-topline">
+                                                <div>
+                                                    <span class="small-label">AKTİF OTURUM</span>
+                                                    <h4 id="gameSessionName">Oda oyunu</h4>
+                                                </div>
+                                                <span id="gameSessionStatus" class="game-session-status">Lobi açık</span>
+                                            </div>
+                                            <p id="gameSessionSummary" class="game-session-summary"></p>
+                                            <div class="game-session-columns">
+                                                <section class="game-session-list-section">
+                                                    <div class="game-session-list-heading">
+                                                        <strong id="gamePlayersHeading">Oyuncular</strong>
+                                                        <span id="gamePlayersCount">0</span>
+                                                    </div>
+                                                    <div id="gamePlayersList" class="game-session-member-list"></div>
+                                                </section>
+                                                <section class="game-session-list-section">
+                                                    <div class="game-session-list-heading">
+                                                        <strong id="gameSpectatorsHeading">İzleyiciler</strong>
+                                                        <span id="gameSpectatorsCount">0</span>
+                                                    </div>
+                                                    <div id="gameSpectatorsList" class="game-session-member-list"></div>
+                                                </section>
+                                            </div>
+                                            <div id="gameNextRoundSection" class="game-next-round-section" hidden>
+                                                <strong>Sonraki tur sırası</strong>
+                                                <div id="gameNextRoundList" class="game-session-member-list"></div>
+                                            </div>
+                                            <div class="game-session-actions">
+                                                <button id="joinGameSessionButton" class="primary-button" type="button" hidden>Lobiye katıl</button>
+                                                <button id="readyGameSessionButton" class="primary-button" type="button" hidden>Hazırım</button>
+                                                <button id="leaveGameSessionButton" class="secondary-button" type="button" hidden>Lobiden ayrıl</button>
+                                                <button id="queueNextRoundButton" class="primary-button" type="button" hidden>Sonraki turda oyna ve hazır ol</button>
+                                                <button id="finishGameRoundButton" class="secondary-button" type="button" hidden>Tur bitti · Sonraki turu aç</button>
+                                                <button id="closeGameSessionButton" class="danger-button" type="button" hidden>Oyun oturumunu kapat</button>
+                                            </div>
+                                            <p id="gameCenterStatus" class="game-center-status" role="status" aria-live="polite"></p>
+                                            <p class="game-engine-note">Not: Bu aşamada oyun tahtası/oynanış motoru henüz ekli değil. UNO ve diğer oyunlar sonraki aşamada bu lobiye bağlanacak.</p>
+                                        </section>
                                     </div>
                                 </section>
 
