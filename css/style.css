@@ -3814,3 +3814,194 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+
+/* Personal jumpscare library and recipient picker */
+.jumpscare-open-button {
+    color: #ffe8f0;
+    background: #682d49;
+    border-color: #a44f72;
+}
+.jumpscare-open-button:hover { background: #803958; }
+.jumpscare-panel-card { width: min(100%, 820px); }
+.jumpscare-library-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 7px 14px;
+    margin: 4px 0 12px;
+}
+.jumpscare-library-heading strong {
+    color: #ecf3ff;
+    font-size: 13px;
+}
+.jumpscare-library-heading span {
+    color: #8193aa;
+    font-size: 10px;
+}
+.jumpscare-slot-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+.jumpscare-slot-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    min-width: 0;
+    padding: 9px;
+    background: #101a29;
+    border: 1px solid #2c405b;
+    border-radius: 11px;
+}
+.jumpscare-slot-select {
+    position: relative;
+    display: grid;
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    height: 126px;
+    place-items: center;
+    overflow: hidden;
+    padding: 8px;
+    color: #9aabc1;
+    background: #0a111c;
+    border: 1px dashed #40536d;
+    border-radius: 8px;
+    font-size: 11px;
+    transition: border-color .15s ease, background .15s ease;
+}
+.jumpscare-slot-select:hover,
+.jumpscare-slot-select.selected {
+    color: #f3e8ff;
+    background: #17172a;
+    border: 1px solid #a45eab;
+}
+.jumpscare-slot-select img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.jumpscare-slot-select img[hidden] { display: none !important; }
+.jumpscare-slot-number {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    display: grid;
+    width: 21px;
+    height: 21px;
+    place-items: center;
+    color: #fff;
+    background: #45315f;
+    border: 1px solid #8763a9;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 800;
+}
+.jumpscare-upload-label {
+    display: grid;
+    min-height: 33px;
+    place-items: center;
+    padding: 0 8px;
+    color: #e2d4ff;
+    background: #30264a;
+    border: 1px solid #594879;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.jumpscare-upload-label:hover { background: #40315f; }
+.jumpscare-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    clip-path: inset(50%);
+}
+.jumpscare-clear-button {
+    min-width: 40px;
+    padding: 0 8px;
+    color: #ffcbd1;
+    background: #3e222d;
+    border: 1px solid #70404b;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 700;
+}
+.jumpscare-clear-button:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+}
+.jumpscare-status {
+    min-height: 16px;
+    margin: 8px 1px 0;
+    color: #9eb8d8;
+    font-size: 10px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.jumpscare-send-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 9px;
+    margin-top: 16px;
+    padding: 14px;
+    background: #172538;
+    border: 1px solid #2a3e58;
+    border-radius: 10px;
+}
+.jumpscare-send-section label {
+    grid-column: 1 / -1;
+    color: #dbe7f6;
+    font-size: 11px;
+    font-weight: 750;
+}
+.jumpscare-send-section select {
+    min-width: 0;
+    width: 100%;
+    height: 39px;
+    padding: 0 10px;
+    color: #e7f0ff;
+    background: #0d1725;
+    border: 1px solid #30445f;
+    border-radius: 8px;
+    font-size: 11px;
+}
+.jumpscare-send-section .troll-button {
+    min-height: 39px;
+}
+.jumpscare-send-section .troll-button:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+.jumpscare-send-section + .jumpscare-status { margin-top: 8px; }
+
+.room-prank-custom-image {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: min(88vw, 900px);
+    max-height: 72vh;
+    max-height: 72dvh;
+    object-fit: contain;
+    border-radius: 14px;
+    box-shadow: 0 0 65px rgba(235, 34, 69, .45);
+}
+.room-prank-custom-image[hidden],
+.room-prank-monster[hidden] { display: none !important; }
+
+@media (max-width: 600px) {
+    .jumpscare-slot-grid { gap: 7px; }
+    .jumpscare-slot-card { padding: 6px; gap: 6px; }
+    .jumpscare-slot-select { height: 92px; font-size: 9px; }
+    .jumpscare-upload-label { min-height: 30px; font-size: 9px; }
+    .jumpscare-clear-button { min-width: 32px; font-size: 9px; }
+    .jumpscare-send-section { grid-template-columns: 1fr; }
+    .jumpscare-send-section label { grid-column: 1; }
+    .jumpscare-send-section .troll-button { width: 100%; }
+}
