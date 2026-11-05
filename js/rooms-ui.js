@@ -280,6 +280,7 @@ function stopMemberListener() {
     activeRoomMembers = [];
     if ($("roomManagementPanel")) $("roomManagementPanel").hidden = true;
     if ($("adminPanel")) $("adminPanel").hidden = true;
+    if (pendingJumpscareCrop) closeJumpscareCrop();
     if ($("jumpscarePanel")) $("jumpscarePanel").hidden = true;
     if ($("jumpscareOpenButton")) $("jumpscareOpenButton").hidden = true;
     if ($("gameCenterPanel")) $("gameCenterPanel").hidden = true;
