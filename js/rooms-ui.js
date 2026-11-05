@@ -1399,10 +1399,19 @@ $("gameCenterPanel").addEventListener("click", (event) => {
 });
 
 async function createGameSession() {
-    if (!currentUser || !activeRoomId || gameSessionData) return;
+    if (!currentUser || !activeRoomId) {
+        setGameCenterStatus("Önce bir odaya girmen gerekiyor.", true);
+        return;
+    }
+    if (gameSessionData) {
+        setGameCenterStatus("Bu odada zaten açık bir oyun lobisi var.");
+        renderGameCenter();
+        return;
+    }
     const button = $("createGameSessionButton");
     button.disabled = true;
     setGameCenterStatus("Oyun lobisi oluşturuluyor...");
+    console.info("CACA game session create requested", { roomId: activeRoomId, userId: currentUser.uid });
     try {
         await setDoc(getGameSessionRef(), {
             gameId: "room-game",
@@ -1420,9 +1429,10 @@ async function createGameSession() {
         });
         setGameCenterStatus("Lobi açıldı. Diğer oyuncular katılabilir.");
     } catch (error) {
+        console.error("CACA game session create failed:", error);
         setGameCenterStatus(
             error.code === "permission-denied"
-                ? "Lobi açılamadı. Firestore Rules içindeki oyun lobisi izinlerini yayımla."
+                ? "Lobi açılamadı: Firestore Rules henüz yayımlanmamış veya oyun oturumu izni reddedilmiş."
                 : "Lobi açılamadı: " + (error.message || "Bilinmeyen hata"),
             true
         );
