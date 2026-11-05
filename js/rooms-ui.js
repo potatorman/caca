@@ -96,6 +96,8 @@ let currentAvatarId = DEFAULT_AVATAR_ID;
 let currentAvatarData = null;
 let activeRoomCode = "";
 let activeRoomId = null;
+let openingRoomId = null;
+let roomOpenRequestVersion = 0;
 
 // Realtime listener for room members
 let unsubscribeMembers = null;
@@ -203,6 +205,10 @@ function stopLiveProfileListeners() {
 // STOP MEMBER LISTENER
 
 function stopMemberListener() {
+    // Invalidate any room-opening reads that are still in flight.
+    roomOpenRequestVersion += 1;
+    openingRoomId = null;
+
     if (unsubscribeMembers) {
         unsubscribeMembers();
         unsubscribeMembers = null;
@@ -2474,13 +2480,23 @@ async function unbanMember(userId, username) {
 async function openRoom(roomId) {
     if (!currentUser) return;
 
-    try {
+    // Clicking the room that is already visible must not reread its documents
+    // or recreate its realtime listeners.
+    if (roomId === activeRoomId && !$("roomView").hidden) return;
 
+    // Prevent rapid double-clicks from issuing duplicate Firestore reads.
+    if (openingRoomId === roomId) return;
+
+    const requestVersion = ++roomOpenRequestVersion;
+    openingRoomId = roomId;
+
+    try {
         isDeletingRoom = false;
 
         const banSnapshot = await getDoc(
             doc(db, "rooms", roomId, "bans", currentUser.uid)
         );
+        if (requestVersion !== roomOpenRequestVersion) return;
 
         if (banSnapshot.exists()) {
             throw new Error(
@@ -2492,6 +2508,7 @@ async function openRoom(roomId) {
         const membership = await getDoc(
             doc(db, "users", currentUser.uid, "rooms", roomId)
         );
+        if (requestVersion !== roomOpenRequestVersion) return;
 
         if (!membership.exists()) {
             throw new Error("Bu odaya erişim iznin yok.");
@@ -2500,6 +2517,7 @@ async function openRoom(roomId) {
         const roomSnapshot = await getDoc(
             doc(db, "rooms", roomId)
         );
+        if (requestVersion !== roomOpenRequestVersion) return;
 
         if (!roomSnapshot.exists()) {
             throw new Error("Oda bulunamadı.");
@@ -2549,18 +2567,18 @@ async function openRoom(roomId) {
         listenToRoomPranks(roomId);
 
     } catch (error) {
-        showRoomMessage(showError(error));
+        if (requestVersion === roomOpenRequestVersion) {
+            showRoomMessage(showError(error));
+        }
+    } finally {
+        if (openingRoomId === roomId) {
+            openingRoomId = null;
+        }
     }
 }
 
-// SETTINGS NAVIGATION: stop any open room listeners before leaving the room.
-
-document.addEventListener("caca:open-settings", () => {
-    stopMemberListener();
-    $("roomView").hidden = true;
-    $("dashboardView").hidden = true;
-    $("bannedSection").hidden = true;
-});
+// Account settings are displayed above the current screen. Keep the room's
+// Firestore subscriptions alive while the settings overlay is open.
 
 // BACK TO DASHBOARD
 
