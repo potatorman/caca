@@ -1006,9 +1006,13 @@ function selectJumpscareSlot(slot) {
         if (!file) return;
         $("jumpscareLibraryStatus").textContent = "Görsel hazırlanıyor...";
         try {
-            const dataUrl = await compressJumpscareImage(file);
             const userId = currentUser?.uid;
             if (!userId) throw new Error("Oturum bulunamadı.");
+            await loadJumpscareLibrary();
+            if (jumpscareLibraryLoadedFor !== userId) {
+                throw new Error("Önce kayıtlı jumpscare görselleri yüklenmeli.");
+            }
+            const dataUrl = await compressJumpscareImage(file);
             const next = { ...currentJumpscareSlots, [slot]: dataUrl };
             await setDoc(doc(db, "users", userId, "jumpscares", "library"), {
                 ...next, updatedAt: serverTimestamp()
@@ -1030,10 +1034,14 @@ function selectJumpscareSlot(slot) {
     $(`jumpscareSlotClear${n}`).addEventListener("click", async () => {
         if (!currentUser) return;
         const userId = currentUser.uid;
-        const next = { ...currentJumpscareSlots, [slot]: null };
         const button = $(`jumpscareSlotClear${n}`);
         button.disabled = true;
         try {
+            await loadJumpscareLibrary();
+            if (jumpscareLibraryLoadedFor !== userId) {
+                throw new Error("Kayıtlı görseller yüklenemedi.");
+            }
+            const next = { ...currentJumpscareSlots, [slot]: null };
             await setDoc(doc(db, "users", userId, "jumpscares", "library"), {
                 ...next, updatedAt: serverTimestamp()
             });
@@ -2378,13 +2386,14 @@ function listenToMembers(roomId, ownerId) {
                 })
             );
 
-            activeRoomMembers = members;
-            renderJumpscareTargets();
-
             // A newer snapshot may have arrived while profile reads were running.
             if (activeRoomId !== roomId || renderVersion !== memberRenderVersion) {
                 return;
             }
+
+            activeRoomMembers = members;
+            renderJumpscareTargets();
+            $("jumpscareOpenButton").hidden = false;
 
             // Group the room owner separately; keep all other members alphabetical.
             members.sort((a, b) => {
@@ -2771,6 +2780,7 @@ async function manageMember(member, action) {
 
         batch.delete(memberRef);
         batch.delete(userRoomRef);
+        batch.delete(doc(db, "rooms", activeRoomId, "prankInbox", member.id));
         await batch.commit();
 
         const targetName = member.displayNickname || member.username || "Bilinmeyen kullanıcı";
@@ -2966,12 +2976,11 @@ async function deleteActiveRoom() {
 
     try {
         // Fetch all child records while the owner still has access.
-        const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot, prankInboxSnapshot] = await Promise.all([
+        const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot] = await Promise.all([
             getDocs(collection(db, "rooms", roomId, "members")),
             getDocs(collection(db, "rooms", roomId, "bans")),
             getDocs(collection(db, "rooms", roomId, "messages")),
-            getDoc(doc(db, "rooms", roomId, "pranks", "active")),
-            getDocs(collection(db, "rooms", roomId, "prankInbox"))
+            getDoc(doc(db, "rooms", roomId, "pranks", "active"))
         ]);
 
         // Remove other members and their personal room-list entries.
@@ -2984,6 +2993,9 @@ async function deleteActiveRoom() {
             referencesToDelete.push(memberDoc.ref);
             referencesToDelete.push(
                 doc(db, "users", memberDoc.id, "rooms", roomId)
+            );
+            referencesToDelete.push(
+                doc(db, "rooms", roomId, "prankInbox", memberDoc.id)
             );
         });
 
@@ -3000,8 +3012,6 @@ async function deleteActiveRoom() {
         if (activePrankSnapshot.exists()) {
             referencesToDelete.push(activePrankSnapshot.ref);
         }
-        prankInboxSnapshot.forEach((prankDoc) => referencesToDelete.push(prankDoc.ref));
-
         // Keep batches small so security-rule document lookups stay
         // comfortably below Firestore's per-request access-call limits.
         for (let index = 0; index < referencesToDelete.length; index += 10) {
@@ -3069,6 +3079,7 @@ $("leaveRoomButton").addEventListener("click", async () => {
         const batch = writeBatch(db);
         batch.delete(doc(db, "rooms", roomId, "members", currentUser.uid));
         batch.delete(doc(db, "users", currentUser.uid, "rooms", roomId));
+        batch.delete(doc(db, "rooms", roomId, "prankInbox", currentUser.uid));
         await batch.commit();
 
         $("roomView").hidden = true;
@@ -3108,6 +3119,11 @@ onAuthStateChanged(auth, async (user) => {
         stopMemberListener();
 
         currentUser = null;
+        jumpscareLibraryLoadedFor = null;
+        jumpscareLibraryLoadPromise = null;
+        currentJumpscareSlots = { slot1: null, slot2: null, slot3: null };
+        selectedJumpscareSlot = "slot1";
+        lastSeenPersonalPrankEventId = null;
         currentUsername = "";
         currentAvatarId = DEFAULT_AVATAR_ID;
         currentAvatarData = null;
@@ -3121,6 +3137,13 @@ onAuthStateChanged(auth, async (user) => {
         return;
     }
 
+    if (currentUser?.uid !== user.uid) {
+        jumpscareLibraryLoadedFor = null;
+        jumpscareLibraryLoadPromise = null;
+        currentJumpscareSlots = { slot1: null, slot2: null, slot3: null };
+        selectedJumpscareSlot = "slot1";
+        lastSeenPersonalPrankEventId = null;
+    }
     currentUser = user;
 
     try {
