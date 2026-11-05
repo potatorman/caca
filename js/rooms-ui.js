@@ -2988,6 +2988,9 @@ async function deleteActiveRoom() {
         const referencesToDelete = [];
 
         membersSnapshot.forEach((memberDoc) => {
+            referencesToDelete.push(
+                doc(db, "rooms", roomId, "prankInbox", memberDoc.id)
+            );
             if (memberDoc.id === currentUser.uid) return;
 
             referencesToDelete.push(memberDoc.ref);
