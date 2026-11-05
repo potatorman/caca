@@ -20,6 +20,7 @@ import {
     writeBatch,
     deleteDoc,
     updateDoc,
+    setDoc,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
@@ -101,6 +102,7 @@ let unsubscribeMembers = null;
 let unsubscribeMyMembership = null;
 let unsubscribeBanned = null;
 let unsubscribeMessages = null;
+let unsubscribePranks = null;
 let activeRoomOwnerId = null;
 let currentRoomMemberRecord = null;
 let memberRenderVersion = 0;
@@ -109,6 +111,10 @@ let isDeletingRoom = false;
 let messageRenderVersion = 0;
 const publicProfileCache = new Map();
 const liveProfileUnsubscribers = new Map();
+let lastSeenPrankEventId = null;
+let lastPrankDispatchAt = 0;
+let prankOverlayTimer = null;
+let prankShakeTimer = null;
 
 // ROOM CODE
 
@@ -216,6 +222,23 @@ function stopMemberListener() {
         unsubscribeMessages();
         unsubscribeMessages = null;
     }
+
+    if (unsubscribePranks) {
+        unsubscribePranks();
+        unsubscribePranks = null;
+    }
+
+    if (prankOverlayTimer) {
+        clearTimeout(prankOverlayTimer);
+        prankOverlayTimer = null;
+    }
+    if (prankShakeTimer) {
+        clearTimeout(prankShakeTimer);
+        prankShakeTimer = null;
+    }
+    $("roomPrankOverlay")?.setAttribute("hidden", "");
+    $("roomPrankOverlay")?.classList.remove("is-active");
+    document.body.classList.remove("room-screen-shake");
 
     stopLiveProfileListeners();
 
@@ -504,16 +527,16 @@ async function deleteChatMessage(messageId) {
     }
 }
 
-// Owner-only room management panel.
+// Room management panel: room owner and active room admins.
 function setRoomManagementOpen(isOpen) {
     const panel = $("roomManagementPanel");
-    if (!panel || (isOpen && activeRoomOwnerId !== currentUser?.uid)) return;
+    if (!panel || (isOpen && !canCurrentUserKickMembers())) return;
     panel.hidden = !isOpen;
 
     if (isOpen) {
         $("roomManagementStatus").textContent = "";
         $("adminManagementStatus").textContent = "";
-        $("adminTargetSelect").focus();
+        $("jumpscareButton")?.focus();
     } else {
         $("roomManagementButton")?.focus();
     }
@@ -843,6 +866,152 @@ function listenToMessages(roomId) {
         }
     );
 }
+
+// ROOM-WIDE PRANK EVENTS
+
+function hideRoomPrank() {
+    const overlay = $("roomPrankOverlay");
+    if (!overlay) return;
+
+    overlay.hidden = true;
+    overlay.classList.remove("is-active");
+
+    if (prankOverlayTimer) {
+        clearTimeout(prankOverlayTimer);
+        prankOverlayTimer = null;
+    }
+}
+
+function showRoomPrank(type) {
+    if (type === "jumpscare") {
+        const overlay = $("roomPrankOverlay");
+        if (!overlay) return;
+
+        hideRoomPrank();
+        overlay.hidden = false;
+        requestAnimationFrame(() => overlay.classList.add("is-active"));
+        prankOverlayTimer = setTimeout(hideRoomPrank, 2600);
+        return;
+    }
+
+    if (type === "shake") {
+        document.body.classList.remove("room-screen-shake");
+        void document.body.offsetWidth;
+        document.body.classList.add("room-screen-shake");
+
+        if (prankShakeTimer) clearTimeout(prankShakeTimer);
+        prankShakeTimer = setTimeout(() => {
+            document.body.classList.remove("room-screen-shake");
+            prankShakeTimer = null;
+        }, 850);
+    }
+}
+
+function listenToRoomPranks(roomId) {
+    if (unsubscribePranks) {
+        unsubscribePranks();
+        unsubscribePranks = null;
+    }
+
+    const prankRef = doc(db, "rooms", roomId, "pranks", "active");
+    unsubscribePranks = onSnapshot(
+        prankRef,
+        (snapshot) => {
+            if (activeRoomId !== roomId || !snapshot.exists()) return;
+
+            const prank = snapshot.data();
+            const eventId = prank.eventId;
+            const createdAt = prank.createdAt?.toMillis
+                ? prank.createdAt.toMillis()
+                : null;
+
+            // Ignore the persistent last event when users first enter a room.
+            // Only a newly-sent event from the last few seconds can play.
+            if (
+                typeof eventId !== "string" ||
+                !eventId ||
+                eventId === lastSeenPrankEventId ||
+                createdAt === null ||
+                Date.now() - createdAt > 10000 ||
+                createdAt - Date.now() > 10000
+            ) {
+                return;
+            }
+
+            lastSeenPrankEventId = eventId;
+            showRoomPrank(prank.type);
+        },
+        (error) => {
+            if (activeRoomId === roomId) {
+                console.warn("CACA room prank listener failed:", error);
+            }
+        }
+    );
+}
+
+async function dispatchRoomPrank(type) {
+    if (!currentUser || !activeRoomId || !canCurrentUserKickMembers()) {
+        $("trollManagementStatus").textContent =
+            "Bu araçları yalnızca oda sahibi ve aktif yöneticiler kullanabilir.";
+        return;
+    }
+
+    if (!["jumpscare", "shake"].includes(type)) return;
+
+    const now = Date.now();
+    if (now - lastPrankDispatchAt < 6000) {
+        $("trollManagementStatus").textContent =
+            "Bir troll daha göndermeden önce birkaç saniye bekle.";
+        return;
+    }
+
+    const button = type === "jumpscare" ? $("jumpscareButton") : $("shakeButton");
+    const originalText = button.textContent;
+    button.disabled = true;
+    lastPrankDispatchAt = now;
+    $("trollManagementStatus").textContent = "Odaya gönderiliyor...";
+
+    try {
+        await setDoc(
+            doc(db, "rooms", activeRoomId, "pranks", "active"),
+            {
+                eventId: crypto.randomUUID(),
+                type,
+                senderId: currentUser.uid,
+                senderName: currentUsername || "Oda yöneticisi",
+                createdAt: serverTimestamp()
+            }
+        );
+
+        $("trollManagementStatus").textContent =
+            type === "jumpscare"
+                ? "Jumpscare odaya gönderildi. Odaya bağlı üyelerin ekranında kısa süre görünecek."
+                : "Ekran sallama efekti odaya gönderildi.";
+    } catch (error) {
+        lastPrankDispatchAt = 0;
+        $("trollManagementStatus").textContent =
+            error.code === "permission-denied"
+                ? "Gönderilemedi. Firestore Rules içindeki oda yönetim araçları iznini yayımla."
+                : "Gönderilemedi: " + (error.message || "Bilinmeyen hata");
+    } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+}
+
+$("jumpscareButton")?.addEventListener("click", () => {
+    dispatchRoomPrank("jumpscare");
+});
+$("shakeButton")?.addEventListener("click", () => {
+    dispatchRoomPrank("shake");
+});
+$("roomPrankDismiss")?.addEventListener("click", hideRoomPrank);
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !$("roomPrankOverlay")?.hidden) {
+        hideRoomPrank();
+    }
+});
 
 // EMOJI PICKER AND SHORTCODES
 
@@ -1770,6 +1939,15 @@ function listenToMembers(roomId, ownerId) {
                 ? { id: ownMemberSnapshot.id, ...ownMemberSnapshot.data() }
                 : null;
 
+            const isOwnerViewing = activeRoomOwnerId === currentUser?.uid;
+            const canAccessRoomManagement =
+                isOwnerViewing || isCurrentUserRoomAdmin();
+            $("roomManagementButton").hidden = !canAccessRoomManagement;
+            $("trollManagementSection").hidden = !canAccessRoomManagement;
+            $("adminAssignmentSection").hidden = !isOwnerViewing;
+            $("bannedSection").hidden = !isOwnerViewing;
+            $("clearChatManagementSection").hidden = !isOwnerViewing;
+
             // Keep a real-time listener on every current member's public
             // profile. Profile changes then reach everyone in this room live.
             const currentMemberIds = new Set(
@@ -2336,8 +2514,12 @@ async function openRoom(roomId) {
 
         const isOwner = room.ownerId === currentUser.uid;
         $("bannedSection").hidden = !isOwner;
-        $("roomManagementButton").hidden = !isOwner;
+        $("roomManagementButton").hidden = true;
+        $("adminAssignmentSection").hidden = !isOwner;
+        $("clearChatManagementSection").hidden = !isOwner;
+        $("trollManagementSection").hidden = true;
         $("adminManagementStatus").textContent = "";
+        $("trollManagementStatus").textContent = "";
         $("roomManagementPanel").hidden = true;
 
         const leaveButton = $("leaveRoomButton");
@@ -2361,9 +2543,10 @@ async function openRoom(roomId) {
         // Open the member panel by default for a newly selected room.
         setMembersPanelOpen(true);
 
-        // Start live member and chat updates.
+        // Start live member, chat and room-wide prank updates.
         listenToMembers(roomId, room.ownerId);
         listenToMessages(roomId);
+        listenToRoomPranks(roomId);
 
     } catch (error) {
         showRoomMessage(showError(error));
@@ -2416,10 +2599,11 @@ async function deleteActiveRoom() {
 
     try {
         // Fetch all child records while the owner still has access.
-        const [membersSnapshot, bansSnapshot, messagesSnapshot] = await Promise.all([
+        const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot] = await Promise.all([
             getDocs(collection(db, "rooms", roomId, "members")),
             getDocs(collection(db, "rooms", roomId, "bans")),
-            getDocs(collection(db, "rooms", roomId, "messages"))
+            getDocs(collection(db, "rooms", roomId, "messages")),
+            getDoc(doc(db, "rooms", roomId, "pranks", "active"))
         ]);
 
         // Remove other members and their personal room-list entries.
@@ -2445,6 +2629,9 @@ async function deleteActiveRoom() {
         messagesSnapshot.forEach((messageDoc) => {
             referencesToDelete.push(messageDoc.ref);
         });
+        if (activePrankSnapshot.exists()) {
+            referencesToDelete.push(activePrankSnapshot.ref);
+        }
 
         // Keep batches small so security-rule document lookups stay
         // comfortably below Firestore's per-request access-call limits.
