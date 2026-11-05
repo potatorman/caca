@@ -515,8 +515,6 @@ service cloud.firestore {
             )
           );
       }
-    }
-
       // One fixed game session per room. All members can read it to watch.
       match /gameSessions/{sessionId} {
         function onlyRemovesSelf(oldList, newList) {
@@ -732,6 +730,7 @@ service cloud.firestore {
             || isActiveRoomAdmin(roomId)
           );
       }
+    }
 
     match /roomInvites/{inviteCode} {
       // A signed-in user may look up an exact invite code to join a room.
