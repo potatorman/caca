@@ -519,6 +519,18 @@ service cloud.firestore {
 
       // One fixed game session per room. All members can read it to watch.
       match /gameSessions/{sessionId} {
+        function onlyRemovesSelf(oldList, newList) {
+          return oldList.hasAll(newList)
+            && (
+              oldList.size() == newList.size()
+              || (
+                oldList.size() == newList.size() + 1
+                && oldList.hasAny([request.auth.uid])
+                && !newList.hasAny([request.auth.uid])
+              )
+            );
+        }
+
         function validGameSession(data) {
           return data.keys().hasAll([
               'gameId', 'gameName', 'status', 'round', 'hostId',
@@ -649,6 +661,46 @@ service cloud.firestore {
               && request.resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
               && request.resource.data.nextRoundReadyIds.hasAll(resource.data.nextRoundReadyIds)
               && request.resource.data.nextRoundReadyIds.hasAll(request.resource.data.nextRoundPlayerIds)
+            )
+            // Players may remove only their own entries while leaving a running room.
+            || (
+              resource.data.status == 'playing'
+              && request.resource.data.status == 'playing'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'playerIds', 'readyIds', 'nextRoundPlayerIds', 'nextRoundReadyIds', 'updatedAt'
+              ])
+              && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+              && onlyRemovesSelf(resource.data.nextRoundPlayerIds, request.resource.data.nextRoundPlayerIds)
+              && onlyRemovesSelf(resource.data.nextRoundReadyIds, request.resource.data.nextRoundReadyIds)
+              && (
+                (
+                  resource.data.playerIds.hasAny([request.auth.uid])
+                  && !request.resource.data.playerIds.hasAny([request.auth.uid])
+                )
+                || (
+                  resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
+                  && !request.resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
+                )
+              )
+            )
+            // Room staff can prune a kicked member from participant and ready lists.
+            || (
+              (isRoomOwner(roomId) || isActiveRoomAdmin(roomId))
+              && request.resource.data.status == resource.data.status
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'playerIds', 'readyIds', 'nextRoundPlayerIds', 'nextRoundReadyIds', 'updatedAt'
+              ])
+              && resource.data.playerIds.hasAll(request.resource.data.playerIds)
+              && resource.data.readyIds.hasAll(request.resource.data.readyIds)
+              && resource.data.nextRoundPlayerIds.hasAll(request.resource.data.nextRoundPlayerIds)
+              && resource.data.nextRoundReadyIds.hasAll(request.resource.data.nextRoundReadyIds)
+              && (
+                resource.data.playerIds.size() > request.resource.data.playerIds.size()
+                || resource.data.readyIds.size() > request.resource.data.readyIds.size()
+                || resource.data.nextRoundPlayerIds.size() > request.resource.data.nextRoundPlayerIds.size()
+                || resource.data.nextRoundReadyIds.size() > request.resource.data.nextRoundReadyIds.size()
+              )
             )
             // Host or room staff advances to the next-round lobby.
             || (
