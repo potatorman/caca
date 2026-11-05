@@ -85,71 +85,208 @@ function reauthenticateUser(user, password) {
     return reauthenticateWithCredential(user, credential);
 }
 
-// Crop the chosen picture into a centered 128x128 JPEG and compress it
-// locally, avoiding Firebase Storage and external image services.
-async function createProfilePhotoData(file) {
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+// Profile photo crop editor. The selected square is finally compressed to 128x128.
+const AVATAR_CROP_SIZE = 512;
+let pendingAvatarCrop = null;
 
+function getAvatarCropDimensions(state) {
+    const baseScale = Math.max(
+        AVATAR_CROP_SIZE / state.bitmap.width,
+        AVATAR_CROP_SIZE / state.bitmap.height
+    );
+    const scale = baseScale * state.zoom;
+    return {
+        width: state.bitmap.width * scale,
+        height: state.bitmap.height * scale
+    };
+}
+
+function clampAvatarCropPosition(state) {
+    const size = getAvatarCropDimensions(state);
+    state.offsetX = Math.min(0, Math.max(AVATAR_CROP_SIZE - size.width, state.offsetX));
+    state.offsetY = Math.min(0, Math.max(AVATAR_CROP_SIZE - size.height, state.offsetY));
+}
+
+function drawAvatarCrop() {
+    const state = pendingAvatarCrop;
+    const canvas = $("avatarCropCanvas");
+    if (!state || !canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const size = getAvatarCropDimensions(state);
+    clampAvatarCropPosition(state);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#172334";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(state.bitmap, state.offsetX, state.offsetY, size.width, size.height);
+}
+
+async function openAvatarCrop(file) {
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
     if (!file || !allowedTypes.includes(file.type)) {
         throw new Error("JPG, PNG veya WebP formatında bir fotoğraf seç.");
     }
-
     if (file.size > 10 * 1024 * 1024) {
         throw new Error("Seçtiğin dosya 10 MB'tan küçük olmalı.");
     }
-
     if (typeof createImageBitmap !== "function") {
         throw new Error("Tarayıcın fotoğraf düzenlemeyi desteklemiyor. Güncel bir tarayıcı kullan.");
     }
 
     const bitmap = await createImageBitmap(file);
+    const baseScale = Math.max(
+        AVATAR_CROP_SIZE / bitmap.width,
+        AVATAR_CROP_SIZE / bitmap.height
+    );
+    const width = bitmap.width * baseScale;
+    const height = bitmap.height * baseScale;
+
+    pendingAvatarCrop = {
+        bitmap,
+        zoom: 1,
+        offsetX: (AVATAR_CROP_SIZE - width) / 2,
+        offsetY: (AVATAR_CROP_SIZE - height) / 2,
+        drag: null
+    };
+
+    $("avatarCropZoom").value = "1";
+    $("avatarCropDialog").hidden = false;
+    drawAvatarCrop();
+    $("cancelAvatarCropButton").focus();
+}
+
+function closeAvatarCrop() {
+    if (pendingAvatarCrop?.bitmap) {
+        pendingAvatarCrop.bitmap.close?.();
+    }
+    pendingAvatarCrop = null;
+    const dialog = $("avatarCropDialog");
+    if (dialog) dialog.hidden = true;
+    const canvas = $("avatarCropCanvas");
+    if (canvas) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+async function createProfilePhotoData(cropCanvas) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Fotoğraf düzenleyici başlatılamadı.");
+
+    context.fillStyle = "#172334";
+    context.fillRect(0, 0, 128, 128);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(cropCanvas, 0, 0, 128, 128);
+
+    let quality = 0.82;
+    let dataUrl = canvas.toDataURL("image/jpeg", quality);
+    while (dataUrl.length > 85000 && quality > 0.42) {
+        quality -= 0.1;
+        dataUrl = canvas.toDataURL("image/jpeg", quality);
+    }
+    if (dataUrl.length > 90000) {
+        throw new Error("Fotoğraf sıkıştırılamadı. Daha küçük bir fotoğraf dene.");
+    }
+    return dataUrl;
+}
+
+function cancelAvatarCrop() {
+    closeAvatarCrop();
+    accountActionInProgress = false;
+    renderAvatarPicker();
+    $("avatarSaveMessage").textContent = "Fotoğraf kadrajı iptal edildi.";
+    $("avatarSaveMessage").className = "avatar-save-status";
+}
+
+async function saveAvatarCrop() {
+    const state = pendingAvatarCrop;
+    if (!state || !accountActionInProgress) return;
+    const button = $("saveAvatarCropButton");
+    button.disabled = true;
+    button.textContent = "Hazırlanıyor...";
+    $("avatarSaveMessage").textContent = "Fotoğraf 128×128 boyutuna hazırlanıyor...";
+    $("avatarSaveMessage").className = "avatar-save-status saving";
 
     try {
-        const sourceSide = Math.min(bitmap.width, bitmap.height);
-        const sourceX = Math.floor((bitmap.width - sourceSide) / 2);
-        const sourceY = Math.floor((bitmap.height - sourceSide) / 2);
-
-        const canvas = document.createElement("canvas");
-        canvas.width = 128;
-        canvas.height = 128;
-
-        const context = canvas.getContext("2d", { alpha: false });
-        if (!context) {
-            throw new Error("Fotoğraf düzenleyici başlatılamadı.");
-        }
-
-        context.fillStyle = "#172334";
-        context.fillRect(0, 0, 128, 128);
-        context.drawImage(
-            bitmap,
-            sourceX,
-            sourceY,
-            sourceSide,
-            sourceSide,
-            0,
-            0,
-            128,
-            128
-        );
-
-        let quality = 0.82;
-        let dataUrl = canvas.toDataURL("image/jpeg", quality);
-
-        while (dataUrl.length > 85000 && quality > 0.42) {
-            quality -= 0.1;
-            dataUrl = canvas.toDataURL("image/jpeg", quality);
-        }
-
-        if (dataUrl.length > 90000) {
-            throw new Error("Fotoğraf sıkıştırılamadı. Daha küçük bir fotoğraf dene.");
-        }
-
-        return dataUrl;
+        pendingAvatarData = await createProfilePhotoData($("avatarCropCanvas"));
+        closeAvatarCrop();
+        accountActionInProgress = false;
+        renderAvatarPicker();
+        $("avatarSaveMessage").textContent =
+            "Kadraj hazır. Profiline uygulamak için Değişikliği kaydet'e bas.";
+        $("avatarSaveMessage").className = "avatar-save-status";
+    } catch (error) {
+        console.error("CACA profile photo crop failed:", error);
+        $("avatarSaveMessage").textContent = error.message || "Fotoğraf hazırlanamadı.";
+        $("avatarSaveMessage").className = "avatar-save-status error";
     } finally {
-        if (typeof bitmap.close === "function") bitmap.close();
+        if (!$("avatarCropDialog").hidden) {
+            button.disabled = false;
+            button.textContent = "Kadrajı kullan";
+        }
     }
 }
 
+const avatarCropCanvas = $("avatarCropCanvas");
+avatarCropCanvas.addEventListener("pointerdown", (event) => {
+    if (!pendingAvatarCrop) return;
+    const state = pendingAvatarCrop;
+    state.drag = {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        offsetX: state.offsetX,
+        offsetY: state.offsetY
+    };
+    avatarCropCanvas.setPointerCapture(event.pointerId);
+});
+avatarCropCanvas.addEventListener("pointermove", (event) => {
+    const state = pendingAvatarCrop;
+    if (!state?.drag || state.drag.pointerId !== event.pointerId) return;
+    const rect = avatarCropCanvas.getBoundingClientRect();
+    state.offsetX = state.drag.offsetX +
+        (event.clientX - state.drag.clientX) * avatarCropCanvas.width / rect.width;
+    state.offsetY = state.drag.offsetY +
+        (event.clientY - state.drag.clientY) * avatarCropCanvas.height / rect.height;
+    drawAvatarCrop();
+});
+["pointerup", "pointercancel", "lostpointercapture"].forEach((eventName) => {
+    avatarCropCanvas.addEventListener(eventName, () => {
+        if (pendingAvatarCrop) pendingAvatarCrop.drag = null;
+    });
+});
+
+$("avatarCropZoom").addEventListener("input", (event) => {
+    const state = pendingAvatarCrop;
+    if (!state) return;
+    const oldSize = getAvatarCropDimensions(state);
+    const centerRatioX = (AVATAR_CROP_SIZE / 2 - state.offsetX) / oldSize.width;
+    const centerRatioY = (AVATAR_CROP_SIZE / 2 - state.offsetY) / oldSize.height;
+    state.zoom = Math.min(3, Math.max(1, Number(event.target.value) || 1));
+    const newSize = getAvatarCropDimensions(state);
+    state.offsetX = AVATAR_CROP_SIZE / 2 - centerRatioX * newSize.width;
+    state.offsetY = AVATAR_CROP_SIZE / 2 - centerRatioY * newSize.height;
+    drawAvatarCrop();
+});
+$("cancelAvatarCropButton").addEventListener("click", cancelAvatarCrop);
+$("saveAvatarCropButton").addEventListener("click", saveAvatarCrop);
+
+document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || $("avatarCropDialog").hidden) return;
+    event.preventDefault();
+    cancelAvatarCrop();
+});
+
+// Close the cropper when the user leaves the account settings view.
+$("backFromSettings").addEventListener("click", () => {
+    if (!$("avatarCropDialog").hidden) cancelAvatarCrop();
+}, { capture: true });
+
+// Keep the selected emoji/photo and its accessible state in sync.
 // Keep the selected emoji/photo and its accessible state in sync.
 function renderAvatarPicker() {
     const selectedAvatar = AVATARS[pendingAvatarId] || AVATARS[DEFAULT_AVATAR_ID];
@@ -282,24 +419,19 @@ $("avatarImageInput").addEventListener("change", async (event) => {
     const status = $("avatarSaveMessage");
     accountActionInProgress = true;
     renderAvatarPicker();
-    status.textContent = "Fotoğraf 128×128 boyutuna hazırlanıyor...";
+    status.textContent = "Fotoğraf kadraj düzenleyicisi açılıyor...";
     status.className = "avatar-save-status saving";
 
     try {
-        pendingAvatarData = await createProfilePhotoData(file);
-        renderAvatarPicker();
-        status.textContent =
-            "Fotoğraf hazır. Uygulamak için Değişikliği kaydet'e bas.";
-        status.className = "avatar-save-status";
+        await openAvatarCrop(file);
     } catch (error) {
-        pendingAvatarData = currentAvatarData;
+        console.error("CACA profile photo crop open failed:", error);
+        accountActionInProgress = false;
         renderAvatarPicker();
-        status.textContent = error.message || "Fotoğraf hazırlanamadı.";
+        status.textContent = error.message || "Fotoğraf açılamadı.";
         status.className = "avatar-save-status error";
     } finally {
-        accountActionInProgress = false;
         $("avatarImageInput").value = "";
-        renderAvatarPicker();
     }
 });
 
