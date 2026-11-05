@@ -457,10 +457,10 @@ service cloud.firestore {
             || isKickableByAdmin(get(memberPath(roomId, recipientUid)).data)
           )
           && request.resource.data.keys().hasAll([
-            'eventId', 'type', 'senderId', 'senderName', 'imageData', 'sentAt'
+            'eventId', 'type', 'senderId', 'senderName', 'imageData', 'durationMs', 'sentAt'
           ])
           && request.resource.data.keys().hasOnly([
-            'eventId', 'type', 'senderId', 'senderName', 'imageData', 'sentAt'
+            'eventId', 'type', 'senderId', 'senderName', 'imageData', 'durationMs', 'sentAt'
           ])
           && request.resource.data.eventId is string
           && request.resource.data.eventId.size() >= 8
@@ -472,6 +472,8 @@ service cloud.firestore {
           && request.resource.data.senderName.size() <= 24
           && request.resource.data.imageData is string
           && validJumpscareImage(request.resource.data.imageData)
+          && request.resource.data.durationMs is int
+          && request.resource.data.durationMs in [3000, 5000, 10000, 15000]
           && request.resource.data.sentAt is timestamp;
 
         allow update: if signedIn()
@@ -488,10 +490,10 @@ service cloud.firestore {
           && resource.data.sentAt is timestamp
           && request.time > resource.data.sentAt + duration.value(5, 's')
           && request.resource.data.keys().hasAll([
-            'eventId', 'type', 'senderId', 'senderName', 'imageData', 'sentAt'
+            'eventId', 'type', 'senderId', 'senderName', 'imageData', 'durationMs', 'sentAt'
           ])
           && request.resource.data.keys().hasOnly([
-            'eventId', 'type', 'senderId', 'senderName', 'imageData', 'sentAt'
+            'eventId', 'type', 'senderId', 'senderName', 'imageData', 'durationMs', 'sentAt'
           ])
           && request.resource.data.eventId is string
           && request.resource.data.eventId.size() >= 8
@@ -503,6 +505,8 @@ service cloud.firestore {
           && request.resource.data.senderName.size() <= 24
           && request.resource.data.imageData is string
           && validJumpscareImage(request.resource.data.imageData)
+          && request.resource.data.durationMs is int
+          && request.resource.data.durationMs in [3000, 5000, 10000, 15000]
           && request.resource.data.sentAt is timestamp;
 
         allow delete: if signedIn()
