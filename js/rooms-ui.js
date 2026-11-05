@@ -122,6 +122,7 @@ const publicProfileCache = new Map();
 const liveProfileUnsubscribers = new Map();
 let activeRoomMembers = [];
 let currentJumpscareSlots = { slot1: null, slot2: null, slot3: null };
+let pendingJumpscareCrop = null;
 let jumpscareLibraryLoadedFor = null;
 let jumpscareLibraryLoadPromise = null;
 let selectedJumpscareSlot = "slot1";
@@ -612,6 +613,7 @@ function setJumpscarePanelOpen(isOpen) {
         $("jumpscareTargetSelect").focus();
         loadJumpscareLibrary();
     } else {
+        if (!$("jumpscareCropDialog").hidden) closeJumpscareCrop();
         $("jumpscareOpenButton")?.focus();
     }
 }
@@ -624,6 +626,11 @@ $("jumpscarePanel").addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (!$("jumpscareCropDialog").hidden) {
+        event.preventDefault();
+        closeJumpscareCrop();
+        return;
+    }
     if (!$("roomManagementPanel").hidden) setRoomManagementOpen(false);
     if (!$("adminPanel").hidden) setAdminPanelOpen(false);
     if (!$("jumpscarePanel").hidden) setJumpscarePanelOpen(false);
@@ -1014,6 +1021,211 @@ function selectJumpscareSlot(slot) {
     renderJumpscareSlots();
 }
 
+const JUMPSCARE_CROP_WIDTH = 900;
+const JUMPSCARE_CROP_HEIGHT = 506;
+
+function getJumpscareCropDimensions(state) {
+    const baseScale = Math.max(
+        JUMPSCARE_CROP_WIDTH / state.bitmap.width,
+        JUMPSCARE_CROP_HEIGHT / state.bitmap.height
+    );
+    const scale = baseScale * state.zoom;
+    return {
+        width: state.bitmap.width * scale,
+        height: state.bitmap.height * scale
+    };
+}
+
+function clampJumpscareCropPosition(state) {
+    const size = getJumpscareCropDimensions(state);
+    state.offsetX = Math.min(0, Math.max(JUMPSCARE_CROP_WIDTH - size.width, state.offsetX));
+    state.offsetY = Math.min(0, Math.max(JUMPSCARE_CROP_HEIGHT - size.height, state.offsetY));
+}
+
+function drawJumpscareCrop() {
+    const state = pendingJumpscareCrop;
+    const canvas = $("jumpscareCropCanvas");
+    if (!state || !canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const size = getJumpscareCropDimensions(state);
+    clampJumpscareCropPosition(state);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#080910";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(state.bitmap, state.offsetX, state.offsetY, size.width, size.height);
+}
+
+async function openJumpscareCrop(file, slot, number) {
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+        throw new Error("Yalnızca PNG, JPG veya WebP görsel yükleyebilirsin.");
+    }
+    if (file.size > 12 * 1024 * 1024) {
+        throw new Error("Dosya en fazla 12 MB olabilir.");
+    }
+    if (typeof createImageBitmap !== "function") {
+        throw new Error("Tarayıcın görsel düzenlemeyi desteklemiyor. Güncel bir tarayıcı kullan.");
+    }
+
+    const userId = currentUser?.uid;
+    if (!userId) throw new Error("Oturum bulunamadı.");
+    await loadJumpscareLibrary();
+    if (jumpscareLibraryLoadedFor !== userId) {
+        throw new Error("Önce kayıtlı jumpscare görselleri yüklenmeli.");
+    }
+
+    const bitmap = await createImageBitmap(file);
+    if (currentUser?.uid !== userId) {
+        bitmap.close?.();
+        return;
+    }
+
+    const baseScale = Math.max(
+        JUMPSCARE_CROP_WIDTH / bitmap.width,
+        JUMPSCARE_CROP_HEIGHT / bitmap.height
+    );
+    const width = bitmap.width * baseScale;
+    const height = bitmap.height * baseScale;
+    pendingJumpscareCrop = {
+        bitmap,
+        slot,
+        number,
+        userId,
+        zoom: 1,
+        offsetX: (JUMPSCARE_CROP_WIDTH - width) / 2,
+        offsetY: (JUMPSCARE_CROP_HEIGHT - height) / 2,
+        drag: null
+    };
+
+    $("jumpscareCropZoom").value = "1";
+    $("jumpscareCropDialog").hidden = false;
+    drawJumpscareCrop();
+    $("cancelJumpscareCropButton").focus();
+}
+
+function closeJumpscareCrop() {
+    if (pendingJumpscareCrop?.bitmap) {
+        pendingJumpscareCrop.bitmap.close?.();
+    }
+    pendingJumpscareCrop = null;
+    const dialog = $("jumpscareCropDialog");
+    if (dialog) dialog.hidden = true;
+    const canvas = $("jumpscareCropCanvas");
+    if (canvas) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+async function compressJumpscareCropCanvas(sourceCanvas) {
+    for (const maxWidth of [900, 800, 700, 600, 520, 440, 360]) {
+        const width = Math.min(maxWidth, sourceCanvas.width);
+        const height = Math.max(1, Math.round(width * sourceCanvas.height / sourceCanvas.width));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Kadraj sıkıştırılamadı.");
+        context.drawImage(sourceCanvas, 0, 0, width, height);
+
+        for (const quality of [0.84, 0.76, 0.68, 0.60, 0.52]) {
+            let dataUrl = canvas.toDataURL("image/webp", quality);
+            if (!dataUrl.startsWith("data:image/webp;base64,")) {
+                dataUrl = canvas.toDataURL("image/jpeg", quality);
+            }
+            if (
+                dataUrl.length <= JUMPSCARE_IMAGE_MAX_CHARS &&
+                /^data:image\/(webp|jpeg);base64,/.test(dataUrl)
+            ) {
+                return dataUrl;
+            }
+        }
+    }
+    throw new Error("Kadraj 180 KB sınırına sığmadı. Daha sade veya küçük bir görsel dene.");
+}
+
+async function saveJumpscareCrop() {
+    const state = pendingJumpscareCrop;
+    if (!state || !currentUser || currentUser.uid !== state.userId) return;
+    const button = $("saveJumpscareCropButton");
+    button.disabled = true;
+    button.textContent = "Kaydediliyor...";
+    $("jumpscareLibraryStatus").textContent = "Seçtiğin kadraj sıkıştırılıyor...";
+
+    try {
+        await loadJumpscareLibrary();
+        if (currentUser?.uid !== state.userId || jumpscareLibraryLoadedFor !== state.userId) {
+            throw new Error("Hesap değişti veya görsel kütüphanesi yüklenemedi.");
+        }
+        const dataUrl = await compressJumpscareCropCanvas($("jumpscareCropCanvas"));
+        const next = { ...currentJumpscareSlots, [state.slot]: dataUrl };
+        await setDoc(doc(db, "users", state.userId, "jumpscares", "library"), {
+            ...next,
+            updatedAt: serverTimestamp()
+        });
+        if (currentUser?.uid !== state.userId) return;
+
+        currentJumpscareSlots = next;
+        jumpscareLibraryLoadedFor = state.userId;
+        selectedJumpscareSlot = state.slot;
+        const number = state.number;
+        closeJumpscareCrop();
+        renderJumpscareSlots();
+        $("jumpscareLibraryStatus").textContent =
+            `Jumpscare ${number} kadrajı kaydedildi. Sadece senin hesabında saklanıyor.`;
+    } catch (error) {
+        console.error("CACA jumpscare crop save failed:", error);
+        $("jumpscareLibraryStatus").textContent = error.message || "Kadraj kaydedilemedi.";
+    } finally {
+        button.disabled = false;
+        button.textContent = "Kadrajı kaydet";
+    }
+}
+
+const jumpscareCropCanvas = $("jumpscareCropCanvas");
+jumpscareCropCanvas.addEventListener("pointerdown", (event) => {
+    if (!pendingJumpscareCrop) return;
+    const state = pendingJumpscareCrop;
+    state.drag = {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        offsetX: state.offsetX,
+        offsetY: state.offsetY
+    };
+    jumpscareCropCanvas.setPointerCapture(event.pointerId);
+});
+jumpscareCropCanvas.addEventListener("pointermove", (event) => {
+    const state = pendingJumpscareCrop;
+    if (!state?.drag || state.drag.pointerId !== event.pointerId) return;
+    const rect = jumpscareCropCanvas.getBoundingClientRect();
+    state.offsetX = state.drag.offsetX +
+        (event.clientX - state.drag.clientX) * jumpscareCropCanvas.width / rect.width;
+    state.offsetY = state.drag.offsetY +
+        (event.clientY - state.drag.clientY) * jumpscareCropCanvas.height / rect.height;
+    drawJumpscareCrop();
+});
+["pointerup", "pointercancel", "lostpointercapture"].forEach((eventName) => {
+    jumpscareCropCanvas.addEventListener(eventName, () => {
+        if (pendingJumpscareCrop) pendingJumpscareCrop.drag = null;
+    });
+});
+
+$("jumpscareCropZoom").addEventListener("input", (event) => {
+    const state = pendingJumpscareCrop;
+    if (!state) return;
+    const oldSize = getJumpscareCropDimensions(state);
+    const centerRatioX = (JUMPSCARE_CROP_WIDTH / 2 - state.offsetX) / oldSize.width;
+    const centerRatioY = (JUMPSCARE_CROP_HEIGHT / 2 - state.offsetY) / oldSize.height;
+    state.zoom = Math.min(3, Math.max(1, Number(event.target.value) || 1));
+    const newSize = getJumpscareCropDimensions(state);
+    state.offsetX = JUMPSCARE_CROP_WIDTH / 2 - centerRatioX * newSize.width;
+    state.offsetY = JUMPSCARE_CROP_HEIGHT / 2 - centerRatioY * newSize.height;
+    drawJumpscareCrop();
+});
+$("cancelJumpscareCropButton").addEventListener("click", closeJumpscareCrop);
+$("saveJumpscareCropButton").addEventListener("click", saveJumpscareCrop);
+
 [1, 2, 3].forEach((n) => {
     const slot = `slot${n}`;
     $(`jumpscareSlotSelect${n}`).addEventListener("click", () => selectJumpscareSlot(slot));
@@ -1021,28 +1233,12 @@ function selectJumpscareSlot(slot) {
     $(`jumpscareSlotFile${n}`).addEventListener("change", async (event) => {
         const file = event.target.files?.[0];
         if (!file) return;
-        $("jumpscareLibraryStatus").textContent = "Görsel hazırlanıyor...";
+        $("jumpscareLibraryStatus").textContent = "Görsel düzenleyici açılıyor...";
         try {
-            const userId = currentUser?.uid;
-            if (!userId) throw new Error("Oturum bulunamadı.");
-            await loadJumpscareLibrary();
-            if (jumpscareLibraryLoadedFor !== userId) {
-                throw new Error("Önce kayıtlı jumpscare görselleri yüklenmeli.");
-            }
-            const dataUrl = await compressJumpscareImage(file);
-            const next = { ...currentJumpscareSlots, [slot]: dataUrl };
-            await setDoc(doc(db, "users", userId, "jumpscares", "library"), {
-                ...next, updatedAt: serverTimestamp()
-            });
-            if (currentUser?.uid !== userId) return;
-            currentJumpscareSlots = next;
-            jumpscareLibraryLoadedFor = userId;
-            selectedJumpscareSlot = slot;
-            renderJumpscareSlots();
-            $("jumpscareLibraryStatus").textContent = `Jumpscare ${n} kaydedildi. Sadece senin hesabında saklanıyor.`;
+            await openJumpscareCrop(file, slot, n);
         } catch (error) {
-            console.error("CACA jumpscare upload failed:", error);
-            $("jumpscareLibraryStatus").textContent = error.message || "Görsel kaydedilemedi.";
+            console.error("CACA jumpscare crop open failed:", error);
+            $("jumpscareLibraryStatus").textContent = error.message || "Görsel açılamadı.";
         } finally {
             event.target.value = "";
         }
@@ -1073,45 +1269,6 @@ function selectJumpscareSlot(slot) {
         }
     });
 });
-
-async function compressJumpscareImage(file) {
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-        throw new Error("Yalnızca PNG, JPG veya WebP görsel yükleyebilirsin.");
-    }
-    if (file.size > 12 * 1024 * 1024) throw new Error("Dosya en fazla 12 MB olabilir.");
-    if (typeof createImageBitmap !== "function") {
-        throw new Error("Tarayıcın görsel sıkıştırmayı desteklemiyor. Güncel bir tarayıcı kullan.");
-    }
-
-    const bitmap = await createImageBitmap(file);
-    try {
-        for (const maxSize of [900, 800, 700, 600, 520, 440, 360]) {
-            const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
-            const width = Math.max(1, Math.round(bitmap.width * scale));
-            const height = Math.max(1, Math.round(bitmap.height * scale));
-            const canvas = document.createElement("canvas");
-            canvas.width = width;
-            canvas.height = height;
-            const context = canvas.getContext("2d");
-            if (!context) throw new Error("Görsel işlenemedi.");
-            context.fillStyle = "#080910";
-            context.fillRect(0, 0, width, height);
-            context.drawImage(bitmap, 0, 0, width, height);
-
-            for (const quality of [0.82, 0.72, 0.62, 0.52]) {
-                let dataUrl = canvas.toDataURL("image/webp", quality);
-                if (!dataUrl.startsWith("data:image/webp;base64,")) {
-                    dataUrl = canvas.toDataURL("image/jpeg", quality);
-                }
-                if (dataUrl.length <= JUMPSCARE_IMAGE_MAX_CHARS &&
-                    /^data:image\/(webp|jpeg);base64,/.test(dataUrl)) return dataUrl;
-            }
-        }
-    } finally {
-        bitmap.close?.();
-    }
-    throw new Error("Görsel hâlâ büyük. Daha küçük bir görsel dene.");
-}
 
 async function loadJumpscareLibrary() {
     const userId = currentUser?.uid;
