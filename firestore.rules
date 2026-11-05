@@ -365,6 +365,44 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if isRoomOwner(roomId);
       }
+
+      match /pranks/{prankId} {
+        // Every room member receives live room-wide prank events.
+        allow get: if isRoomMember(roomId);
+        allow list: if false;
+
+        // Only the room owner and an active room admin can send an effect.
+        // A single fixed document is overwritten so room data cannot grow
+        // with every prank click.
+        allow create, update: if prankId == 'active'
+          && (isRoomOwner(roomId) || isActiveRoomAdmin(roomId))
+          && request.resource.data.keys().hasAll([
+            'eventId',
+            'type',
+            'senderId',
+            'senderName',
+            'createdAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'eventId',
+            'type',
+            'senderId',
+            'senderName',
+            'createdAt'
+          ])
+          && request.resource.data.eventId is string
+          && request.resource.data.eventId.size() >= 8
+          && request.resource.data.eventId.size() <= 80
+          && request.resource.data.type in ['jumpscare', 'shake']
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.senderName is string
+          && request.resource.data.senderName.size() >= 1
+          && request.resource.data.senderName.size() <= 24
+          && request.resource.data.createdAt is timestamp;
+
+        // The room owner removes the fixed event document during room deletion.
+        allow delete: if isRoomOwner(roomId);
+      }
     }
 
     match /roomInvites/{inviteCode} {
