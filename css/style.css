@@ -4148,3 +4148,95 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
         flex: 1;
     }
 }
+
+
+/* User-controlled full-screen crop before a jumpscare image is compressed */
+.jumpscare-crop-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(3, 8, 15, .88);
+    backdrop-filter: blur(8px);
+}
+.jumpscare-crop-dialog[hidden] { display: none !important; }
+.jumpscare-crop-card {
+    width: min(100%, 780px);
+    max-height: min(92vh, 860px);
+    overflow-y: auto;
+    padding: 22px;
+    color: #e7efff;
+    background: #111c2b;
+    border: 1px solid #354b68;
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .55);
+}
+.jumpscare-crop-heading { margin-bottom: 15px; }
+.jumpscare-crop-heading strong { display: block; margin-bottom: 6px; font-size: 16px; }
+.jumpscare-crop-heading p,
+.jumpscare-crop-hint {
+    margin: 0;
+    color: #98a9c0;
+    font-size: 11px;
+    line-height: 1.6;
+}
+.jumpscare-crop-stage {
+    width: 100%;
+    overflow: hidden;
+    aspect-ratio: 900 / 506;
+    background: #080910;
+    border: 1px solid #3c526f;
+    border-radius: 10px;
+}
+.jumpscare-crop-stage canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    cursor: grab;
+    touch-action: none;
+}
+.jumpscare-crop-stage canvas:active { cursor: grabbing; }
+.jumpscare-crop-zoom {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    margin: 16px 0 8px;
+    color: #dce8f9;
+    font-size: 12px;
+    font-weight: 700;
+}
+.jumpscare-crop-zoom input { width: 100%; accent-color: #5594ed; }
+.jumpscare-crop-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 9px;
+    margin-top: 17px;
+}
+.jumpscare-crop-actions button {
+    min-height: 38px;
+    padding: 0 15px;
+    border: 1px solid #425a78;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 750;
+}
+.jumpscare-crop-actions .secondary-button {
+    color: #d6e0ef;
+    background: #1b2b40;
+}
+.jumpscare-crop-actions .primary-button {
+    color: #fff;
+    background: #2868bb;
+    border-color: #4786d0;
+}
+.jumpscare-crop-actions button:disabled { opacity: .55; cursor: wait; }
+@media (max-width: 600px) {
+    .jumpscare-crop-dialog { padding: 10px; }
+    .jumpscare-crop-card { padding: 14px; border-radius: 12px; }
+    .jumpscare-crop-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    .jumpscare-crop-actions button { padding: 0 8px; }
+}
