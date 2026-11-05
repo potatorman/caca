@@ -447,6 +447,7 @@ service cloud.firestore {
 
         allow create: if signedIn()
           && isRoomMember(roomId)
+          && (isRoomOwner(roomId) || isActiveRoomAdmin(roomId))
           && recipientUid != request.auth.uid
           && recipientUid != get(roomPath(roomId)).data.ownerId
           && exists(memberPath(roomId, recipientUid))
@@ -475,6 +476,7 @@ service cloud.firestore {
 
         allow update: if signedIn()
           && isRoomMember(roomId)
+          && (isRoomOwner(roomId) || isActiveRoomAdmin(roomId))
           && recipientUid != request.auth.uid
           && recipientUid != get(roomPath(roomId)).data.ownerId
           && exists(memberPath(roomId, recipientUid))
@@ -514,6 +516,165 @@ service cloud.firestore {
           );
       }
     }
+
+      // One fixed game session per room. All members can read it to watch.
+      match /gameSessions/{sessionId} {
+        function validGameSession(data) {
+          return data.keys().hasAll([
+              'gameId', 'gameName', 'status', 'round', 'hostId',
+              'playerIds', 'readyIds', 'nextRoundPlayerIds',
+              'nextRoundReadyIds', 'createdAt', 'startedAt', 'updatedAt'
+            ])
+            && data.keys().hasOnly([
+              'gameId', 'gameName', 'status', 'round', 'hostId',
+              'playerIds', 'readyIds', 'nextRoundPlayerIds',
+              'nextRoundReadyIds', 'createdAt', 'startedAt', 'updatedAt'
+            ])
+            && data.gameId is string && data.gameId.size() >= 3 && data.gameId.size() <= 32
+            && data.gameName is string && data.gameName.size() >= 2 && data.gameName.size() <= 40
+            && data.status in ['lobby', 'playing']
+            && data.round is int && data.round >= 1
+            && data.hostId is string
+            && data.playerIds is list && data.playerIds.size() <= 20
+            && data.readyIds is list && data.readyIds.size() <= 20
+            && data.readyIds.hasOnly(data.playerIds)
+            && data.nextRoundPlayerIds is list && data.nextRoundPlayerIds.size() <= 20
+            && data.nextRoundReadyIds is list && data.nextRoundReadyIds.size() <= 20
+            && data.nextRoundReadyIds.hasOnly(data.nextRoundPlayerIds)
+            && data.createdAt is timestamp
+            && (data.startedAt == null || data.startedAt is timestamp)
+            && data.updatedAt is timestamp;
+        }
+
+        allow get: if sessionId == 'active' && isRoomMember(roomId);
+        allow list: if false;
+
+        allow create: if sessionId == 'active'
+          && isRoomMember(roomId)
+          && validGameSession(request.resource.data)
+          && request.resource.data.status == 'lobby'
+          && request.resource.data.hostId == request.auth.uid
+          && request.resource.data.playerIds.size() == 1
+          && request.resource.data.playerIds[0] == request.auth.uid
+          && request.resource.data.readyIds.size() == 0
+          && request.resource.data.nextRoundPlayerIds.size() == 0
+          && request.resource.data.nextRoundReadyIds.size() == 0
+          && request.resource.data.round == 1
+          && request.resource.data.startedAt == null;
+
+        allow update: if sessionId == 'active'
+          && isRoomMember(roomId)
+          && validGameSession(request.resource.data)
+          && request.resource.data.gameId == resource.data.gameId
+          && request.resource.data.gameName == resource.data.gameName
+          && request.resource.data.hostId == resource.data.hostId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && (
+            // Join or leave the waiting room.
+            (
+              resource.data.status == 'lobby'
+              && request.resource.data.status == 'lobby'
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['playerIds', 'readyIds', 'updatedAt'])
+              && (
+                (
+                  request.resource.data.playerIds.hasAll(resource.data.playerIds)
+                  && request.resource.data.playerIds.size() == resource.data.playerIds.size() + 1
+                  && request.resource.data.playerIds.hasAny([request.auth.uid])
+                  && request.resource.data.readyIds.hasAll(resource.data.readyIds)
+                  && request.resource.data.readyIds.size() == resource.data.readyIds.size()
+                )
+                || (
+                  resource.data.playerIds.hasAll(request.resource.data.playerIds)
+                  && resource.data.playerIds.size() == request.resource.data.playerIds.size() + 1
+                  && resource.data.playerIds.hasAny([request.auth.uid])
+                  && !request.resource.data.playerIds.hasAny([request.auth.uid])
+                  && resource.data.readyIds.hasAll(request.resource.data.readyIds)
+                  && (
+                    resource.data.readyIds.size() == request.resource.data.readyIds.size()
+                    || (
+                      resource.data.readyIds.size() == request.resource.data.readyIds.size() + 1
+                      && resource.data.readyIds.hasAny([request.auth.uid])
+                      && !request.resource.data.readyIds.hasAny([request.auth.uid])
+                    )
+                  )
+                )
+              )
+              || (
+                request.resource.data.playerIds == resource.data.playerIds
+                && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['readyIds', 'updatedAt'])
+                && (
+                  (
+                    request.resource.data.readyIds.hasAll(resource.data.readyIds)
+                    && request.resource.data.readyIds.size() == resource.data.readyIds.size() + 1
+                    && request.resource.data.readyIds.hasAny([request.auth.uid])
+                  )
+                  || (
+                    resource.data.readyIds.hasAll(request.resource.data.readyIds)
+                    && resource.data.readyIds.size() == request.resource.data.readyIds.size() + 1
+                    && resource.data.readyIds.hasAny([request.auth.uid])
+                    && !request.resource.data.readyIds.hasAny([request.auth.uid])
+                  )
+                )
+              )
+            )
+            // Start when every joined player is ready.
+            || (
+              resource.data.status == 'lobby'
+              && request.resource.data.status == 'playing'
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'startedAt', 'updatedAt'])
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && request.resource.data.playerIds.size() >= 2
+              && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
+              && request.resource.data.startedAt is timestamp
+            )
+            // Members in a running game can queue for the next round.
+            || (
+              resource.data.status == 'playing'
+              && request.resource.data.status == 'playing'
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['nextRoundPlayerIds', 'nextRoundReadyIds', 'updatedAt'])
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && request.resource.data.nextRoundPlayerIds.hasAll(resource.data.nextRoundPlayerIds)
+              && request.resource.data.nextRoundPlayerIds.size() == resource.data.nextRoundPlayerIds.size() + 1
+              && request.resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
+              && request.resource.data.nextRoundReadyIds.hasAll(resource.data.nextRoundReadyIds)
+              && request.resource.data.nextRoundReadyIds.hasAll(request.resource.data.nextRoundPlayerIds)
+            )
+            // Host or room staff advances to the next-round lobby.
+            || (
+              resource.data.status == 'playing'
+              && request.resource.data.status == 'lobby'
+              && (
+                request.auth.uid == resource.data.hostId
+                || isRoomOwner(roomId)
+                || isActiveRoomAdmin(roomId)
+              )
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'round', 'playerIds', 'readyIds',
+                'nextRoundPlayerIds', 'nextRoundReadyIds', 'startedAt', 'updatedAt'
+              ])
+              && request.resource.data.round == resource.data.round + 1
+              && request.resource.data.playerIds == resource.data.nextRoundPlayerIds
+              && request.resource.data.readyIds == resource.data.nextRoundReadyIds
+              && request.resource.data.nextRoundPlayerIds.size() == 0
+              && request.resource.data.nextRoundReadyIds.size() == 0
+              && request.resource.data.startedAt == null
+            )
+          );
+
+        allow delete: if sessionId == 'active'
+          && isRoomMember(roomId)
+          && (
+            request.auth.uid == resource.data.hostId
+            || isRoomOwner(roomId)
+            || isActiveRoomAdmin(roomId)
+          );
+      }
 
     match /roomInvites/{inviteCode} {
       // A signed-in user may look up an exact invite code to join a room.
