@@ -4005,3 +4005,66 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .jumpscare-send-section label { grid-column: 1; }
     .jumpscare-send-section .troll-button { width: 100%; }
 }
+
+
+/* Room-wide game center and shared lobby */
+.fun-center-open-button { color: #e5f4ff; background: #1d4260; border-color: #3c7398; }
+.fun-center-open-button:hover { background: #285577; }
+.admin-jumpscare-section { align-items: center; }
+.admin-jumpscare-section .jumpscare-open-button { flex: 0 0 auto; }
+.game-center-card { width: min(100%, 900px); }
+.game-center-intro {
+    margin: 2px 0 16px; padding: 13px 15px; background: #111e2e;
+    border: 1px solid #2a405d; border-radius: 10px;
+}
+.game-center-intro strong { color: #e6f1ff; font-size: 13px; }
+.game-center-intro p { margin: 5px 0 0; color: #9eb1c9; font-size: 11px; line-height: 1.6; }
+.game-center-empty {
+    display: grid; justify-items: center; gap: 9px; padding: 30px 16px; text-align: center;
+    background: #101b2a; border: 1px dashed #3a526f; border-radius: 12px;
+}
+.game-center-empty[hidden], .game-session-content[hidden] { display: none !important; }
+.game-center-empty-icon { font-size: 32px; }
+.game-center-empty strong { color: #e9f2ff; font-size: 14px; }
+.game-center-empty p { max-width: 460px; margin: 0 0 6px; color: #91a4bc; font-size: 11px; line-height: 1.6; }
+.game-session-content { padding: 16px; background: #101b2a; border: 1px solid #2a405d; border-radius: 12px; }
+.game-session-topline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.game-session-topline h4 { margin: 5px 0 0; color: #edf4ff; font-size: 17px; }
+.game-session-status {
+    flex: 0 0 auto; padding: 6px 10px; color: #f5d89b; background: #3a3020;
+    border: 1px solid #6c5831; border-radius: 999px; font-size: 10px; font-weight: 800;
+}
+.game-session-status.is-playing { color: #a9edc9; background: #18382d; border-color: #2d7657; }
+.game-session-summary { margin: 9px 0 14px; color: #9eb1c9; font-size: 11px; line-height: 1.6; }
+.game-session-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.game-session-list-section, .game-next-round-section {
+    min-width: 0; padding: 12px; background: #0c1521; border: 1px solid #263a52; border-radius: 9px;
+}
+.game-session-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.game-session-list-heading strong, .game-next-round-section > strong { color: #dce9f9; font-size: 11px; }
+.game-session-list-heading span { color: #9bb5d3; font-size: 10px; font-variant-numeric: tabular-nums; }
+.game-session-member-list { display: grid; gap: 6px; }
+.game-session-member {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0;
+    padding: 7px 9px; color: #d8e4f3; background: #17263a; border: 1px solid #283d58;
+    border-radius: 7px; font-size: 10px;
+}
+.game-session-member > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game-session-member-state { flex: 0 0 auto; color: #9db5d0; font-size: 9px; }
+.game-session-empty { color: #7589a3; font-size: 10px; }
+.game-next-round-section { margin-top: 12px; }
+.game-next-round-section > strong { display: block; margin-bottom: 8px; }
+.game-session-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.game-session-actions button { min-height: 36px; padding: 0 12px; border-radius: 8px; font-size: 10px; font-weight: 750; }
+.game-session-actions button[hidden] { display: none !important; }
+.game-session-actions .secondary-button { color: #d4e2f3; background: #263951; border: 1px solid #405979; }
+.game-center-status { min-height: 16px; margin: 9px 1px 0; color: #9fc6ed; font-size: 10px; }
+.game-center-status.error { color: #ffadb7; }
+.game-engine-note { margin: 10px 1px 0; color: #748aa5; font-size: 10px; line-height: 1.55; }
+@media (max-width: 620px) {
+    .game-session-columns { grid-template-columns: 1fr; }
+    .game-session-actions { flex-direction: column; }
+    .game-session-actions button { width: 100%; }
+    .admin-jumpscare-section { align-items: stretch; flex-direction: column; }
+    .admin-jumpscare-section .jumpscare-open-button { width: 100%; }
+}
