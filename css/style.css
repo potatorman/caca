@@ -3627,3 +3627,157 @@ body.logged-in .auth-card {
     .moderation-notice-card { padding: 25px 19px 21px; }
     .moderation-notice-card h2 { font-size: 19px; }
 }
+
+
+/* Shared room admin troll center */
+.room-management-section[hidden],
+.admin-assignment-section[hidden],
+#clearChatManagementSection[hidden] {
+    display: none !important;
+}
+.troll-management-section {
+    display: block;
+    margin-bottom: 14px;
+    padding: 16px;
+    background: linear-gradient(135deg, #242039, #17243a);
+    border-color: #58466f;
+}
+.troll-section-heading { margin-bottom: 13px; }
+.troll-section-heading strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #f0e8ff;
+    font-size: 14px;
+}
+.troll-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+.troll-button {
+    min-height: 39px;
+    padding: 0 14px;
+    color: #fff;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    font-size: 11px;
+    font-weight: 800;
+    transition: transform .15s ease, filter .15s ease;
+}
+.troll-button:hover { filter: brightness(1.14); transform: translateY(-1px); }
+.troll-button:disabled { opacity: .55; cursor: wait; transform: none; }
+.troll-button.jumpscare {
+    background: #7b3046;
+    border-color: #bb536c;
+}
+.troll-button.shake {
+    background: #354b7b;
+    border-color: #526da8;
+}
+.troll-management-status {
+    min-height: 16px;
+    margin: 9px 1px 0;
+    color: #c0b1e1;
+    font-size: 10px;
+    line-height: 1.45;
+}
+
+/* Short, silent room-wide jumpscare */
+.room-prank-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 11px;
+    overflow: hidden;
+    padding: 24px;
+    color: #fff;
+    text-align: center;
+    background:
+        radial-gradient(ellipse at 50% 47%, rgba(116, 14, 35, .95), rgba(25, 5, 18, .98) 54%, #03040a 100%);
+    opacity: 0;
+}
+.room-prank-overlay[hidden] { display: none !important; }
+.room-prank-overlay.is-active { animation: room-prank-flash 2.5s steps(2, end); }
+.room-prank-glow {
+    position: absolute;
+    width: min(76vw, 520px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: rgba(207, 25, 53, .28);
+    filter: blur(65px);
+    pointer-events: none;
+}
+.room-prank-monster {
+    position: relative;
+    z-index: 1;
+    width: min(68vw, 330px);
+    filter: drop-shadow(0 0 26px rgba(255, 32, 57, .7));
+    transform: scale(.12) rotate(-16deg);
+}
+.room-prank-overlay.is-active .room-prank-monster {
+    animation: room-prank-pop .48s cubic-bezier(.16, 1.45, .45, 1) both;
+}
+.room-prank-monster svg { display: block; width: 100%; height: auto; }
+.room-prank-caption {
+    position: relative;
+    z-index: 1;
+    color: #fff0ee;
+    font-size: clamp(29px, 6vw, 54px);
+    font-weight: 1000;
+    letter-spacing: .11em;
+    text-shadow: 0 4px 22px #ff1d42, 0 0 3px #fff;
+}
+.room-prank-subtitle {
+    position: relative;
+    z-index: 1;
+    color: #e4b9c3;
+    font-size: 12px;
+}
+.room-prank-dismiss {
+    position: relative;
+    z-index: 1;
+    min-height: 35px;
+    margin-top: 5px;
+    padding: 0 14px;
+    color: #f2dfe4;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 8px;
+    font-size: 10px;
+}
+.room-prank-dismiss:hover { background: rgba(255,255,255,.17); }
+body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
+@keyframes room-prank-pop {
+    0% { transform: scale(.12) rotate(-16deg); }
+    70% { transform: scale(1.12) rotate(4deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+@keyframes room-prank-flash {
+    0%, 12%, 25%, 39%, 53%, 67% { opacity: 1; }
+    18%, 32%, 46%, 60%, 75%, 100% { opacity: 1; }
+}
+@keyframes room-screen-shake {
+    0%, 100% { transform: translate(0, 0); }
+    12% { transform: translate(-8px, 3px); }
+    24% { transform: translate(8px, -3px); }
+    36% { transform: translate(-6px, -2px); }
+    48% { transform: translate(6px, 2px); }
+    60% { transform: translate(-4px, 1px); }
+    72% { transform: translate(4px, -1px); }
+    84% { transform: translate(-2px, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .room-prank-overlay.is-active,
+    .room-prank-overlay.is-active .room-prank-monster,
+    body.room-screen-shake {
+        animation: none !important;
+    }
+}
+@media (max-width: 620px) {
+    .troll-controls { flex-direction: column; }
+    .troll-button { width: 100%; }
+}
