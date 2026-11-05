@@ -222,7 +222,8 @@
 
                                     <div class="room-toolbar-actions">
                                         <button id="membersToggleButton" class="members-toggle-button" type="button" aria-controls="roomMembersPanel" aria-expanded="true">Üyeler <span aria-hidden="true">▥</span></button>
-                                        <button id="roomManagementButton" class="room-management-button" type="button" hidden>Yönetim paneli</button>
+                                        <button id="roomManagementButton" class="room-management-button" type="button" hidden>Yönetim Paneli</button>
+                                        <button id="adminPanelButton" class="room-management-button admin-panel-button" type="button" hidden>Admin Panel</button>
                                         <button id="leaveRoomButton" class="danger-button" type="button">Odadan çık</button>
                                     </div>
                                 </div>
@@ -231,24 +232,12 @@
                                     <div class="room-management-card">
                                         <div class="room-management-heading">
                                             <div>
-                                                <span class="small-label">ROOM MODERATION</span>
-                                                <h3 id="roomManagementTitle">Yönetim paneli</h3>
-                                                <p>Oda sahibi ve aktif yöneticilere özel araçlar.</p>
+                                                <span class="small-label">OWNER CONTROLS</span>
+                                                <h3 id="roomManagementTitle">Yönetim Paneli</h3>
+                                                <p>Oda sahibi için oda yönetimi, ban ve yönetici ayarları.</p>
                                             </div>
                                             <button id="closeRoomManagementButton" class="icon-button" type="button" aria-label="Oda yönetimini kapat">×</button>
                                         </div>
-                                        <section id="trollManagementSection" class="room-management-section troll-management-section" hidden>
-                                            <div class="troll-section-heading">
-                                                <strong>Troll merkezi</strong>
-                                                <p>Odadaki herkese kısa süreli, sessiz efektler gönder.</p>
-                                            </div>
-                                            <div class="troll-controls">
-                                                <button id="jumpscareButton" class="troll-button jumpscare" type="button">Jumpscare gönder</button>
-                                                <button id="shakeButton" class="troll-button shake" type="button">Ekranı salla</button>
-                                            </div>
-                                            <p id="trollManagementStatus" class="troll-management-status" role="status" aria-live="polite"></p>
-                                        </section>
-
                                         <section id="adminAssignmentSection" class="room-management-section admin-assignment-section">
                                             <div class="room-management-section-copy">
                                                 <strong>Yönetici ata</strong>
@@ -293,6 +282,32 @@
                                             <button id="clearChatHistoryButton" class="room-management-danger-button" type="button">Tüm sohbeti sil</button>
                                         </div>
                                         <p id="roomManagementStatus" class="room-management-status" role="status" aria-live="polite"></p>
+                                    </div>
+                                </section>
+
+                                <section id="adminPanel" class="room-management-panel admin-panel" role="dialog" aria-modal="true" aria-labelledby="adminPanelTitle" hidden>
+                                    <div class="room-management-card">
+                                        <div class="room-management-heading">
+                                            <div>
+                                                <span class="small-label">ADMIN TOOLS</span>
+                                                <h3 id="adminPanelTitle">Admin Panel</h3>
+                                                <p>Oda sahibi ve aktif yöneticilere açık troll araçları.</p>
+                                            </div>
+                                            <button id="closeAdminPanelButton" class="icon-button" type="button" aria-label="Admin panelini kapat">×</button>
+                                        </div>
+                                                                                <section id="trollManagementSection" class="room-management-section troll-management-section">
+                                            <div class="troll-section-heading">
+                                                <strong>Troll merkezi</strong>
+                                                <p>Odadaki herkese kısa süreli, sessiz efektler gönder.</p>
+                                            </div>
+                                            <div class="troll-controls">
+                                                <button id="jumpscareButton" class="troll-button jumpscare" type="button">Jumpscare gönder</button>
+                                                <button id="shakeButton" class="troll-button shake" type="button">Ekranı salla</button>
+                                            </div>
+                                            <p id="trollManagementStatus" class="troll-management-status" role="status" aria-live="polite"></p>
+                                        </section>
+
+
                                     </div>
                                 </section>
 
