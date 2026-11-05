@@ -382,6 +382,28 @@
                                                 <button id="jumpscareSlotClear3" class="jumpscare-clear-button" type="button" disabled>Sil</button>
                                             </article>
                                         </div>
+                                        <div id="jumpscareCropDialog" class="jumpscare-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="jumpscareCropTitle" hidden>
+                                            <div class="jumpscare-crop-card">
+                                                <div class="jumpscare-crop-heading">
+                                                    <div>
+                                                        <strong id="jumpscareCropTitle">Jumpscare kadrajını ayarla</strong>
+                                                        <p>Görseli sürükle, yakınlaştır ve ekranda görünecek bölümü seç.</p>
+                                                    </div>
+                                                </div>
+                                                <div class="jumpscare-crop-stage">
+                                                    <canvas id="jumpscareCropCanvas" width="900" height="506" aria-label="Kadrajı ayarlamak için görseli sürükle"></canvas>
+                                                </div>
+                                                <label class="jumpscare-crop-zoom" for="jumpscareCropZoom">
+                                                    <span>Yakınlaştır</span>
+                                                    <input id="jumpscareCropZoom" type="range" min="1" max="3" step="0.05" value="1">
+                                                </label>
+                                                <p class="jumpscare-crop-hint">İpucu: Görseli parmağınla veya farenle sürükleyebilirsin. Çerçevenin içi tam ekranda kullanılacak.</p>
+                                                <div class="jumpscare-crop-actions">
+                                                    <button id="cancelJumpscareCropButton" type="button" class="secondary-button">Vazgeç</button>
+                                                    <button id="saveJumpscareCropButton" type="button" class="primary-button">Kadrajı kaydet</button>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <p id="jumpscareLibraryStatus" class="jumpscare-status" role="status" aria-live="polite"></p>
 
                                         <div class="jumpscare-send-section">
