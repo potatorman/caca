@@ -1173,6 +1173,11 @@ async function sendPersonalJumpscare() {
         return;
     }
 
+    const requestedDurationMs = Number($("jumpscareDurationSelect")?.value);
+    const durationMs = [3000, 5000, 10000, 15000].includes(requestedDurationMs)
+        ? requestedDurationMs
+        : 5000;
+
     const button = $("sendPersonalJumpscareButton");
     button.disabled = true;
     $("personalJumpscareStatus").textContent = "Gönderiliyor...";
@@ -1183,6 +1188,7 @@ async function sendPersonalJumpscare() {
             senderId: currentUser.uid,
             senderName: currentUsername || "Bir oda üyesi",
             imageData,
+            durationMs,
             sentAt: serverTimestamp()
         });
         lastPersonalPrankSentAt = Date.now();
@@ -1558,7 +1564,7 @@ function hideRoomPrank() {
     }
 }
 
-function showRoomPrank(type, imageData = null) {
+function showRoomPrank(type, imageData = null, durationMs = 5000) {
     if (type === "custom-jumpscare" || type === "jumpscare") {
         if (typeof imageData !== "string" || !/^data:image\/(webp|jpeg);base64,/.test(imageData)) {
             return;
@@ -1568,12 +1574,19 @@ function showRoomPrank(type, imageData = null) {
         const customImage = $("roomPrankCustomImage");
         if (!overlay || !customImage) return;
 
+        const allowedDurations = [3000, 5000, 10000, 15000];
+        const safeDurationMs = allowedDurations.includes(Number(durationMs))
+            ? Number(durationMs)
+            : 5000;
+
         hideRoomPrank();
         customImage.src = imageData;
         customImage.hidden = false;
         overlay.hidden = false;
         requestAnimationFrame(() => overlay.classList.add("is-active"));
-        // No automatic timeout: the recipient dismisses it with Escape only.
+
+        // The recipient can dismiss early with Escape; otherwise close on timeout.
+        prankOverlayTimer = setTimeout(hideRoomPrank, safeDurationMs);
         return;
     }
 
@@ -1643,6 +1656,9 @@ function listenToPersonalPranks(roomId) {
         const prank = snapshot.data();
         const eventId = prank.eventId;
         const sentAt = prank.sentAt?.toMillis ? prank.sentAt.toMillis() : null;
+        const durationMs = [3000, 5000, 10000, 15000].includes(Number(prank.durationMs))
+            ? Number(prank.durationMs)
+            : 5000;
         if (
             typeof eventId !== "string" || !eventId ||
             eventId === lastSeenPersonalPrankEventId ||
@@ -1650,12 +1666,12 @@ function listenToPersonalPranks(roomId) {
             typeof prank.imageData !== "string" ||
             !/^data:image\/(webp|jpeg);base64,/.test(prank.imageData) ||
             sentAt === null ||
-            Date.now() - sentAt > 12000 ||
+            Date.now() - sentAt > durationMs + 5000 ||
             sentAt - Date.now() > 10000
         ) return;
 
         lastSeenPersonalPrankEventId = eventId;
-        showRoomPrank("custom-jumpscare", prank.imageData, prank.senderName || "");
+        showRoomPrank("custom-jumpscare", prank.imageData, durationMs);
     }, (error) => {
         if (activeRoomId === roomId) console.warn("CACA personal jumpscare listener failed:", error);
     });
