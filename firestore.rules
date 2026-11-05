@@ -450,7 +450,11 @@ service cloud.firestore {
           && recipientUid != request.auth.uid
           && recipientUid != get(roomPath(roomId)).data.ownerId
           && exists(memberPath(roomId, recipientUid))
-          && isKickableByAdmin(get(memberPath(roomId, recipientUid)).data)
+          && (
+            isRoomOwner(roomId)
+            || isActiveRoomAdmin(roomId)
+            || isKickableByAdmin(get(memberPath(roomId, recipientUid)).data)
+          )
           && request.resource.data.keys().hasAll([
             'eventId', 'type', 'senderId', 'senderName', 'imageData', 'sentAt'
           ])
@@ -474,7 +478,11 @@ service cloud.firestore {
           && recipientUid != request.auth.uid
           && recipientUid != get(roomPath(roomId)).data.ownerId
           && exists(memberPath(roomId, recipientUid))
-          && isKickableByAdmin(get(memberPath(roomId, recipientUid)).data)
+          && (
+            isRoomOwner(roomId)
+            || isActiveRoomAdmin(roomId)
+            || isKickableByAdmin(get(memberPath(roomId, recipientUid)).data)
+          )
           && resource.data.sentAt is timestamp
           && request.time > resource.data.sentAt + duration.value(5, 's')
           && request.resource.data.keys().hasAll([
