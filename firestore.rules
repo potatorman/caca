@@ -578,7 +578,8 @@ service cloud.firestore {
                 .hasOnly(['playerIds', 'readyIds', 'updatedAt'])
               && (
                 (
-                  request.resource.data.playerIds.hasAll(resource.data.playerIds)
+                  !resource.data.playerIds.hasAny([request.auth.uid])
+                  && request.resource.data.playerIds.hasAll(resource.data.playerIds)
                   && request.resource.data.playerIds.size() == resource.data.playerIds.size() + 1
                   && request.resource.data.playerIds.hasAny([request.auth.uid])
                   && request.resource.data.readyIds.hasAll(resource.data.readyIds)
@@ -601,12 +602,15 @@ service cloud.firestore {
                 )
               )
               || (
-                request.resource.data.playerIds == resource.data.playerIds
+                resource.data.status == 'lobby'
+                && request.resource.data.status == 'lobby'
+                && request.resource.data.playerIds == resource.data.playerIds
                 && request.resource.data.diff(resource.data).affectedKeys()
                   .hasOnly(['readyIds', 'updatedAt'])
                 && (
                   (
-                    request.resource.data.readyIds.hasAll(resource.data.readyIds)
+                    !resource.data.readyIds.hasAny([request.auth.uid])
+                    && request.resource.data.readyIds.hasAll(resource.data.readyIds)
                     && request.resource.data.readyIds.size() == resource.data.readyIds.size() + 1
                     && request.resource.data.readyIds.hasAny([request.auth.uid])
                   )
@@ -639,6 +643,7 @@ service cloud.firestore {
                 .hasOnly(['nextRoundPlayerIds', 'nextRoundReadyIds', 'updatedAt'])
               && request.resource.data.playerIds == resource.data.playerIds
               && request.resource.data.readyIds == resource.data.readyIds
+              && !resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
               && request.resource.data.nextRoundPlayerIds.hasAll(resource.data.nextRoundPlayerIds)
               && request.resource.data.nextRoundPlayerIds.size() == resource.data.nextRoundPlayerIds.size() + 1
               && request.resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
