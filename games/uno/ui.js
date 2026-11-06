@@ -211,7 +211,10 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             button.dataset.cardId = card.id;
             button.style.setProperty("--card-index", String(index));
             const isMyTurn = matchState?.status === "playing" && matchState.currentPlayerUid === uid;
-            const playable = isMyTurn && isCardPlayable(
+            const mustCatchUno = matchState?.unoPendingUid &&
+                !matchState.unoCalled &&
+                matchState.unoPendingUid !== uid;
+            const playable = isMyTurn && !mustCatchUno && isCardPlayable(
                 card,
                 matchState.topCard,
                 matchState.activeColor,
@@ -258,7 +261,12 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         action("draw").disabled = !isMyTurn || Boolean(matchState.drewCardId);
         action("end-turn").hidden = !isMyTurn || !matchState.drewCardId;
         action("uno").hidden = !(matchState.unoPendingUid === uid && !matchState.unoCalled && matchState.status === "playing");
-        action("catch").hidden = !(isMyTurn && matchState.unoPendingUid && !matchState.unoCalled && matchState.unoPendingUid !== uid);
+        action("catch").hidden = !(
+            matchState.activePlayerIds?.includes(uid) &&
+            matchState.unoPendingUid &&
+            !matchState.unoCalled &&
+            matchState.unoPendingUid !== uid
+        );
         setStatus(matchState.status === "results" ? "Maç tamamlandı" : isMyTurn ? "Hamleni yap" : "Diğer oyuncunun hamlesi bekleniyor");
 
         if (matchState.status === "results") {

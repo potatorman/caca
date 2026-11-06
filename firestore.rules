@@ -1186,6 +1186,10 @@ service cloud.firestore {
               )
             )
             && (
+              resource.data.unoPendingUid == null
+              || resource.data.unoCalled == true
+            )
+            && (
               request.resource.data.status == 'playing'
               || (
                 request.resource.data.status == 'results'
@@ -1216,7 +1220,8 @@ service cloud.firestore {
         }
 
         function validUnoCatch() {
-          return request.auth.uid == resource.data.currentPlayerUid
+          return resource.data.activePlayerIds.hasAny([request.auth.uid])
+            && request.auth.uid != resource.data.unoPendingUid
             && request.resource.data.lastActionBy == request.auth.uid
             && request.resource.data.lastActionType == 'catchUno'
             && request.resource.data.lastActionTargetUid == resource.data.unoPendingUid
@@ -1380,7 +1385,13 @@ service cloud.firestore {
                 && updatedMatch().handCounts[playerId] == request.resource.data.cards.size()
               )
               || (
-                request.auth.uid == currentMatch().currentPlayerUid
+                (
+                  request.auth.uid == currentMatch().currentPlayerUid
+                  || (
+                    updatedMatch().lastActionType == 'catchUno'
+                    && currentMatch().activePlayerIds.hasAny([request.auth.uid])
+                  )
+                )
                 && updatedMatch().lastActionBy == request.auth.uid
                 && updatedMatch().lastActionTargetUid == playerId
                 && updatedMatch().lastActionType in ['draw2', 'wild4', 'catchUno']
