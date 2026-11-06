@@ -2632,11 +2632,98 @@ function formatAdminExpiry(value) {
     }).format(date)}`;
 }
 
+// Accept Turkish and common English duration units. "s" means hour;
+// "sn" means second, as requested. Compound values such as "1s 30dk" add up.
+function parseAdminDuration(input) {
+    const source = String(input || "").trim().toLocaleLowerCase("tr-TR");
+    if (!source) return null;
+
+    const unitPattern = "(?:milisaniye(?:ler)?|milliseconds?|msecs?|ms|saniye(?:ler)?|seconds?|secs?|sn|dakika(?:lar)?|minutes?|mins?|dk|m|saat(?:ler)?|hours?|hrs?|sa|h|s|gün(?:ler)?|gun(?:ler)?|days?|d|hafta(?:lar)?|weeks?|w|ay(?:lar)?|months?|mos?|mo|yıl(?:lar)?|yil(?:lar)?|years?|yrs?|yr|y)";
+    const tokenPattern = new RegExp("(\\d+(?:[.,]\\d+)?)\\s*(" + unitPattern + ")", "iy");
+
+    const multipliers = {
+        milliseconds: 1,
+        seconds: 1000,
+        minutes: 60 * 1000,
+        hours: 60 * 60 * 1000,
+        days: 24 * 60 * 60 * 1000,
+        weeks: 7 * 24 * 60 * 60 * 1000,
+        months: 30 * 24 * 60 * 60 * 1000,
+        years: 365 * 24 * 60 * 60 * 1000
+    };
+
+    let position = 0;
+    let totalMs = 0;
+    let tokenCount = 0;
+
+    while (position < source.length) {
+        while (position < source.length && /[\\s+;,]/.test(source[position])) position++;
+        if (position >= source.length) break;
+
+        tokenPattern.lastIndex = position;
+        const match = tokenPattern.exec(source);
+        if (!match) return null;
+
+        const amount = Number(match[1].replace(",", "."));
+        if (!Number.isFinite(amount) || amount <= 0) return null;
+
+        const unit = match[2];
+        let category;
+        if (/^(?:ms|milisaniye|milliseconds?|msecs?)/.test(unit)) {
+            category = "milliseconds";
+        } else if (/^(?:sn|saniye|seconds?|secs?)/.test(unit)) {
+            category = "seconds";
+        } else if (/^(?:dk|dakika|minutes?|mins?|m)$/.test(unit)) {
+            category = "minutes";
+        } else if (/^(?:saat|sa|hours?|hrs?|h|s)$/.test(unit)) {
+            category = "hours";
+        } else if (/^(?:gün|gun|days?|d)/.test(unit)) {
+            category = "days";
+        } else if (/^(?:hafta|weeks?|w)/.test(unit)) {
+            category = "weeks";
+        } else if (/^(?:ay|months?|mos?|mo)/.test(unit)) {
+            category = "months";
+        } else if (/^(?:yıl|yil|years?|yrs?|yr|y)/.test(unit)) {
+            category = "years";
+        } else {
+            return null;
+        }
+
+        totalMs += amount * multipliers[category];
+        if (!Number.isFinite(totalMs) || totalMs > Number.MAX_SAFE_INTEGER) return null;
+        tokenCount++;
+        position = tokenPattern.lastIndex;
+    }
+
+    if (!tokenCount) return null;
+    const roundedMs = Math.round(totalMs);
+    return Number.isSafeInteger(roundedMs) && roundedMs > 0 ? roundedMs : null;
+}
+
+function syncAdminDurationInput() {
+    const isCustom = $("adminDurationSelect").value === "custom";
+    $("adminCustomDurationInput").hidden = !isCustom;
+    if (!isCustom) $("adminCustomDurationInput").value = "";
+    $("adminCustomDurationInput").setAttribute("aria-hidden", String(!isCustom));
+}
+
+$("adminDurationSelect").addEventListener("change", () => {
+    syncAdminDurationInput();
+    if ($("adminDurationSelect").value === "custom") {
+        $("adminCustomDurationInput").focus();
+    }
+});
+
 async function grantRoomAdmin() {
     if (!currentUser || activeRoomOwnerId !== currentUser.uid || !activeRoomId) return;
 
     const targetId = $("adminTargetSelect").value;
     const durationValue = $("adminDurationSelect").value;
+    const customDurationText = $("adminCustomDurationInput").value;
+    const customDurationMs = durationValue === "custom"
+        ? parseAdminDuration(customDurationText)
+        : null;
+
     if (!targetId) {
         $("adminManagementStatus").textContent = "Önce bir üye seç.";
         return;
@@ -2645,15 +2732,34 @@ async function grantRoomAdmin() {
         $("adminManagementStatus").textContent = "Oda sahibi zaten en yüksek yetkiye sahip.";
         return;
     }
+    if (durationValue === "custom" && customDurationMs === null) {
+        $("adminManagementStatus").textContent =
+            "Süreyi tanınan birimlerle yaz. Örnek: 1sn, 5 saniye, 1dk, 2saat veya 1s 30dk.";
+        $("adminCustomDurationInput").focus();
+        return;
+    }
 
     const button = $("grantAdminButton");
     button.disabled = true;
     $("adminManagementStatus").textContent = "Yetki veriliyor...";
 
     try {
-        const adminExpiresAt = durationValue === "permanent"
-            ? null
-            : Timestamp.fromDate(new Date(Date.now() + Number(durationValue)));
+        let adminExpiresAt = null;
+        if (durationValue !== "permanent") {
+            const durationMs = durationValue === "custom"
+                ? customDurationMs
+                : Number(durationValue);
+            const expiryDate = new Date(Date.now() + durationMs);
+            if (
+                !Number.isFinite(durationMs) ||
+                durationMs <= 0 ||
+                !Number.isFinite(expiryDate.getTime()) ||
+                expiryDate.getUTCFullYear() > 9999
+            ) {
+                throw new Error("Süre çok büyük veya geçersiz. Daha kısa bir süre yaz.");
+            }
+            adminExpiresAt = Timestamp.fromDate(expiryDate);
+        }
 
         await updateDoc(
             doc(db, "rooms", activeRoomId, "members", targetId),
