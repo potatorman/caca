@@ -4332,3 +4332,36 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .avatar-crop-actions { display: grid; grid-template-columns: 1fr 1fr; }
     .avatar-crop-actions button { padding: 0 8px; }
 }
+
+
+/* Flexible admin permission duration input */
+.admin-duration-field {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 6px;
+}
+.admin-duration-field select,
+.admin-custom-duration-input {
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    padding: 0 9px;
+    color: #e7f0ff;
+    background: #0d1725;
+    border: 1px solid #30445f;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 10px;
+}
+.admin-custom-duration-input::placeholder { color: #73859e; }
+.admin-custom-duration-input:focus,
+.admin-duration-field select:focus {
+    border-color: #4b8cff;
+    outline: 0;
+}
+.admin-custom-duration-input[hidden] { display: none !important; }
+@media (max-width: 620px) {
+    .admin-duration-field { grid-column: 1; }
+    .admin-assignment-controls .admin-grant-button { grid-column: 2; }
+}
