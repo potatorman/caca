@@ -180,10 +180,6 @@ async function collectDrawCards(transaction, db, roomId, round, state, count, di
         const topCard = discardPile[discardPile.length - 1];
         const recyclable = shuffleDeck(discardPile.slice(0, -1));
 
-        if (recyclable.length < count - cards.length) {
-            throw new Error("Çekilecek yeterli kart kalmadı.");
-        }
-
         const newIds = recyclable.map(() => createDocumentId());
         recyclable.forEach((card, index) => {
             transaction.set(drawCardRef(db, roomId, round, newIds[index]), {
@@ -194,10 +190,11 @@ async function collectDrawCards(transaction, db, roomId, round, state, count, di
 
         nextOrder = drawOrder.slice(0, state.drawIndex + fromCurrentDeck).concat(newIds);
         const needed = count - cards.length;
-        cards.push(...recyclable.slice(0, needed));
-        nextIndex += needed;
+        const recycledCount = Math.min(recyclable.length, needed);
+        cards.push(...recyclable.slice(0, recycledCount));
+        nextIndex += recycledCount;
         nextDiscard = [topCard];
-        recycled = true;
+        recycled = recyclable.length > 0;
     }
 
     return {
@@ -316,10 +313,12 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
             handCounts[targetUid] = (Number(handCounts[targetUid]) || 0) + drawnCards.length;
             nextTurnIndex = nextIndex(state, targetIndex, state.direction, 1);
 
-            transaction.update(handRef(db, roomId, round, targetUid), {
-                cards: arrayUnion(...drawnCards),
-                updatedAt: serverTimestamp()
-            });
+            if (drawnCards.length) {
+                transaction.update(handRef(db, roomId, round, targetUid), {
+                    cards: arrayUnion(...drawnCards),
+                    updatedAt: serverTimestamp()
+                });
+            }
         }
 
         transaction.update(playerHandDocument, {
@@ -385,6 +384,26 @@ export async function drawOneCard(db, roomId, round, uid) {
         const discardPile = state.discardPile || [state.topCard];
         const result = await collectDrawCards(transaction, db, roomId, round, state, 1, discardPile, uid);
         const card = result.cards[0];
+
+        if (!card) {
+            const next = nextIndex(state, state.currentPlayerIndex, state.direction, 1);
+            transaction.update(gameDocument, {
+                drawOrder: result.drawOrder,
+                drawIndex: result.drawIndex,
+                discardPile: result.discardPile,
+                deckRecycledBy: result.deckRecycledBy,
+                ...createNextTurnPatch(state, next, state.direction),
+                ...clearExpiredUno(state),
+                lastActionType: "pass",
+                lastActionBy: uid,
+                lastActionTargetUid: null,
+                lastActionDrawnCards: [],
+                lastPlayedCard: null,
+                updatedAt: serverTimestamp()
+            });
+            return { card: null, playable: false, empty: true };
+        }
+
         const canPlay = isCardPlayable(card, state.topCard, state.activeColor, hand);
         const handAfter = [...hand, card];
         const handCounts = { ...state.handCounts, [uid]: handAfter.length };
@@ -418,7 +437,7 @@ export async function drawOneCard(db, roomId, round, uid) {
             updatedAt: serverTimestamp()
         });
 
-        return { card, playable: canPlay };
+        return { card, playable: canPlay, empty: false };
     });
 }
 
@@ -495,10 +514,12 @@ export async function catchUno(db, roomId, round, uid) {
             uid
         );
 
-        transaction.update(handRef(db, roomId, round, targetUid), {
-            cards: arrayUnion(...result.cards),
-            updatedAt: serverTimestamp()
-        });
+        if (result.cards.length) {
+            transaction.update(handRef(db, roomId, round, targetUid), {
+                cards: arrayUnion(...result.cards),
+                updatedAt: serverTimestamp()
+            });
+        }
 
         const handCounts = {
             ...state.handCounts,
@@ -521,7 +542,7 @@ export async function catchUno(db, roomId, round, uid) {
             updatedAt: serverTimestamp()
         });
 
-        return { targetUid, count: 2 };
+        return { targetUid, count: result.cards.length };
     });
 }
 

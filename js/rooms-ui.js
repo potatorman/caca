@@ -1577,12 +1577,12 @@ function renderGameCenter() {
 
     const openMatchButton = $("openGameMatchButton");
     if (openMatchButton) {
-        openMatchButton.hidden = !(
-            session.gameId === "uno" &&
-            isPlaying &&
-            (isMatchPlayer || isSpectator)
-        );
-        openMatchButton.textContent = isSpectator ? "UNO masasını izle" : "UNO masasına gir";
+        const canViewUno = ["playing", "results"].includes(session.status) &&
+            (isMatchPlayer || isSpectator || (isResults && isLobbyPlayer));
+        openMatchButton.hidden = !(session.gameId === "uno" && canViewUno);
+        openMatchButton.textContent = isResults
+            ? "UNO sonuçlarını gör"
+            : isSpectator ? "UNO masasını izle" : "UNO masasına gir";
     }
     $("finishGameRoundButton").hidden = !isPlaying || !canManage || session.gameId === "uno";
     $("returnToLobbyButton").hidden = !isResults || !canManage;

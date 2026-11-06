@@ -1136,7 +1136,7 @@ service cloud.firestore {
             && request.resource.data.unoPendingUid == null
             && request.resource.data.turnNumber == resource.data.turnNumber
             && request.resource.data.status == 'playing'
-            && request.resource.data.lastActionDrawnCards.size() == 2;
+            && request.resource.data.lastActionDrawnCards.size() <= 2;
         }
 
         function validPlayerRemovalSync() {

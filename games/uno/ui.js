@@ -1,5 +1,6 @@
 import { getDoc, doc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 import { setAvatarElement } from "../../js/avatars.js";
+import { isCardPlayable } from "./engine.js";
 import {
     callUno,
     catchUno,
@@ -198,9 +199,15 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             button.className = "uno-card uno-card-" + (card.color || "wild");
             button.dataset.cardId = card.id;
             button.style.setProperty("--card-index", String(index));
-            button.disabled = !matchState || matchState.status !== "playing" ||
-                matchState.currentPlayerUid !== uid ||
-                (matchState.drewCardId && matchState.drewCardId !== card.id);
+            const isMyTurn = matchState?.status === "playing" && matchState.currentPlayerUid === uid;
+            const playable = isMyTurn && isCardPlayable(
+                card,
+                matchState.topCard,
+                matchState.activeColor,
+                cards
+            ) && (!matchState.drewCardId || matchState.drewCardId === card.id);
+            button.disabled = !playable;
+            button.classList.toggle("is-playable", Boolean(playable));
             const value = document.createElement("span");
             value.className = "uno-card-value";
             value.textContent = cardLabel(card);
@@ -310,9 +317,11 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         try {
             setMessage("Kart çekiliyor…");
             const result = await drawOneCard(db, roomId, round, uid);
-            setMessage(result.playable
-                ? "Çektiğin kartı oynayabilir veya sıranı bitirebilirsin."
-                : "Çektiğin kart oynanamıyor; sıra sonraki oyuncuya geçti.");
+            setMessage(result.empty
+                ? "Çekme destesi ve yeniden karıştırılabilecek kart kalmadı; sıra sonraki oyuncuya geçti."
+                : result.playable
+                    ? "Çektiğin kartı oynayabilir veya sıranı bitirebilirsin."
+                    : "Çektiğin kart oynanamıyor; sıra sonraki oyuncuya geçti.");
         } catch (error) {
             setMessage(error.message || "Kart çekilemedi.", true);
         }
@@ -339,7 +348,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     action("catch").addEventListener("click", async () => {
         try {
             const result = await catchUno(db, roomId, round, uid);
-            setMessage(playerLabel(result.targetUid, members, profiles) + " UNO demedi: 2 kart çekti.");
+            setMessage(playerLabel(result.targetUid, members, profiles) + " UNO demedi: " + result.count + " kart çekti.");
         } catch (error) {
             setMessage(error.message || "UNO yakalanamadı.", true);
         }
