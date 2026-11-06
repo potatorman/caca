@@ -563,15 +563,18 @@ service cloud.firestore {
             ])
             && data.gameId is string && data.gameId.size() >= 3 && data.gameId.size() <= 32
             && data.gameName is string && data.gameName.size() >= 2 && data.gameName.size() <= 40
-            && data.status in ['lobby', 'playing']
+            && data.status in ['lobby', 'starting', 'playing']
             && data.round is int && data.round >= 1
             && data.hostId is string
             && data.playerIds is list && data.playerIds.size() <= 20
+            && (data.gameId != 'uno' || data.playerIds.size() <= 10)
             && data.readyIds is list && data.readyIds.size() <= 20
             && data.readyIds.hasOnly(data.playerIds)
             && data.nextRoundPlayerIds is list && data.nextRoundPlayerIds.size() <= 20
             && data.nextRoundReadyIds is list && data.nextRoundReadyIds.size() <= 20
+            && (data.gameId != 'uno' || data.nextRoundPlayerIds.size() <= 10)
             && data.nextRoundReadyIds.hasOnly(data.nextRoundPlayerIds)
+            && (!data.keys().hasAny(['countdownEndsAt']) || data.countdownEndsAt == null || data.countdownEndsAt is timestamp)
             && data.createdAt is timestamp
             && (data.startedAt == null || data.startedAt is timestamp)
             && data.updatedAt is timestamp;
@@ -601,7 +604,7 @@ service cloud.firestore {
           && (
             request.resource.data.hostId == resource.data.hostId
             || (
-              resource.data.status == 'lobby'
+              resource.data.status in ['lobby', 'starting']
               && request.resource.data.status == 'lobby'
               && request.auth.uid == resource.data.hostId
               && resource.data.playerIds.hasAny([request.auth.uid])
@@ -612,7 +615,7 @@ service cloud.firestore {
               && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
               && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'hostId', 'playerIds', 'readyIds', 'updatedAt'
+                'hostId', 'playerIds', 'readyIds', 'updatedAt', 'status', 'countdownEndsAt'
               ])
             )
           )
@@ -671,17 +674,59 @@ service cloud.firestore {
                 )
               )
             )
-            // Start when every joined player is ready.
+            // Begin a shared three-second countdown when all players are ready.
             || (
               resource.data.status == 'lobby'
-              && request.resource.data.status == 'playing'
+              && request.resource.data.status == 'starting'
               && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['status', 'startedAt', 'updatedAt'])
+                .hasOnly(['status', 'countdownEndsAt', 'updatedAt'])
               && request.resource.data.playerIds == resource.data.playerIds
               && request.resource.data.readyIds == resource.data.readyIds
               && request.resource.data.playerIds.size() >= 2
+              && request.resource.data.playerIds.size() <= 10
+              && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
+              && request.resource.data.countdownEndsAt is timestamp
+            )
+            // Any ready player can cancel the countdown by unreadying themselves.
+            || (
+              resource.data.status == 'starting'
+              && request.resource.data.status == 'lobby'
+              && resource.data.playerIds == request.resource.data.playerIds
+              && request.resource.data.hostId == resource.data.hostId
+              && resource.data.readyIds.hasAny([request.auth.uid])
+              && resource.data.readyIds.size() == request.resource.data.readyIds.size() + 1
+              && resource.data.readyIds.hasAll(request.resource.data.readyIds)
+              && !request.resource.data.readyIds.hasAny([request.auth.uid])
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'countdownEndsAt', 'readyIds', 'updatedAt'])
+            )
+            // A player can leave during the countdown; the countdown is reset.
+            || (
+              resource.data.status == 'starting'
+              && request.resource.data.status == 'lobby'
+              && resource.data.playerIds.hasAny([request.auth.uid])
+              && !request.resource.data.playerIds.hasAny([request.auth.uid])
+              && resource.data.playerIds.size() == request.resource.data.playerIds.size() + 1
+              && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'countdownEndsAt', 'hostId', 'playerIds', 'readyIds', 'updatedAt'])
+            )
+            // Convert the countdown into a running game once its server timestamp has passed.
+            || (
+              resource.data.status == 'starting'
+              && request.resource.data.status == 'playing'
+              && resource.data.countdownEndsAt is timestamp
+              && request.time >= resource.data.countdownEndsAt
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'startedAt', 'countdownEndsAt', 'updatedAt'])
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
               && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
               && request.resource.data.startedAt is timestamp
+              && request.resource.data.countdownEndsAt == null
             )
             // Members in a running game can queue for the next round.
             || (
