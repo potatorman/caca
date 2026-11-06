@@ -4470,3 +4470,19 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .game-catalog-card, .game-catalog-placeholder { min-height: 116px; }
     #gameCenterEmptyState > #createGameSessionButton { width: 100%; }
 }
+
+
+.game-session-status.is-starting {
+    color: #c5d9ff;
+    background: #203450;
+    border-color: #4b6e9b;
+}
+.game-next-round-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.game-next-round-heading strong { color: #dce9f9; font-size: 11px; }
+.game-next-round-heading span { color: #9bb5d3; font-size: 10px; font-variant-numeric: tabular-nums; }
