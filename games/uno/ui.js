@@ -211,10 +211,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             button.dataset.cardId = card.id;
             button.style.setProperty("--card-index", String(index));
             const isMyTurn = matchState?.status === "playing" && matchState.currentPlayerUid === uid;
-            const mustCatchUno = matchState?.unoPendingUid &&
-                !matchState.unoCalled &&
-                matchState.unoPendingUid !== uid;
-            const playable = isMyTurn && !mustCatchUno && isCardPlayable(
+            const playable = isMyTurn && isCardPlayable(
                 card,
                 matchState.topCard,
                 matchState.activeColor,
@@ -401,7 +398,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                 latest.matchPlayerIds.includes(uid)) {
                 try {
                     await ensureMatch(db, roomId, round, uid);
-                    await reconcileMatchPlayers(db, roomId, round, uid, latest.matchPlayerIds || []);
+                    await reconcileMatchPlayers(db, roomId, round, uid);
                 } catch (error) {
                     setMessage(error.message || "Maç başlatılamadı.", true);
                 }

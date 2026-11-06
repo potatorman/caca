@@ -100,10 +100,6 @@ export async function ensureMatch(db, roomId, round, uid) {
         const activeSnapshot = await transaction.get(activeRef);
         const matchSnapshot = await transaction.get(gameRef);
 
-        if (matchSnapshot.exists()) {
-            return matchSnapshot.data();
-        }
-
         if (!activeSnapshot.exists()) {
             throw new Error("Kalıcı oyun lobisi bulunamadı.");
         }
@@ -117,6 +113,10 @@ export async function ensureMatch(db, roomId, round, uid) {
 
         if (playerIds.length < 2 || playerIds.length > 10 || !playerIds.includes(uid)) {
             throw new Error("UNO maçına yalnızca sabitlenmiş maç oyuncuları katılabilir.");
+        }
+
+        if (matchSnapshot.exists()) {
+            return matchSnapshot.data();
         }
 
         const deck = shuffleDeck(createUnoDeck());
@@ -563,7 +563,7 @@ export async function catchUno(db, roomId, round, uid) {
     });
 }
 
-export function reconcileMatchPlayers(db, roomId, round, uid, lobbyMatchPlayerIds) {
+export function reconcileMatchPlayers(db, roomId, round, uid) {
     return runTransaction(db, async (transaction) => {
         const activeDocument = sessionRef(db, roomId);
         const gameDocument = matchRef(db, roomId, round);
@@ -574,22 +574,34 @@ export function reconcileMatchPlayers(db, roomId, round, uid, lobbyMatchPlayerId
         const session = activeSnapshot.data();
         const state = gameSnapshot.data();
         if (session.status !== "playing" || state.status !== "playing") return false;
-        if (!Array.isArray(lobbyMatchPlayerIds) || !lobbyMatchPlayerIds.includes(uid)) return false;
 
-        const desired = state.playerIds.filter((playerId) => lobbyMatchPlayerIds.includes(playerId));
-        const current = Array.isArray(state.activePlayerIds) ? state.activePlayerIds : state.playerIds;
-        if (desired.length === current.length && desired.every((playerId, index) => playerId === current[index])) {
+        const lobbyMatchPlayers = Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [];
+        if (!lobbyMatchPlayers.includes(uid)) return false;
+
+        const previousPlayers = Array.isArray(state.activePlayerIds)
+            ? state.activePlayerIds
+            : state.playerIds;
+        const remainingPlayers = state.playerIds.filter((playerId) =>
+            lobbyMatchPlayers.includes(playerId)
+        );
+
+        if (
+            previousPlayers.length === remainingPlayers.length &&
+            previousPlayers.every((playerId, index) => playerId === remainingPlayers[index])
+        ) {
             return false;
         }
 
-        if (desired.length === 0) return false;
+        if (remainingPlayers.length === 0) return false;
 
-        if (desired.length === 1) {
-            const winnerId = desired[0];
+        if (remainingPlayers.length === 1) {
+            const winnerId = remainingPlayers[0];
             transaction.update(gameDocument, {
-                activePlayerIds: desired,
+                activePlayerIds: remainingPlayers,
                 currentPlayerIndex: 0,
                 currentPlayerUid: winnerId,
+                drewCardId: null,
+                drewCardPlayable: false,
                 status: "results",
                 winnerId,
                 unoPendingUid: null,
@@ -604,28 +616,35 @@ export function reconcileMatchPlayers(db, roomId, round, uid, lobbyMatchPlayerId
         }
 
         let nextUid = state.currentPlayerUid;
-        if (!desired.includes(nextUid)) {
-            let index = Number(state.currentPlayerIndex) || 0;
-            for (let attempts = 0; attempts < state.playerIds.length; attempts += 1) {
-                index = nextPlayerIndex(index, state.direction, state.playerIds.length, 1);
-                const candidate = state.playerIds[index];
-                if (desired.includes(candidate)) {
+        if (!remainingPlayers.includes(nextUid)) {
+            const oldIndex = Math.max(0, previousPlayers.indexOf(state.currentPlayerUid));
+            nextUid = remainingPlayers[0];
+
+            for (let step = 1; step <= previousPlayers.length; step += 1) {
+                const candidateIndex = (
+                    oldIndex + (state.direction === -1 ? -step : step) + previousPlayers.length * 2
+                ) % previousPlayers.length;
+                const candidate = previousPlayers[candidateIndex];
+                if (remainingPlayers.includes(candidate)) {
                     nextUid = candidate;
                     break;
                 }
             }
         }
 
+        const currentPlayerChanged = nextUid !== state.currentPlayerUid;
         transaction.update(gameDocument, {
-            activePlayerIds: desired,
-            currentPlayerIndex: desired.indexOf(nextUid),
+            activePlayerIds: remainingPlayers,
+            currentPlayerIndex: remainingPlayers.indexOf(nextUid),
             currentPlayerUid: nextUid,
-            unoPendingUid: desired.includes(state.unoPendingUid) ? state.unoPendingUid : null,
-            unoCalled: desired.includes(state.unoPendingUid) ? state.unoCalled : false,
+            drewCardId: currentPlayerChanged ? null : state.drewCardId,
+            drewCardPlayable: currentPlayerChanged ? false : state.drewCardPlayable,
+            unoPendingUid: remainingPlayers.includes(state.unoPendingUid) ? state.unoPendingUid : null,
+            unoCalled: remainingPlayers.includes(state.unoPendingUid) ? state.unoCalled : false,
             lastActionType: "player-left",
             lastActionBy: uid,
             updatedAt: serverTimestamp(),
-            turnStartedAt: nextUid !== state.currentPlayerUid ? serverTimestamp() : state.turnStartedAt
+            turnStartedAt: currentPlayerChanged ? serverTimestamp() : state.turnStartedAt
         });
         return true;
     });

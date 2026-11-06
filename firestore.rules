@@ -989,14 +989,6 @@ service cloud.firestore {
           return get(activeSessionPath()).data;
         }
 
-        function matchData() {
-          return get(matchPath()).data;
-        }
-
-        function matchDataAfter() {
-          return getAfter(matchPath()).data;
-        }
-
         function validUnoCard(card) {
           return card is map
             && card.keys().hasAll(['id', 'color', 'type', 'value'])
@@ -1184,10 +1176,6 @@ service cloud.firestore {
                 && request.resource.data.lastActionDrawnCards.size() == 0
                 && request.resource.data.drewCardId == null
               )
-            )
-            && (
-              resource.data.unoPendingUid == null
-              || resource.data.unoCalled == true
             )
             && (
               request.resource.data.status == 'playing'
@@ -1432,7 +1420,15 @@ service cloud.firestore {
 
           allow get: if isRoomMember(roomId)
             && currentMatch().status == 'playing'
-            && currentMatch().currentPlayerUid == request.auth.uid
+            && (
+              currentMatch().currentPlayerUid == request.auth.uid
+              || (
+                currentMatch().unoPendingUid != null
+                && currentMatch().unoCalled == false
+                && currentMatch().activePlayerIds.hasAny([request.auth.uid])
+                && request.auth.uid != currentMatch().unoPendingUid
+              )
+            )
             && activeSessionData().status == 'playing'
             && activeSessionData().matchPlayerIds.hasAny([request.auth.uid])
             && isNextDrawCard();
