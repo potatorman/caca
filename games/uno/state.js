@@ -85,9 +85,68 @@ export async function ensureMatch(db, roomId, round, uid) {
     return runTransaction(db, async (transaction) => {
         const activeRef = sessionRef(db, roomId);
         const gameRef = matchRef(db, roomId, round);
-        const activeSnapshot = await transaction.get(activeRef);
+        const ownHandDocument = handRef(db, roomId, round, uid);
         const matchSnapshot = await transaction.get(gameRef);
 
+        if (matchSnapshot.exists()) {
+            const ownHandSnapshot = await transaction.get(ownHandDocument);
+            const existingState = matchSnapshot.data();
+
+            if (ownHandSnapshot.exists()) {
+                return existingState;
+            }
+
+            const activeSnapshot = await transaction.get(activeRef);
+            if (!activeSnapshot.exists()) {
+                throw new Error("Kalıcı oyun lobisi bulunamadı.");
+            }
+
+            const session = activeSnapshot.data();
+            const activePlayers = Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [];
+            if (
+                session.status !== "playing" ||
+                session.gameId !== "uno" ||
+                Number(session.round) !== Number(round) ||
+                !activePlayers.includes(uid)
+            ) {
+                throw new Error("Eksik oyuncu eli yalnızca aktif maç oyuncusu tarafından onarılabilir.");
+            }
+
+            // Recover a missing private hand without exposing another player's cards.
+            const recovered = collectDrawCards(
+                existingState,
+                7,
+                existingState.discardPile || [existingState.topCard]
+            );
+            if (recovered.cards.length !== 7) {
+                throw new Error("Eksik oyuncu eli güvenli şekilde tamamlanamadı.");
+            }
+
+            const handCounts = {
+                ...(existingState.handCounts || {}),
+                [uid]: 7
+            };
+            transaction.update(gameRef, {
+                drawPile: recovered.drawPile,
+                discardPile: recovered.discardPile,
+                handCounts,
+                updatedAt: serverTimestamp()
+            });
+            transaction.set(ownHandDocument, {
+                cards: recovered.cards,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            return {
+                ...existingState,
+                drawPile: recovered.drawPile,
+                discardPile: recovered.discardPile,
+                handCounts
+            };
+        }
+
+        const activeSnapshot = await transaction.get(activeRef);
         if (!activeSnapshot.exists()) {
             throw new Error("Kalıcı oyun lobisi bulunamadı.");
         }
@@ -101,49 +160,6 @@ export async function ensureMatch(db, roomId, round, uid) {
 
         if (playerIds.length < 2 || playerIds.length > 10 || !playerIds.includes(uid)) {
             throw new Error("UNO maçına yalnızca sabitlenmiş maç oyuncuları katılabilir.");
-        }
-
-        if (matchSnapshot.exists()) {
-            const ownHandDocument = handRef(db, roomId, round, uid);
-            const ownHandSnapshot = await transaction.get(ownHandDocument);
-            const existingState = matchSnapshot.data();
-
-            // Recover a missing private hand without exposing another player's cards.
-            if (!ownHandSnapshot.exists()) {
-                const recovered = collectDrawCards(
-                    existingState,
-                    7,
-                    existingState.discardPile || [existingState.topCard]
-                );
-                if (recovered.cards.length !== 7) {
-                    throw new Error("Eksik oyuncu eli güvenli şekilde tamamlanamadı.");
-                }
-
-                const handCounts = {
-                    ...(existingState.handCounts || {}),
-                    [uid]: 7
-                };
-                transaction.update(gameRef, {
-                    drawPile: recovered.drawPile,
-                    discardPile: recovered.discardPile,
-                    handCounts,
-                    updatedAt: serverTimestamp()
-                });
-                transaction.set(ownHandDocument, {
-                    cards: recovered.cards,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                });
-
-                return {
-                    ...existingState,
-                    drawPile: recovered.drawPile,
-                    discardPile: recovered.discardPile,
-                    handCounts
-                };
-            }
-
-            return existingState;
         }
 
         const deck = shuffleDeck(createUnoDeck());
@@ -279,6 +295,14 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         let drawnCards = [];
         let targetHandDocument = null;
 
+        const activeSessionSnapshot = remainingHand.length === 0
+            ? await transaction.get(sessionRef(db, roomId))
+            : null;
+        if (remainingHand.length === 0 &&
+            (!activeSessionSnapshot?.exists() || activeSessionSnapshot.data().status !== "playing")) {
+            throw new Error("Kalıcı lobi maç bitişine hazır değil.");
+        }
+
         if (effect.drawCount > 0) {
             const targetIndex = nextIndex(state, currentIndex, state.direction, effect.targetIndexOffset);
             targetUid = playerIds[targetIndex];
@@ -319,18 +343,16 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         };
 
         if (remainingHand.length === 0) {
-            const activeRef = sessionRef(db, roomId);
-            if (!activeSnapshot.exists() || activeSnapshot.data().status !== "playing") {
-                throw new Error("Kalıcı lobi maç bitişine hazır değil.");
-            }
-
             patch.status = "results";
             patch.winnerId = uid;
             patch.unoPendingUid = null;
             patch.unoCalled = false;
             patch.finishedAt = serverTimestamp();
 
-            transaction.update(activeRef, makeResultSessionPatch(activeSnapshot.data()));
+            transaction.update(
+                sessionRef(db, roomId),
+                makeResultSessionPatch(activeSessionSnapshot.data())
+            );
         }
 
         transaction.update(gameDocument, patch);
