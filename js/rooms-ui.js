@@ -2033,9 +2033,7 @@ async function finishGameMatch() {
             const matchPlayers = Array.isArray(latest.matchPlayerIds)
                 ? latest.matchPlayerIds
                 : players;
-            // Legacy queued players from the previous lobby version are retained as lobby members once.
-            const legacyQueue = Array.isArray(latest.nextRoundPlayerIds) ? latest.nextRoundPlayerIds : [];
-            const persistentPlayers = [...new Set([...players, ...legacyQueue, ...spectators])];
+            const persistentPlayers = [...new Set([...players, ...spectators])];
 
             transaction.update(ref, {
                 status: "results",
