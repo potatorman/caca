@@ -710,6 +710,21 @@ service cloud.firestore {
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['status', 'countdownEndsAt', 'readyIds', 'updatedAt'])
             )
+            // A player can leave while the countdown is running; the countdown is cancelled.
+            || (
+              resource.data.status == 'starting'
+              && request.resource.data.status == 'lobby'
+              && request.resource.data.hostId == resource.data.hostId
+              && resource.data.playerIds.hasAny([request.auth.uid])
+              && !request.resource.data.playerIds.hasAny([request.auth.uid])
+              && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+              && spectators(request.resource.data) == spectators(resource.data)
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'countdownEndsAt', 'playerIds', 'readyIds', 'updatedAt'])
+            )
             // Start the shared countdown when every persistent lobby member is ready.
             || (
               resource.data.status == 'lobby'
@@ -717,8 +732,9 @@ service cloud.firestore {
               && request.resource.data.hostId == resource.data.hostId
               && request.resource.data.playerIds == resource.data.playerIds
               && request.resource.data.readyIds == resource.data.readyIds
-              && request.resource.data.matchPlayerIds == matchPlayers(resource.data)
+              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
               && request.resource.data.playerIds.size() >= 2
+              && (resource.data.gameId != 'uno' || request.resource.data.playerIds.size() <= 10)
               && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
               && request.resource.data.countdownEndsAt is timestamp
               && request.resource.data.diff(resource.data).affectedKeys()
@@ -781,9 +797,12 @@ service cloud.firestore {
               )
               && request.resource.data.playerIds.hasAll(resource.data.playerIds)
               && request.resource.data.playerIds.hasAll(spectators(resource.data))
+              && request.resource.data.playerIds.hasAll(resource.data.nextRoundPlayerIds)
               && request.resource.data.playerIds.size()
-                == resource.data.playerIds.size() + spectators(resource.data).size()
-              && request.resource.data.matchPlayerIds == matchPlayers(resource.data)
+                <= resource.data.playerIds.size()
+                  + spectators(resource.data).size()
+                  + resource.data.nextRoundPlayerIds.size()
+              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
               && request.resource.data.spectatorIds.size() == 0
               && request.resource.data.readyIds.size() == 0
               && request.resource.data.nextRoundPlayerIds.size() == 0
@@ -834,8 +853,8 @@ service cloud.firestore {
               && (
                 !resource.data.playerIds.hasAny([request.auth.uid])
                 || !request.resource.data.playerIds.hasAny([request.auth.uid])
-                || !resource.data.matchPlayerIds.hasAny([request.auth.uid])
-                || !request.resource.data.matchPlayerIds.hasAny([request.auth.uid])
+                || !matchPlayers(resource.data).hasAny([request.auth.uid])
+                || !matchPlayers(request.resource.data).hasAny([request.auth.uid])
                 || !spectators(request.resource.data).hasAny([request.auth.uid])
               )
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
