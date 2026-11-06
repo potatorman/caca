@@ -393,26 +393,6 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         });
     });
 
-    const activeRef = doc(db, "rooms", roomId, "gameSessions", "active");
-    const activeUnsubscribe = onSnapshot(
-        activeRef,
-        async (snapshot) => {
-            if (closed || !snapshot.exists()) return;
-            const latest = snapshot.data();
-
-            if (latest.status === "playing" && Array.isArray(latest.matchPlayerIds) &&
-                latest.matchPlayerIds.includes(uid)) {
-                try {
-                    await ensureMatch(db, roomId, round, uid);
-                    await reconcileMatchPlayers(db, roomId, round, uid);
-                } catch (error) {
-                    setMessage(error.message || "Maç başlatılamadı.", true);
-                }
-            }
-        },
-        (error) => setMessage(error.message || "Lobi bağlantısı koptu.", true)
-    );
-
     const matchUnsubscribe = subscribeToMatch(
         db,
         roomId,
@@ -433,7 +413,6 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     );
 
     unsubscribeMatch = () => {
-        activeUnsubscribe();
         matchUnsubscribe();
     };
 
