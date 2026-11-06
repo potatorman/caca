@@ -71,16 +71,10 @@ function buildInitialState(roomId, round, playerIds, dealerId, deck) {
         drawPile: deck.slice(dealCount + 1),
         handCounts,
         drewCardId: null,
-        drewCardPlayable: false,
         unoPendingUid: null,
         unoCalled: false,
         winnerId: null,
         turnNumber: 1,
-        lastActionType: "start",
-        lastActionBy: dealerId,
-        lastActionTargetUid: null,
-        lastActionDrawnCards: [],
-        lastPlayedCard: null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         turnStartedAt: serverTimestamp()
@@ -173,7 +167,6 @@ function createNextTurnPatch(state, index, direction, extra = {}) {
         currentPlayerUid: state.activePlayerIds[nextPlayerIndexValue],
         direction,
         drewCardId: null,
-        drewCardPlayable: false,
         turnNumber: (Number(state.turnNumber) || 0) + 1,
         turnStartedAt: serverTimestamp(),
         ...extra
@@ -290,11 +283,6 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
             ...createNextTurnPatch(state, nextTurnIndex, nextDirection),
             unoPendingUid: remainingHand.length === 1 ? uid : null,
             unoCalled: false,
-            lastActionType: effect.drawCount === 2 ? "draw2" : effect.drawCount === 4 ? "wild4" : "play",
-            lastActionBy: uid,
-            lastActionTargetUid: targetUid,
-            lastActionDrawnCards: drawnCards,
-            lastPlayedCard: card,
             updatedAt: serverTimestamp()
         };
 
@@ -348,11 +336,6 @@ export async function drawOneCard(db, roomId, round, uid) {
                 discardPile: result.discardPile,
                 ...createNextTurnPatch(state, next, state.direction),
                 ...clearExpiredUno(state),
-                lastActionType: "pass",
-                lastActionBy: uid,
-                lastActionTargetUid: null,
-                lastActionDrawnCards: [],
-                lastPlayedCard: null,
                 updatedAt: serverTimestamp()
             });
             return { card: null, playable: false, empty: true };
@@ -377,15 +360,9 @@ export async function drawOneCard(db, roomId, round, uid) {
             handCounts,
             ...createNextTurnPatch(state, nextIndexValue, state.direction, {
                 drewCardId: canPlay ? card.id : null,
-                drewCardPlayable: canPlay
             }),
             unoPendingUid: null,
             unoCalled: false,
-            lastActionType: "draw",
-            lastActionBy: uid,
-            lastActionTargetUid: null,
-            lastActionDrawnCards: [card],
-            lastPlayedCard: null,
             updatedAt: serverTimestamp()
         });
 
@@ -407,11 +384,6 @@ export async function endTurnAfterDraw(db, roomId, round, uid) {
         transaction.update(gameDocument, {
             ...createNextTurnPatch(state, next, state.direction),
             ...clearExpiredUno(state),
-            lastActionType: "pass",
-            lastActionBy: uid,
-            lastActionTargetUid: null,
-            lastActionDrawnCards: [],
-            lastPlayedCard: null,
             updatedAt: serverTimestamp()
         });
     });
@@ -432,10 +404,6 @@ export async function callUno(db, roomId, round, uid) {
 
         transaction.update(gameDocument, {
             unoCalled: true,
-            lastActionType: "callUno",
-            lastActionBy: uid,
-            lastActionTargetUid: null,
-            lastActionDrawnCards: [],
             updatedAt: serverTimestamp()
         });
     });
@@ -488,11 +456,6 @@ export async function catchUno(db, roomId, round, uid) {
             handCounts,
             unoPendingUid: null,
             unoCalled: false,
-            lastActionType: "catchUno",
-            lastActionBy: uid,
-            lastActionTargetUid: targetUid,
-            lastActionDrawnCards: result.cards,
-            lastPlayedCard: null,
             updatedAt: serverTimestamp()
         });
 
@@ -538,14 +501,11 @@ export function reconcileMatchPlayers(db, roomId, round, uid) {
                 currentPlayerIndex: 0,
                 currentPlayerUid: winnerId,
                 drewCardId: null,
-                drewCardPlayable: false,
                 status: "results",
                 winnerId,
                 unoPendingUid: null,
                 unoCalled: false,
                 finishedAt: serverTimestamp(),
-                lastActionType: "player-left",
-                lastActionBy: uid,
                 updatedAt: serverTimestamp()
             });
             transaction.update(activeDocument, makeResultSessionPatch(session));
@@ -575,11 +535,8 @@ export function reconcileMatchPlayers(db, roomId, round, uid) {
             currentPlayerIndex: remainingPlayers.indexOf(nextUid),
             currentPlayerUid: nextUid,
             drewCardId: currentPlayerChanged ? null : state.drewCardId,
-            drewCardPlayable: currentPlayerChanged ? false : state.drewCardPlayable,
             unoPendingUid: remainingPlayers.includes(state.unoPendingUid) ? state.unoPendingUid : null,
             unoCalled: remainingPlayers.includes(state.unoPendingUid) ? state.unoCalled : false,
-            lastActionType: "player-left",
-            lastActionBy: uid,
             updatedAt: serverTimestamp(),
             turnStartedAt: currentPlayerChanged ? serverTimestamp() : state.turnStartedAt
         });
@@ -607,11 +564,6 @@ export function skipTimedOutTurn(db, roomId, round, uid, timeoutMs = 90000) {
         transaction.update(gameDocument, {
             ...createNextTurnPatch(state, next, state.direction),
             ...clearExpiredUno(state),
-            lastActionType: "timeout",
-            lastActionBy: uid,
-            lastActionTargetUid: null,
-            lastActionDrawnCards: [],
-            lastPlayedCard: null,
             updatedAt: serverTimestamp()
         });
         return true;

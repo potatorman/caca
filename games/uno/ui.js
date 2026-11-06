@@ -119,7 +119,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     let selectedWildCardId = null;
     let unsubscribeMatch = null;
     let timeoutTimer = null;
-    let timeoutAttemptedTurn = null;
+    let timeoutAttemptedKey = null;
     let closed = false;
 
     $("hand-area").hidden = !(
@@ -443,17 +443,17 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         }
 
         const turnStartedAt = matchState.turnStartedAt?.toMillis?.();
-        const turnNumber = matchState.turnNumber;
+        const timeoutKey = String(matchState.turnNumber) + ":" + matchState.currentPlayerUid;
         if (!Number.isFinite(turnStartedAt) || Date.now() - turnStartedAt < 90000) return;
-        if (timeoutAttemptedTurn === turnNumber) return;
+        if (timeoutAttemptedKey === timeoutKey) return;
 
-        timeoutAttemptedTurn = turnNumber;
+        timeoutAttemptedKey = timeoutKey;
         skipTimedOutTurn(db, roomId, round, uid)
             .then((skipped) => {
-                if (!skipped) timeoutAttemptedTurn = null;
+                if (!skipped) timeoutAttemptedKey = null;
             })
             .catch((error) => {
-                timeoutAttemptedTurn = null;
+                timeoutAttemptedKey = null;
                 if (error.code !== "permission-denied") {
                     setMessage(error.message || "Sıra zaman aşımı denetlenemedi.", true);
                 }
