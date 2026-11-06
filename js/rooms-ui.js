@@ -2638,7 +2638,7 @@ function parseAdminDuration(input) {
     const source = String(input || "").trim().toLocaleLowerCase("tr-TR");
     if (!source) return null;
 
-    const unitPattern = "(?:milisaniye(?:ler)?|milliseconds?|msecs?|ms|saniye(?:ler)?|seconds?|secs?|sn|dakika(?:lar)?|minutes?|mins?|dk|m|saat(?:ler)?|hours?|hrs?|sa|h|s|gün(?:ler)?|gun(?:ler)?|days?|d|hafta(?:lar)?|weeks?|w|ay(?:lar)?|months?|mos?|mo|yıl(?:lar)?|yil(?:lar)?|years?|yrs?|yr|y)";
+    const unitPattern = "(?:milisaniye(?:ler)?|milliseconds?|msecs?|ms|saniye(?:ler)?|seconds?|secs?|sn|dakika(?:lar)?|minutes?|mins?|dk|saat(?:ler)?|hours?|hrs?|sa|h|s|gün(?:ler)?|gun(?:ler)?|days?|d|hafta(?:lar)?|weeks?|w|ay(?:lar)?|months?|mos?|mo|mth|mths|m|yıl(?:lar)?|yil(?:lar)?|years?|yrs?|yr|y)";
     const tokenPattern = new RegExp("(\\d+(?:[.,]\\d+)?)\\s*(" + unitPattern + ")", "iy");
 
     const multipliers = {
@@ -2657,7 +2657,7 @@ function parseAdminDuration(input) {
     let tokenCount = 0;
 
     while (position < source.length) {
-        while (position < source.length && /[\\s+;,]/.test(source[position])) position++;
+        while (position < source.length && /[\s+;,]/.test(source[position])) position++;
         if (position >= source.length) break;
 
         tokenPattern.lastIndex = position;
