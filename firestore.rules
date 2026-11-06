@@ -1334,7 +1334,8 @@ service cloud.firestore {
 
           allow get: if isRoomMember(roomId)
             && request.auth.uid == playerId
-            && currentMatch().playerIds.hasAny([request.auth.uid]);
+            && currentMatch().playerIds.hasAny([request.auth.uid])
+            && get(activeSessionPath()).data.matchPlayerIds.hasAny([request.auth.uid]);
 
           allow list: if false;
 
@@ -1350,6 +1351,10 @@ service cloud.firestore {
             && request.resource.data.updatedAt is timestamp;
 
           allow update: if isRoomMember(roomId)
+            && currentMatch().status == 'playing'
+            && get(activeSessionPath()).data.status == 'playing'
+            && get(activeSessionPath()).data.matchPlayerIds.hasAny([request.auth.uid])
+            && currentMatch().activePlayerIds.hasAny([playerId])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cards', 'updatedAt'])
             && request.resource.data.cards is list
             && request.resource.data.updatedAt is timestamp

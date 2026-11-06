@@ -72,7 +72,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                     <div class="uno-direction" data-role="direction">Yön: →</div>
                     <p class="uno-message" data-role="message" aria-live="polite"></p>
                 </div>
-                <div class="uno-hand-area">
+                <div class="uno-hand-area" data-role="hand-area">
                     <div class="uno-hand-heading">
                         <strong>Senin kartların</strong>
                         <span data-role="hand-count">0 kart</span>
@@ -120,6 +120,17 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     let unsubscribeMatch = null;
     let timeoutTimer = null;
     let closed = false;
+
+    $("hand-area").hidden = !(
+        session?.status === "playing" &&
+        Array.isArray(session?.matchPlayerIds) &&
+        session.matchPlayerIds.includes(uid)
+    );
+    action("leave").hidden = !(
+        session?.status === "playing" &&
+        Array.isArray(session?.matchPlayerIds) &&
+        session.matchPlayerIds.includes(uid)
+    );
 
     const setMessage = (message, error = false) => {
         $("message").textContent = message || "";
@@ -407,7 +418,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             renderHand();
         },
         (error) => setMessage(error.message || "UNO bağlantısı koptu.", true),
-        Boolean(session?.matchPlayerIds?.includes(uid))
+        Boolean(session?.status === "playing" && session?.matchPlayerIds?.includes(uid))
     );
 
     unsubscribeMatch = () => {
