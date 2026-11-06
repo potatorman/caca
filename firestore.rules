@@ -813,6 +813,15 @@ service cloud.firestore {
                 request.auth.uid == resource.data.hostId
                 || isRoomOwner(roomId)
                 || isActiveRoomAdmin(roomId)
+                || (
+                  resource.data.gameId == 'uno'
+                  && getAfter(
+                    /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+                  ).data.status == 'results'
+                  && getAfter(
+                    /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+                  ).data.winnerId == request.auth.uid
+                )
               )
               && request.resource.data.playerIds.hasAll(resource.data.playerIds)
               && request.resource.data.playerIds.hasAll(spectators(resource.data))
@@ -958,6 +967,376 @@ service cloud.firestore {
             || isRoomOwner(roomId)
             || isActiveRoomAdmin(roomId)
           );
+      }
+
+      // UNO matches are isolated from the persistent gameSessions/active document.
+      // Public match state contains counts and the top card; hands and draw cards
+      // live in separate private subcollections.
+      match /unoMatches/{roundId} {
+        function activeSessionPath() {
+          return /databases/$(database)/documents/rooms/$(roomId)/gameSessions/active;
+        }
+
+        function matchPath() {
+          return /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(roundId);
+        }
+
+        function handPath(playerId) {
+          return /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(roundId)/hands/$(playerId);
+        }
+
+        function activeSessionData() {
+          return get(activeSessionPath()).data;
+        }
+
+        function matchData() {
+          return get(matchPath()).data;
+        }
+
+        function matchDataAfter() {
+          return getAfter(matchPath()).data;
+        }
+
+        function validUnoCard(card) {
+          return card is map
+            && card.keys().hasAll(['id', 'color', 'type', 'value'])
+            && card.id is string
+            && card.id.size() >= 3
+            && card.id.size() <= 40
+            && (card.color == null || card.color in ['red', 'yellow', 'green', 'blue'])
+            && card.type in ['number', 'skip', 'reverse', 'draw2', 'wild', 'wild4']
+            && card.value is string;
+        }
+
+        function validUnoState(data) {
+          return data.keys().hasAll([
+              'roomId', 'round', 'status', 'playerIds', 'activePlayerIds',
+              'dealerId', 'direction', 'currentPlayerIndex', 'currentPlayerUid',
+              'activeColor', 'topCard', 'discardPile', 'drawOrder', 'drawIndex',
+              'handCounts', 'drewCardId', 'drewCardPlayable', 'unoPendingUid',
+              'unoCalled', 'winnerId', 'turnNumber', 'lastActionType',
+              'lastActionBy', 'lastActionTargetUid', 'lastActionDrawnCards',
+              'lastPlayedCard', 'deckRecycledBy', 'createdAt', 'updatedAt',
+              'turnStartedAt'
+            ])
+            && data.keys().hasOnly([
+              'roomId', 'round', 'status', 'playerIds', 'activePlayerIds',
+              'dealerId', 'direction', 'currentPlayerIndex', 'currentPlayerUid',
+              'activeColor', 'topCard', 'discardPile', 'drawOrder', 'drawIndex',
+              'handCounts', 'drewCardId', 'drewCardPlayable', 'unoPendingUid',
+              'unoCalled', 'winnerId', 'turnNumber', 'lastActionType',
+              'lastActionBy', 'lastActionTargetUid', 'lastActionDrawnCards',
+              'lastPlayedCard', 'deckRecycledBy', 'createdAt', 'updatedAt',
+              'turnStartedAt', 'finishedAt'
+            ])
+            && data.roomId == roomId
+            && data.round is int && data.round >= 1
+            && data.status in ['playing', 'results']
+            && data.playerIds is list
+            && data.playerIds.size() >= 2
+            && data.playerIds.size() <= 10
+            && data.activePlayerIds is list
+            && data.activePlayerIds.size() >= 1
+            && data.activePlayerIds.size() <= data.playerIds.size()
+            && data.playerIds.hasAll(data.activePlayerIds)
+            && data.dealerId is string
+            && data.playerIds.hasAny([data.dealerId])
+            && data.direction in [-1, 1]
+            && data.currentPlayerIndex is int
+            && data.currentPlayerIndex >= 0
+            && data.currentPlayerIndex < data.activePlayerIds.size()
+            && data.currentPlayerUid == data.activePlayerIds[data.currentPlayerIndex]
+            && data.activeColor in ['red', 'yellow', 'green', 'blue']
+            && validUnoCard(data.topCard)
+            && data.discardPile is list
+            && data.discardPile.size() >= 1
+            && data.discardPile.size() <= 108
+            && data.drawOrder is list
+            && data.drawOrder.size() >= 1
+            && data.drawOrder.size() <= 2000
+            && data.drawIndex is int
+            && data.drawIndex >= 0
+            && data.drawIndex <= data.drawOrder.size()
+            && data.handCounts is map
+            && data.handCounts.keys().hasAll(data.playerIds)
+            && (data.drewCardId == null || data.drewCardId is string)
+            && data.drewCardPlayable is bool
+            && (data.unoPendingUid == null || data.unoPendingUid is string)
+            && data.unoCalled is bool
+            && (data.winnerId == null || data.winnerId is string)
+            && data.turnNumber is int
+            && data.turnNumber >= 1
+            && data.lastActionType is string
+            && data.lastActionBy is string
+            && (data.lastActionTargetUid == null || data.lastActionTargetUid is string)
+            && data.lastActionDrawnCards is list
+            && data.lastActionDrawnCards.size() <= 4
+            && (data.lastPlayedCard == null || validUnoCard(data.lastPlayedCard))
+            && (data.deckRecycledBy == null || data.deckRecycledBy is string)
+            && data.createdAt is timestamp
+            && data.updatedAt is timestamp
+            && data.turnStartedAt is timestamp
+            && (!data.keys().hasAny(['finishedAt']) || data.finishedAt is timestamp);
+        }
+
+        function validUnoStateChanges() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'activePlayerIds', 'currentPlayerIndex', 'currentPlayerUid',
+            'direction', 'topCard', 'activeColor', 'discardPile', 'drawOrder',
+            'drawIndex', 'handCounts', 'drewCardId', 'drewCardPlayable',
+            'unoPendingUid', 'unoCalled', 'winnerId', 'turnNumber',
+            'lastActionType', 'lastActionBy', 'lastActionTargetUid',
+            'lastActionDrawnCards', 'lastPlayedCard', 'deckRecycledBy',
+            'updatedAt', 'turnStartedAt', 'finishedAt'
+          ])
+          && request.resource.data.roomId == resource.data.roomId
+          && request.resource.data.round == resource.data.round
+          && request.resource.data.playerIds == resource.data.playerIds
+          && request.resource.data.dealerId == resource.data.dealerId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && validUnoState(request.resource.data);
+        }
+
+        function validCurrentTurnAction() {
+          return request.auth.uid == resource.data.currentPlayerUid
+            && request.resource.data.lastActionBy == request.auth.uid
+            && request.resource.data.turnNumber == resource.data.turnNumber + 1
+            && request.resource.data.activePlayerIds == resource.data.activePlayerIds
+            && request.resource.data.lastActionType in ['play', 'draw2', 'wild4', 'draw', 'pass']
+            && (
+              request.resource.data.status == 'playing'
+              || (
+                request.resource.data.status == 'results'
+                && request.resource.data.winnerId == request.auth.uid
+                && getAfter(activeSessionPath()).data.status == 'results'
+                && getAfter(handPath(request.auth.uid)).data.cards.size() == 0
+              )
+            );
+        }
+
+        function validUnoCall() {
+          return request.auth.uid == resource.data.unoPendingUid
+            && resource.data.unoCalled == false
+            && request.resource.data.unoCalled == true
+            && request.resource.data.unoPendingUid == resource.data.unoPendingUid
+            && request.resource.data.turnNumber == resource.data.turnNumber
+            && request.resource.data.currentPlayerUid == resource.data.currentPlayerUid
+            && request.resource.data.lastActionType == 'callUno'
+            && request.resource.data.lastActionBy == request.auth.uid
+            && request.resource.data.status == 'playing';
+        }
+
+        function validUnoCatch() {
+          return request.auth.uid == resource.data.currentPlayerUid
+            && request.resource.data.lastActionBy == request.auth.uid
+            && request.resource.data.lastActionType == 'catchUno'
+            && request.resource.data.lastActionTargetUid == resource.data.unoPendingUid
+            && resource.data.unoPendingUid != null
+            && resource.data.unoCalled == false
+            && request.resource.data.unoPendingUid == null
+            && request.resource.data.turnNumber == resource.data.turnNumber
+            && request.resource.data.status == 'playing'
+            && request.resource.data.lastActionDrawnCards.size() == 2;
+        }
+
+        function validPlayerRemovalSync() {
+          return activeSessionData().status == 'playing'
+            && activeSessionData().matchPlayerIds is list
+            && activeSessionData().matchPlayerIds.hasAny([request.auth.uid])
+            && request.resource.data.activePlayerIds == activeSessionData().matchPlayerIds
+            && request.resource.data.activePlayerIds.size() < resource.data.activePlayerIds.size()
+            && request.resource.data.currentPlayerUid in request.resource.data.activePlayerIds
+            && request.resource.data.lastActionType == 'player-left'
+            && request.resource.data.lastActionBy == request.auth.uid
+            && request.resource.data.turnNumber == resource.data.turnNumber
+            && (
+              (
+                request.resource.data.activePlayerIds.size() > 1
+                && request.resource.data.status == 'playing'
+              )
+              || (
+                request.resource.data.activePlayerIds.size() == 1
+                && request.resource.data.status == 'results'
+                && request.resource.data.winnerId == request.resource.data.activePlayerIds[0]
+                && getAfter(activeSessionPath()).data.status == 'results'
+              )
+            );
+        }
+
+        function validTimedOutTurn() {
+          return request.auth.uid in resource.data.activePlayerIds
+            && request.resource.data.lastActionBy == request.auth.uid
+            && request.resource.data.lastActionType == 'timeout'
+            && request.resource.data.status == 'playing'
+            && request.resource.data.turnNumber == resource.data.turnNumber + 1
+            && request.resource.data.activePlayerIds == resource.data.activePlayerIds
+            && request.time > resource.data.turnStartedAt + duration.value(90, 's');
+        }
+
+        allow get: if isRoomMember(roomId);
+        allow list: if false;
+
+        allow create: if isRoomMember(roomId)
+          && exists(activeSessionPath())
+          && activeSessionData().gameId == 'uno'
+          && activeSessionData().status == 'playing'
+          && activeSessionData().round == request.resource.data.round
+          && activeSessionData().matchPlayerIds == request.resource.data.playerIds
+          && activeSessionData().matchPlayerIds.hasAny([request.auth.uid])
+          && validUnoState(request.resource.data)
+          && request.resource.data.status == 'playing'
+          && request.resource.data.activePlayerIds == request.resource.data.playerIds
+          && request.resource.data.dealerId == request.auth.uid
+          && request.resource.data.currentPlayerIndex == 0
+          && request.resource.data.currentPlayerUid == request.resource.data.playerIds[0]
+          && request.resource.data.direction == 1
+          && request.resource.data.winnerId == null
+          && request.resource.data.drawOrder.size() == 108
+          && request.resource.data.drawIndex == request.resource.data.playerIds.size() * 7 + 1
+          && request.resource.data.unoPendingUid == null
+          && request.resource.data.unoCalled == false;
+
+        allow update: if isRoomMember(roomId)
+          && exists(activeSessionPath())
+          && activeSessionData().gameId == 'uno'
+          && activeSessionData().round == resource.data.round
+          && resource.data.status == 'playing'
+          && activeSessionData().status == 'playing'
+          && validUnoStateChanges()
+          && (
+            validCurrentTurnAction()
+            || validUnoCall()
+            || validUnoCatch()
+            || validPlayerRemovalSync()
+            || validTimedOutTurn()
+          );
+
+        allow delete: if false;
+
+        match /hands/{playerId} {
+          function currentMatch() {
+            return get(matchPath()).data;
+          }
+
+          function updatedMatch() {
+            return getAfter(matchPath()).data;
+          }
+
+          allow get: if isRoomMember(roomId)
+            && request.auth.uid == playerId
+            && currentMatch().playerIds.hasAny([request.auth.uid]);
+
+          allow list: if false;
+
+          allow create: if isRoomMember(roomId)
+            && updatedMatch().status == 'playing'
+            && updatedMatch().dealerId == request.auth.uid
+            && updatedMatch().playerIds.hasAny([playerId])
+            && request.resource.data.keys().hasAll(['cards', 'createdAt', 'updatedAt'])
+            && request.resource.data.keys().hasOnly(['cards', 'createdAt', 'updatedAt'])
+            && request.resource.data.cards is list
+            && request.resource.data.cards.size() == 7
+            && request.resource.data.createdAt is timestamp
+            && request.resource.data.updatedAt is timestamp;
+
+          allow update: if isRoomMember(roomId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cards', 'updatedAt'])
+            && request.resource.data.cards is list
+            && request.resource.data.updatedAt is timestamp
+            && (
+              (
+                request.auth.uid == playerId
+                && updatedMatch().lastActionBy == request.auth.uid
+                && updatedMatch().lastActionType in ['play', 'draw2', 'wild4']
+                && resource.data.cards.size() == request.resource.data.cards.size() + 1
+                && resource.data.cards.hasAll(request.resource.data.cards)
+                && resource.data.cards.hasAny([updatedMatch().lastPlayedCard])
+                && !request.resource.data.cards.hasAny([updatedMatch().lastPlayedCard])
+                && updatedMatch().handCounts[playerId] == request.resource.data.cards.size()
+              )
+              || (
+                request.auth.uid == playerId
+                && updatedMatch().lastActionBy == request.auth.uid
+                && updatedMatch().lastActionType == 'draw'
+                && request.resource.data.cards.size() == resource.data.cards.size() + 1
+                && request.resource.data.cards.hasAll(resource.data.cards)
+                && updatedMatch().lastActionDrawnCards.size() == 1
+                && request.resource.data.cards.hasAll(updatedMatch().lastActionDrawnCards)
+                && updatedMatch().handCounts[playerId] == request.resource.data.cards.size()
+              )
+              || (
+                request.auth.uid == currentMatch().currentPlayerUid
+                && updatedMatch().lastActionBy == request.auth.uid
+                && updatedMatch().lastActionTargetUid == playerId
+                && updatedMatch().lastActionType in ['draw2', 'wild4', 'catchUno']
+                && request.resource.data.cards.size()
+                  == resource.data.cards.size() + updatedMatch().lastActionDrawnCards.size()
+                && request.resource.data.cards.hasAll(resource.data.cards)
+                && request.resource.data.cards.hasAll(updatedMatch().lastActionDrawnCards)
+                && updatedMatch().handCounts[playerId] == request.resource.data.cards.size()
+              )
+            );
+
+          allow delete: if false;
+        }
+
+        match /drawCards/{cardDocumentId} {
+          function currentMatch() {
+            return get(matchPath()).data;
+          }
+
+          function isNextDrawCard() {
+            return currentMatch().drawIndex < currentMatch().drawOrder.size()
+              && (
+                currentMatch().drawOrder[currentMatch().drawIndex] == cardDocumentId
+                || (
+                  currentMatch().drawIndex + 1 < currentMatch().drawOrder.size()
+                  && currentMatch().drawOrder[currentMatch().drawIndex + 1] == cardDocumentId
+                )
+                || (
+                  currentMatch().drawIndex + 2 < currentMatch().drawOrder.size()
+                  && currentMatch().drawOrder[currentMatch().drawIndex + 2] == cardDocumentId
+                )
+                || (
+                  currentMatch().drawIndex + 3 < currentMatch().drawOrder.size()
+                  && currentMatch().drawOrder[currentMatch().drawIndex + 3] == cardDocumentId
+                )
+              );
+          }
+
+          allow get: if isRoomMember(roomId)
+            && currentMatch().status == 'playing'
+            && currentMatch().currentPlayerUid == request.auth.uid
+            && activeSessionData().status == 'playing'
+            && activeSessionData().matchPlayerIds.hasAny([request.auth.uid])
+            && isNextDrawCard();
+
+          allow list: if false;
+
+          allow create: if isRoomMember(roomId)
+            && request.resource.data.keys().hasAll(['card', 'createdAt'])
+            && request.resource.data.keys().hasOnly(['card', 'createdAt'])
+            && validUnoCard(request.resource.data.card)
+            && request.resource.data.createdAt is timestamp
+            && (
+              (
+                updatedMatch().status == 'playing'
+                && updatedMatch().dealerId == request.auth.uid
+                && updatedMatch().drawOrder.hasAny([cardDocumentId])
+                && updatedMatch().drawOrder.size() == 108
+              )
+              || (
+                currentMatch().status == 'playing'
+                && activeSessionData().status == 'playing'
+                && activeSessionData().matchPlayerIds.hasAny([request.auth.uid])
+                && updatedMatch().deckRecycledBy == request.auth.uid
+                && updatedMatch().drawOrder.hasAny([cardDocumentId])
+                && !currentMatch().drawOrder.hasAny([cardDocumentId])
+              )
+            );
+
+          allow update, delete: if false;
+        }
       }
     }
 
