@@ -2635,10 +2635,10 @@ function formatAdminExpiry(value) {
 // Accept Turkish and common English duration units. "s" means hour;
 // "sn" means second, as requested. Compound values such as "1s 30dk" add up.
 function parseAdminDuration(input) {
-    const source = String(input || "").trim().toLocaleLowerCase("tr-TR");
+    const source = String(input || "").toLowerCase().replace(/\u0307/g, "").trim();
     if (!source) return null;
 
-    const unitPattern = "(?:milisaniye(?:ler)?|milliseconds?|msecs?|ms|saniye(?:ler)?|seconds?|secs?|sn|dakika(?:lar)?|minutes?|mins?|dk|saat(?:ler)?|hours?|hrs?|sa|gün(?:ler)?|gun(?:ler)?|days?|hafta(?:lar)?|weeks?|ay(?:lar)?|months?|mos?|mo|mth|mths|yıl(?:lar)?|yil(?:lar)?|years?|yrs?|yr|m|h|s|d|w|y)";
+    const unitPattern = "(?:milisaniye(?:ler)?|milliseconds?|msecs?|ms|saniye(?:ler)?|seconds?|secs?|sn|dakika(?:lar)?|minutes?|mins?|dk|saat(?:ler)?|hours?|hrs?|sa|gün(?:ler)?|gun(?:ler)?|days?|hafta(?:lar)?|weeks?|ay(?:lar)?|months?|mos?|mo|mth|mths|yıl(?:lar)?|yil(?:lar)?|years?|yrs?|yr|hf|g|m|h|s|d|w|y)";
     const tokenPattern = new RegExp("(\\d+(?:[.,]\\d+)?)\\s*(" + unitPattern + ")", "iy");
 
     const multipliers = {
@@ -2677,9 +2677,9 @@ function parseAdminDuration(input) {
             category = "minutes";
         } else if (/^(?:saat|sa|hours?|hrs?|h|s)$/.test(unit)) {
             category = "hours";
-        } else if (/^(?:gün|gun|days?|d)/.test(unit)) {
+        } else if (/^(?:gün|gun|days?|d|g)/.test(unit)) {
             category = "days";
-        } else if (/^(?:hafta|weeks?|w)/.test(unit)) {
+        } else if (/^(?:hafta|weeks?|w|hf)/.test(unit)) {
             category = "weeks";
         } else if (/^(?:ay|months?|mos?|mo|mth|mths)/.test(unit)) {
             category = "months";
