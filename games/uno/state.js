@@ -25,7 +25,6 @@ function handRef(db, roomId, round, uid) {
     return doc(db, "rooms", roomId, "unoMatches", String(round), "hands", uid);
 }
 
-
 function requirePlayingMatch(state, uid) {
     if (!state || state.status !== "playing") {
         throw new Error("Bu UNO maçı artık devam etmiyor.");
@@ -131,7 +130,6 @@ export async function ensureMatch(db, roomId, round, uid) {
                 updatedAt: serverTimestamp()
             });
         });
-
 
         return state;
     });
@@ -359,7 +357,7 @@ export async function drawOneCard(db, roomId, round, uid) {
             discardPile: result.discardPile,
             handCounts,
             ...createNextTurnPatch(state, nextIndexValue, state.direction, {
-                drewCardId: canPlay ? card.id : null,
+                drewCardId: canPlay ? card.id : null
             }),
             unoPendingUid: null,
             unoCalled: false,
