@@ -559,7 +559,7 @@ service cloud.firestore {
             && data.keys().hasOnly([
               'gameId', 'gameName', 'status', 'round', 'hostId',
               'playerIds', 'readyIds', 'nextRoundPlayerIds',
-              'nextRoundReadyIds', 'createdAt', 'startedAt', 'updatedAt'
+              'nextRoundReadyIds', 'createdAt', 'startedAt', 'updatedAt', 'countdownEndsAt'
             ])
             && data.gameId is string && data.gameId.size() >= 3 && data.gameId.size() <= 32
             && data.gameName is string && data.gameName.size() >= 2 && data.gameName.size() <= 40
@@ -742,6 +742,19 @@ service cloud.firestore {
               && request.resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
               && request.resource.data.nextRoundReadyIds.hasAll(resource.data.nextRoundReadyIds)
               && request.resource.data.nextRoundReadyIds.hasAll(request.resource.data.nextRoundPlayerIds)
+            )
+            // A queued player can remove only their own next-round queue entries.
+            || (
+              resource.data.status == 'playing'
+              && request.resource.data.status == 'playing'
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['nextRoundPlayerIds', 'nextRoundReadyIds', 'updatedAt'])
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
+              && !request.resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
+              && onlyRemovesSelf(resource.data.nextRoundPlayerIds, request.resource.data.nextRoundPlayerIds)
+              && onlyRemovesSelf(resource.data.nextRoundReadyIds, request.resource.data.nextRoundReadyIds)
             )
             // Players may remove only their own entries while leaving a running room.
             || (
