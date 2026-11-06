@@ -4365,3 +4365,10 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .admin-duration-field { grid-column: 1; }
     .admin-assignment-controls .admin-grant-button { grid-column: 2; }
 }
+
+.admin-duration-hint {
+    margin: 7px 1px 0;
+    color: #8297b2;
+    font-size: 10px;
+    line-height: 1.5;
+}
