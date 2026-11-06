@@ -4486,3 +4486,10 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 }
 .game-next-round-heading strong { color: #dce9f9; font-size: 11px; }
 .game-next-round-heading span { color: #9bb5d3; font-size: 10px; font-variant-numeric: tabular-nums; }
+
+
+.game-session-status.is-results {
+    color: #c9d8f1;
+    background: #26344a;
+    border-color: #536783;
+}
