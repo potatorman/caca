@@ -446,34 +446,43 @@
                                             <div>
                                                 <span class="small-label">ROOM GAMES</span>
                                                 <h3 id="gameCenterTitle">Eğlence Merkezi</h3>
-                                                <p>Oda oyunlarının lobisi, oyuncuları ve izleyicileri burada buluşur.</p>
+                                                <p>Bir oyun seç, lobiyi kur ve oda üyelerini davet et.</p>
                                             </div>
                                             <button id="closeGameCenterButton" class="icon-button" type="button" aria-label="Eğlence merkezini kapat">×</button>
                                         </div>
                                         <div class="game-center-intro">
-                                            <strong>Oyun alanı</strong>
-                                            <p>UNO ve benzeri oyunlar bu alana eklenecek. Şimdilik canlı lobi, hazır olma, izleyici ve sonraki tur sırası altyapısı kullanılabilir.</p>
+                                            <strong>Oda oyunları</strong>
+                                            <p>Her odada aynı anda bir oyun lobisi bulunur. Oyun seçimi ve lobi yönetimi buradan yapılır.</p>
                                         </div>
                                         <section id="gameCenterEmptyState" class="game-center-empty">
-                                            <div class="game-center-empty-icon">🎮</div>
-                                            <strong>Henüz açık bir oyun lobisi yok</strong>
-                                            <p>Bir lobi oluştur. Odaya katılan oyuncular hazır olduğunda oturum otomatik başlar.</p>
-                                            <button id="createGameSessionButton" class="primary-button" type="button">Oyun lobisi oluştur</button>
+                                            <div class="game-catalog-heading">
+                                                <div>
+                                                    <strong>Bir oyun seç</strong>
+                                                    <p>Seçtiğin oyun için bu odada yeni bir lobi oluşturulur.</p>
+                                                </div>
+                                            </div>
+                                            <div id="gameCatalogGrid" class="game-catalog-grid"></div>
+                                            <p class="game-catalog-note">UNO için lobi oluşturma ve oyuncu akışı kullanılabilir. Kart oyununun kendisi henüz geliştirme aşamasında.</p>
+                                            <button id="createGameSessionButton" class="primary-button" type="button">UNO lobisi oluştur</button>
                                         </section>
-                                            <p id="gameCenterStatus" class="game-center-status" role="status" aria-live="polite"></p>
+                                        <p id="gameCenterStatus" class="game-center-status" role="status" aria-live="polite"></p>
                                         <section id="gameSessionContent" class="game-session-content" hidden>
                                             <div class="game-session-topline">
                                                 <div>
                                                     <span class="small-label">AKTİF OTURUM</span>
-                                                    <h4 id="gameSessionName">Oda oyunu</h4>
+                                                    <h4 id="gameSessionName">UNO</h4>
                                                 </div>
                                                 <span id="gameSessionStatus" class="game-session-status">Lobi açık</span>
+                                            </div>
+                                            <div class="game-session-hostline">
+                                                <span>LOBİ SAHİBİ</span>
+                                                <strong id="gameSessionHost">—</strong>
                                             </div>
                                             <p id="gameSessionSummary" class="game-session-summary"></p>
                                             <div class="game-session-columns">
                                                 <section class="game-session-list-section">
                                                     <div class="game-session-list-heading">
-                                                        <strong id="gamePlayersHeading">Oyuncular</strong>
+                                                        <strong id="gamePlayersHeading">Lobi oyuncuları</strong>
                                                         <span id="gamePlayersCount">0</span>
                                                     </div>
                                                     <div id="gamePlayersList" class="game-session-member-list"></div>
