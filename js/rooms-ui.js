@@ -4441,6 +4441,7 @@ async function removeSelfFromActiveGame(roomId) {
         });
     } catch (error) {
         console.warn("CACA game participant cleanup failed:", error);
+        throw error;
     }
 }
 $("leaveRoomButton").addEventListener("click", async () => {
