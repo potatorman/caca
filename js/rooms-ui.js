@@ -3895,12 +3895,34 @@ async function manageMember(member, action) {
         if (gameSessionSnapshot.exists()) {
             const gameSession = gameSessionSnapshot.data();
             const participantFields = {};
+            const players = Array.isArray(gameSession.playerIds) ? gameSession.playerIds : [];
+            const remainingPlayers = players.filter((id) => id !== member.id);
+            const hostWasKicked = gameSession.hostId === member.id;
+            const wasPlayer = players.includes(member.id);
+
             for (const field of ["playerIds", "readyIds", "nextRoundPlayerIds", "nextRoundReadyIds"]) {
                 if (Array.isArray(gameSession[field]) && gameSession[field].includes(member.id)) {
                     participantFields[field] = arrayRemove(member.id);
                 }
             }
-            if (Object.keys(participantFields).length) {
+
+            if (gameSession.status === "starting" && wasPlayer) {
+                participantFields.status = "lobby";
+                participantFields.countdownEndsAt = null;
+            }
+
+            if (hostWasKicked && ["lobby", "starting"].includes(gameSession.status)) {
+                if (remainingPlayers.length === 0) {
+                    batch.delete(gameSessionRef);
+                } else {
+                    participantFields.playerIds = remainingPlayers;
+                    participantFields.hostId = remainingPlayers[0];
+                    batch.update(gameSessionRef, {
+                        ...participantFields,
+                        updatedAt: serverTimestamp()
+                    });
+                }
+            } else if (Object.keys(participantFields).length) {
                 batch.update(gameSessionRef, {
                     ...participantFields,
                     updatedAt: serverTimestamp()
@@ -4199,23 +4221,53 @@ async function deleteActiveRoom() {
 async function removeSelfFromActiveGame(roomId) {
     if (!currentUser || !roomId) return;
     try {
-        const sessionRef = doc(db, "rooms", roomId, "gameSessions", "active");
-        const snapshot = await getDoc(sessionRef);
-        if (!snapshot.exists()) return;
-        const session = snapshot.data();
-        const uid = currentUser.uid;
-        const fields = {};
-        for (const field of ["playerIds", "readyIds", "nextRoundPlayerIds", "nextRoundReadyIds"]) {
-            if (Array.isArray(session[field]) && session[field].includes(uid)) {
-                fields[field] = arrayRemove(uid);
+        await runTransaction(db, async (transaction) => {
+            const sessionRef = doc(db, "rooms", roomId, "gameSessions", "active");
+            const snapshot = await transaction.get(sessionRef);
+            if (!snapshot.exists()) return;
+
+            const session = snapshot.data();
+            const uid = currentUser.uid;
+            const players = Array.isArray(session.playerIds) ? session.playerIds : [];
+            const readyIds = Array.isArray(session.readyIds) ? session.readyIds : [];
+            const nextPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
+            const nextReady = Array.isArray(session.nextRoundReadyIds) ? session.nextRoundReadyIds : [];
+            const isHost = session.hostId === uid;
+            const isLobbyState = ["lobby", "starting"].includes(session.status);
+            const remainingPlayers = players.filter((id) => id !== uid);
+            const remainingReady = readyIds.filter((id) => id !== uid);
+            const remainingNextPlayers = nextPlayers.filter((id) => id !== uid);
+            const remainingNextReady = nextReady.filter((id) => id !== uid);
+            const hasParticipation = players.includes(uid)
+                || readyIds.includes(uid)
+                || nextPlayers.includes(uid)
+                || nextReady.includes(uid);
+
+            if (!hasParticipation && !(isHost && isLobbyState)) return;
+
+            if (isHost && isLobbyState && remainingPlayers.length === 0) {
+                transaction.delete(sessionRef);
+                return;
             }
-        }
-        if (Object.keys(fields).length) {
-            await updateDoc(sessionRef, {
-                ...fields,
+
+            const updates = {
                 updatedAt: serverTimestamp()
-            });
-        }
+            };
+            if (players.includes(uid)) updates.playerIds = remainingPlayers;
+            if (readyIds.includes(uid)) updates.readyIds = remainingReady;
+            if (nextPlayers.includes(uid)) updates.nextRoundPlayerIds = remainingNextPlayers;
+            if (nextReady.includes(uid)) updates.nextRoundReadyIds = remainingNextReady;
+
+            if (isLobbyState && session.status === "starting" && players.includes(uid)) {
+                updates.status = "lobby";
+                updates.countdownEndsAt = null;
+            }
+            if (isHost && isLobbyState) {
+                updates.hostId = remainingPlayers[0];
+            }
+
+            transaction.update(sessionRef, updates);
+        });
     } catch (error) {
         console.warn("CACA game participant cleanup failed:", error);
     }
