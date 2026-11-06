@@ -587,6 +587,7 @@ service cloud.firestore {
             && data.round is int && data.round >= 1
             && data.hostId is string
             && data.playerIds is list && data.playerIds.size() <= 20
+            && (data.gameId != 'uno' || data.playerIds.size() <= 10)
             && data.readyIds is list && data.readyIds.size() <= 20
             && data.readyIds.hasOnly(data.playerIds)
             && data.nextRoundPlayerIds is list && data.nextRoundPlayerIds.size() <= 20
@@ -648,6 +649,7 @@ service cloud.firestore {
                 .hasOnly(['playerIds', 'readyIds', 'updatedAt'])
               && !resource.data.playerIds.hasAny([request.auth.uid])
               && onlyAddsSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && (resource.data.gameId != 'uno' || request.resource.data.playerIds.size() <= 10)
               && request.resource.data.readyIds == resource.data.readyIds
               && matchPlayers(request.resource.data) == matchPlayers(resource.data)
               && spectators(request.resource.data) == spectators(resource.data)
@@ -797,11 +799,8 @@ service cloud.firestore {
               )
               && request.resource.data.playerIds.hasAll(resource.data.playerIds)
               && request.resource.data.playerIds.hasAll(spectators(resource.data))
-              && request.resource.data.playerIds.hasAll(resource.data.nextRoundPlayerIds)
               && request.resource.data.playerIds.size()
-                <= resource.data.playerIds.size()
-                  + spectators(resource.data).size()
-                  + resource.data.nextRoundPlayerIds.size()
+                == resource.data.playerIds.size() + spectators(resource.data).size()
               && matchPlayers(request.resource.data) == matchPlayers(resource.data)
               && request.resource.data.spectatorIds.size() == 0
               && request.resource.data.readyIds.size() == 0
