@@ -1,4 +1,4 @@
-import { getDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+import { getDoc, doc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 import { setAvatarElement } from "../../js/avatars.js";
 import { isCardPlayable } from "./engine.js";
 import {
@@ -8,7 +8,6 @@ import {
     endTurnAfterDraw,
     ensureMatch,
     playCard,
-    reconcileMatchPlayers,
     skipTimedOutTurn,
     subscribeToMatch
 } from "./state.js";
