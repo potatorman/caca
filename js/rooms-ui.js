@@ -4349,20 +4349,12 @@ async function removeSelfFromActiveGame(roomId) {
                 nextReady.includes(uid);
             if (!hasParticipation && !isHost) return;
 
-            let nextHostId = null;
-            let nextPlayerIds = remainingPlayers;
-            if (isHost) {
-                if (remainingPlayers.length) {
-                    nextHostId = remainingPlayers[0];
-                } else if (remainingSpectators.length) {
-                    nextHostId = remainingSpectators[0];
-                    nextPlayerIds = [nextHostId];
-                    remainingSpectators = remainingSpectators.slice(1);
-                } else {
-                    transaction.delete(sessionRef);
-                    return;
-                }
+            if (isHost && remainingPlayers.length === 0) {
+                transaction.delete(sessionRef);
+                return;
             }
+            const nextHostId = isHost ? remainingPlayers[0] : null;
+            const nextPlayerIds = remainingPlayers;
 
             const updates = {
                 playerIds: nextPlayerIds,
