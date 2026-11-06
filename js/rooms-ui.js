@@ -2638,7 +2638,7 @@ function parseAdminDuration(input) {
     const source = String(input || "").trim().toLocaleLowerCase("tr-TR");
     if (!source) return null;
 
-    const unitPattern = "(?:milisaniye(?:ler)?|milliseconds?|msecs?|ms|saniye(?:ler)?|seconds?|secs?|sn|dakika(?:lar)?|minutes?|mins?|dk|saat(?:ler)?|hours?|hrs?|sa|h|s|gün(?:ler)?|gun(?:ler)?|days?|d|hafta(?:lar)?|weeks?|w|ay(?:lar)?|months?|mos?|mo|mth|mths|m|yıl(?:lar)?|yil(?:lar)?|years?|yrs?|yr|y)";
+    const unitPattern = "(?:milisaniye(?:ler)?|milliseconds?|msecs?|ms|saniye(?:ler)?|seconds?|secs?|sn|dakika(?:lar)?|minutes?|mins?|dk|saat(?:ler)?|hours?|hrs?|sa|gün(?:ler)?|gun(?:ler)?|days?|hafta(?:lar)?|weeks?|ay(?:lar)?|months?|mos?|mo|mth|mths|yıl(?:lar)?|yil(?:lar)?|years?|yrs?|yr|m|h|s|d|w|y)";
     const tokenPattern = new RegExp("(\\d+(?:[.,]\\d+)?)\\s*(" + unitPattern + ")", "iy");
 
     const multipliers = {
@@ -2681,7 +2681,7 @@ function parseAdminDuration(input) {
             category = "days";
         } else if (/^(?:hafta|weeks?|w)/.test(unit)) {
             category = "weeks";
-        } else if (/^(?:ay|months?|mos?|mo)/.test(unit)) {
+        } else if (/^(?:ay|months?|mos?|mo|mth|mths)/.test(unit)) {
             category = "months";
         } else if (/^(?:yıl|yil|years?|yrs?|yr|y)/.test(unit)) {
             category = "years";
