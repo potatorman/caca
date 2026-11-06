@@ -1,13 +1,13 @@
 # UNO
 
-UNO, ortak CACA oyun lobisine bağlanacak ilk oyun modülüdür.
+UNO, CACA'nın oda başına kalıcı oyun lobisine bağlanan 2–10 oyunculu kart oyunudur.
 
-Bu klasörde tutulacak bileşenler:
+- `deck.js`: 108 kartlık deste ve karıştırma.
+- `engine.js`: Merkezi oynanabilirlik ve sıra kuralları.
+- `state.js`: Firestore maç oluşturma, atomik hamleler, özel eller ve canlı abonelik.
+- `ui.js`: Responsive masa ve kart arayüzü.
+- `index.js`: Oyun modülü giriş noktası.
 
-- Kart destesi ve karıştırma
-- Oyuncu elleri ve sıra yönetimi
-- Renk seçimi, +2, +4, pas geç, yön değiştir
-- Geçerli hamle denetimi
-- Tur/oyun sonu ve puanlama
+Maçlar `rooms/{roomId}/unoMatches/{round}` altında tutulur. Her oyuncunun eli kendi `hands/{uid}` belgesindedir; ortak `gameSessions/active` belgesine UNO kartları veya deste yazılmaz.
 
-Şu an yalnızca modül klasörü hazırdır; oynanabilir UNO motoru henüz eklenmemiştir.
+Güvenlik notu: Firestore Rules diğer oyuncuların ellerini okumayı engeller ve maç otoritesini sıra oyuncusuyla sınırlar. Ancak kart dağıtımı ve kurala uygunluk tamamen istemci kodunda yürütüldüğünden, tarayıcı kodunu değiştirebilen kötü niyetli bir oyuncuya karşı sunucu otoriteli / hileye dayanıklı değildir. Bunu sağlamak için Cloud Functions veya başka bir güvenilir sunucu bileşeni gerekir; mevcut sürüm ücretli altyapı gerektirmeyen istemci tabanlı sürümdür.

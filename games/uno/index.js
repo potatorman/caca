@@ -1,9 +1,12 @@
-// UNO module entry point.
-// The game engine will export its setup, state-transition and rendering APIs here.
+import { openUnoGame } from "./ui.js";
+
 export const unoGame = Object.freeze({
     id: "uno",
     name: "UNO",
-    status: "coming-soon",
+    status: "ready",
     minPlayers: 2,
-    maxPlayers: 10
+    maxPlayers: 10,
+    open: openUnoGame
 });
+
+export default unoGame;
