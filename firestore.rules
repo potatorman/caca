@@ -699,6 +699,23 @@ service cloud.firestore {
                 'matchPlayerIds', 'spectatorIds', 'updatedAt'
               ])
             )
+            // A previous-round host may no longer be in the current player list.
+            // On leaving, ownership still moves to the first persistent lobby member.
+            || (
+              resource.data.status in ['lobby', 'starting']
+              && request.resource.data.status == 'lobby'
+              && request.auth.uid == resource.data.hostId
+              && !resource.data.playerIds.hasAny([request.auth.uid])
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && request.resource.data.playerIds.size() >= 1
+              && request.resource.data.hostId == request.resource.data.playerIds[0]
+              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+              && spectators(request.resource.data) == spectators(resource.data)
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['hostId', 'status', 'countdownEndsAt', 'updatedAt'])
+            )
             // A ready player can cancel the countdown.
             || (
               resource.data.status == 'starting'
@@ -877,6 +894,22 @@ service cloud.firestore {
                 'hostId', 'playerIds', 'readyIds', 'matchPlayerIds', 'spectatorIds', 'updatedAt'
               ])
             )
+            // A previous-round host may leave while a match or result screen is active.
+            || (
+              resource.data.status in ['playing', 'results']
+              && request.resource.data.status == resource.data.status
+              && request.auth.uid == resource.data.hostId
+              && !resource.data.playerIds.hasAny([request.auth.uid])
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.playerIds.size() >= 1
+              && request.resource.data.hostId == request.resource.data.playerIds[0]
+              && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+              && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
+              && onlyRemovesSelf(spectators(resource.data), spectators(request.resource.data))
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'hostId', 'readyIds', 'matchPlayerIds', 'spectatorIds', 'updatedAt'
+              ])
+            )
             // Room staff can remove a kicked player/spectator and hand host ownership to the next lobby member.
             || (
               (isRoomOwner(roomId) || isActiveRoomAdmin(roomId))
@@ -895,8 +928,10 @@ service cloud.firestore {
               && (
                 request.resource.data.hostId == resource.data.hostId
                 || (
-                  resource.data.playerIds.hasAny([resource.data.hostId])
-                  && !request.resource.data.playerIds.hasAny([resource.data.hostId])
+                  (
+                    !resource.data.playerIds.hasAny([resource.data.hostId])
+                    || !request.resource.data.playerIds.hasAny([resource.data.hostId])
+                  )
                   && request.resource.data.playerIds.size() >= 1
                   && request.resource.data.hostId == request.resource.data.playerIds[0]
                 )
