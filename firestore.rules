@@ -1097,12 +1097,94 @@ service cloud.firestore {
           && validUnoState(request.resource.data);
         }
 
+        function actorHandBefore() {
+          return get(handPath(request.auth.uid)).data;
+        }
+
+        function actorHandAfter() {
+          return getAfter(handPath(request.auth.uid)).data;
+        }
+
+        function validPlayedCardHandMutation() {
+          return actorHandBefore().cards is list
+            && actorHandAfter().cards is list
+            && actorHandBefore().cards.size() == actorHandAfter().cards.size() + 1
+            && actorHandBefore().cards.hasAny([request.resource.data.lastPlayedCard])
+            && !actorHandAfter().cards.hasAny([request.resource.data.lastPlayedCard])
+            && actorHandBefore().cards.hasAll(actorHandAfter().cards)
+            && request.resource.data.handCounts[request.auth.uid] == actorHandAfter().cards.size()
+            && request.resource.data.lastPlayedCard == request.resource.data.topCard
+            && (
+              resource.data.drewCardId == null
+              || resource.data.drewCardId == request.resource.data.lastPlayedCard.id
+            );
+        }
+
+        function validDrawHandMutation() {
+          return actorHandBefore().cards is list
+            && actorHandAfter().cards is list
+            && actorHandAfter().cards.size() == actorHandBefore().cards.size() + 1
+            && actorHandAfter().cards.hasAll(actorHandBefore().cards)
+            && request.resource.data.lastActionDrawnCards.size() == 1
+            && actorHandAfter().cards.hasAll(request.resource.data.lastActionDrawnCards)
+            && request.resource.data.handCounts[request.auth.uid] == actorHandAfter().cards.size()
+            && request.resource.data.lastActionTargetUid == null;
+        }
+
+        function validTargetPenaltyHandMutation(maxCards) {
+          return request.resource.data.lastActionTargetUid is string
+            && request.resource.data.lastActionTargetUid != request.auth.uid
+            && resource.data.activePlayerIds.hasAny([request.resource.data.lastActionTargetUid])
+            && request.resource.data.lastActionDrawnCards.size() <= maxCards
+            && get(handPath(request.resource.data.lastActionTargetUid)).data.cards is list
+            && getAfter(handPath(request.resource.data.lastActionTargetUid)).data.cards is list
+            && getAfter(handPath(request.resource.data.lastActionTargetUid)).data.cards.size()
+              == get(handPath(request.resource.data.lastActionTargetUid)).data.cards.size()
+                + request.resource.data.lastActionDrawnCards.size()
+            && getAfter(handPath(request.resource.data.lastActionTargetUid)).data.cards.hasAll(
+              get(handPath(request.resource.data.lastActionTargetUid)).data.cards
+            )
+            && getAfter(handPath(request.resource.data.lastActionTargetUid)).data.cards.hasAll(
+              request.resource.data.lastActionDrawnCards
+            )
+            && request.resource.data.handCounts[request.resource.data.lastActionTargetUid]
+              == getAfter(handPath(request.resource.data.lastActionTargetUid)).data.cards.size();
+        }
+
         function validCurrentTurnAction() {
           return request.auth.uid == resource.data.currentPlayerUid
             && request.resource.data.lastActionBy == request.auth.uid
             && request.resource.data.turnNumber == resource.data.turnNumber + 1
             && request.resource.data.activePlayerIds == resource.data.activePlayerIds
-            && request.resource.data.lastActionType in ['play', 'draw2', 'wild4', 'draw', 'pass']
+            && (
+              (
+                request.resource.data.lastActionType == 'play'
+                && request.resource.data.lastActionTargetUid == null
+                && request.resource.data.lastActionDrawnCards.size() == 0
+                && validPlayedCardHandMutation()
+              )
+              || (
+                request.resource.data.lastActionType == 'draw2'
+                && validPlayedCardHandMutation()
+                && validTargetPenaltyHandMutation(2)
+              )
+              || (
+                request.resource.data.lastActionType == 'wild4'
+                && validPlayedCardHandMutation()
+                && validTargetPenaltyHandMutation(4)
+              )
+              || (
+                request.resource.data.lastActionType == 'draw'
+                && request.resource.data.lastActionTargetUid == null
+                && validDrawHandMutation()
+              )
+              || (
+                request.resource.data.lastActionType == 'pass'
+                && request.resource.data.lastActionTargetUid == null
+                && request.resource.data.lastActionDrawnCards.size() == 0
+                && request.resource.data.drewCardId == null
+              )
+            )
             && (
               request.resource.data.status == 'playing'
               || (
@@ -1123,7 +1205,14 @@ service cloud.firestore {
             && request.resource.data.currentPlayerUid == resource.data.currentPlayerUid
             && request.resource.data.lastActionType == 'callUno'
             && request.resource.data.lastActionBy == request.auth.uid
-            && request.resource.data.status == 'playing';
+            && request.resource.data.lastActionTargetUid == null
+            && request.resource.data.lastActionDrawnCards.size() == 0
+            && request.resource.data.status == 'playing'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'unoCalled', 'lastActionType', 'lastActionBy',
+              'lastActionTargetUid', 'lastActionDrawnCards', 'updatedAt'
+            ])
+            && get(handPath(request.auth.uid)).data.cards.size() == 1;
         }
 
         function validUnoCatch() {
@@ -1136,7 +1225,13 @@ service cloud.firestore {
             && request.resource.data.unoPendingUid == null
             && request.resource.data.turnNumber == resource.data.turnNumber
             && request.resource.data.status == 'playing'
-            && request.resource.data.lastActionDrawnCards.size() <= 2;
+            && validTargetPenaltyHandMutation(2)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'drawOrder', 'drawIndex', 'discardPile', 'deckRecycledBy',
+              'handCounts', 'unoPendingUid', 'unoCalled', 'lastActionType',
+              'lastActionBy', 'lastActionTargetUid', 'lastActionDrawnCards',
+              'lastPlayedCard', 'updatedAt'
+            ]);
         }
 
         function validPlayerRemovalSync() {
@@ -1149,6 +1244,12 @@ service cloud.firestore {
             && request.resource.data.lastActionType == 'player-left'
             && request.resource.data.lastActionBy == request.auth.uid
             && request.resource.data.turnNumber == resource.data.turnNumber
+            && request.resource.data.handCounts == resource.data.handCounts
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'activePlayerIds', 'currentPlayerIndex', 'currentPlayerUid',
+              'unoPendingUid', 'unoCalled', 'winnerId', 'finishedAt',
+              'lastActionType', 'lastActionBy', 'updatedAt', 'turnStartedAt'
+            ])
             && (
               (
                 request.resource.data.activePlayerIds.size() > 1
@@ -1170,7 +1271,15 @@ service cloud.firestore {
             && request.resource.data.status == 'playing'
             && request.resource.data.turnNumber == resource.data.turnNumber + 1
             && request.resource.data.activePlayerIds == resource.data.activePlayerIds
-            && request.time > resource.data.turnStartedAt + duration.value(90, 's');
+            && request.resource.data.handCounts == resource.data.handCounts
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'currentPlayerIndex', 'currentPlayerUid', 'direction',
+              'drewCardId', 'drewCardPlayable', 'turnNumber',
+              'unoPendingUid', 'unoCalled', 'lastActionType', 'lastActionBy',
+              'lastActionTargetUid', 'lastActionDrawnCards', 'lastPlayedCard',
+              'updatedAt', 'turnStartedAt'
+            ])
+            && request.requestTime > resource.data.turnStartedAt + duration.value(90, 's');
         }
 
         allow get: if isRoomMember(roomId);
