@@ -114,6 +114,8 @@ let gameSessionData = null;
 let gameSessionStartInProgress = false;
 let activeRoomOwnerId = null;
 let currentRoomMemberRecord = null;
+let currentAdminExpiryTimer = null;
+const expiredAdminCleanupInProgress = new Set();
 let memberRenderVersion = 0;
 let bannedRenderVersion = 0;
 let isDeletingRoom = false;
@@ -258,6 +260,8 @@ function stopMemberListener() {
     }
     gameSessionData = null;
     gameSessionStartInProgress = false;
+
+    clearCurrentAdminExpiryTimer();
 
     if (prankOverlayTimer) {
         clearTimeout(prankOverlayTimer);
@@ -2600,15 +2604,121 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
 
 // ROOM ADMIN ROLES
 
-function isActiveRoomAdmin(member) {
-    if (!member || member.role !== "admin") return false;
-    if (!member.adminExpiresAt) return true;
-
+function getAdminExpiryMs(member) {
+    if (!member?.adminExpiresAt) return null;
     const expiry = typeof member.adminExpiresAt.toDate === "function"
         ? member.adminExpiresAt.toDate()
         : new Date(member.adminExpiresAt);
+    return Number.isFinite(expiry.getTime()) ? expiry.getTime() : null;
+}
 
-    return Number.isFinite(expiry.getTime()) && expiry.getTime() > Date.now();
+function isActiveRoomAdmin(member) {
+    if (!member || member.role !== "admin") return false;
+    const expiryMs = getAdminExpiryMs(member);
+    return expiryMs === null || expiryMs > Date.now();
+}
+
+function clearCurrentAdminExpiryTimer() {
+    if (currentAdminExpiryTimer) {
+        clearTimeout(currentAdminExpiryTimer);
+        currentAdminExpiryTimer = null;
+    }
+}
+
+function syncCurrentAdminExpiry(roomId) {
+    clearCurrentAdminExpiryTimer();
+    const member = currentRoomMemberRecord;
+    if (
+        !member ||
+        member.id !== currentUser?.uid ||
+        member.role !== "admin"
+    ) return;
+
+    const expiryMs = getAdminExpiryMs(member);
+    if (expiryMs === null) return; // No expiry means permanent admin.
+
+    const runDemotion = async () => {
+        currentAdminExpiryTimer = null;
+        if (activeRoomId !== roomId || currentUser?.uid !== member.id) return;
+
+        const latest = currentRoomMemberRecord;
+        if (
+            !latest ||
+            latest.role !== "admin" ||
+            getAdminExpiryMs(latest) !== expiryMs
+        ) return; // Permission may have been renewed or changed.
+
+        // Small buffer avoids a client/server clock boundary race.
+        if (Date.now() < expiryMs + 1500) {
+            currentAdminExpiryTimer = setTimeout(
+                runDemotion,
+                Math.min(Math.max(expiryMs + 1500 - Date.now(), 500), 2147000000)
+            );
+            return;
+        }
+
+        try {
+            await updateDoc(doc(db, "rooms", roomId, "members", member.id), {
+                role: "member",
+                adminExpiresAt: null,
+                adminGrantedAt: null,
+                adminGrantedBy: null
+            });
+            console.info("CACA admin permission expired and was removed:", member.id, roomId);
+        } catch (error) {
+            // Security Rules also stop expired admins from using admin actions.
+            // If the cleanup write fails, the owner-side cleanup will retry when available.
+            console.warn("CACA expired admin self-demotion failed:", member.id, error);
+        }
+    };
+
+    const initialDelay = Math.max(500, Math.min(expiryMs + 1500 - Date.now(), 2147000000));
+    currentAdminExpiryTimer = setTimeout(runDemotion, initialDelay);
+}
+
+function cleanupExpiredRoomAdminsForOwner(roomId, members) {
+    if (activeRoomOwnerId !== currentUser?.uid || activeRoomId !== roomId) return;
+
+    const expired = members.filter((member) =>
+        member.id !== activeRoomOwnerId &&
+        member.role === "admin" &&
+        getAdminExpiryMs(member) !== null &&
+        getAdminExpiryMs(member) <= Date.now()
+    );
+    if (!expired.length) return;
+
+    const pendingIds = expired
+        .map((member) => member.id)
+        .filter((userId) => !expiredAdminCleanupInProgress.has(`${roomId}:${userId}`));
+    if (!pendingIds.length) return;
+
+    const batches = [];
+    for (let index = 0; index < pendingIds.length; index += 450) {
+        const batch = writeBatch(db);
+        pendingIds.slice(index, index + 450).forEach((userId) => {
+            expiredAdminCleanupInProgress.add(`${roomId}:${userId}`);
+            batch.update(doc(db, "rooms", roomId, "members", userId), {
+                role: "member",
+                adminExpiresAt: null,
+                adminGrantedAt: null,
+                adminGrantedBy: null
+            });
+        });
+        batches.push(batch.commit());
+    }
+
+    Promise.all(batches)
+        .then(() => {
+            console.info("CACA expired room admin records cleaned:", pendingIds.length, roomId);
+        })
+        .catch((error) => {
+            console.warn("CACA owner-side expired admin cleanup failed:", roomId, error);
+        })
+        .finally(() => {
+            pendingIds.forEach((userId) =>
+                expiredAdminCleanupInProgress.delete(`${roomId}:${userId}`)
+            );
+        });
 }
 
 function isCurrentUserRoomAdmin() {
@@ -2924,6 +3034,7 @@ function listenToMembers(roomId, ownerId) {
             currentRoomMemberRecord = ownMemberSnapshot
                 ? { id: ownMemberSnapshot.id, ...ownMemberSnapshot.data() }
                 : null;
+            syncCurrentAdminExpiry(roomId);
 
             const isOwnerViewing = activeRoomOwnerId === currentUser?.uid;
             const canAccessAdminPanel =
@@ -3026,6 +3137,7 @@ function listenToMembers(roomId, ownerId) {
             }
 
             activeRoomMembers = members;
+            cleanupExpiredRoomAdminsForOwner(roomId, members);
             renderJumpscareTargets();
             renderGameCenter();
 
