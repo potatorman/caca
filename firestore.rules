@@ -1200,6 +1200,7 @@ service cloud.firestore {
           && exists(activeSessionPath())
           && activeSessionData().gameId == 'uno'
           && activeSessionData().round == resource.data.round
+          && activeSessionData().matchPlayerIds.hasAny([request.auth.uid])
           && resource.data.status == 'playing'
           && activeSessionData().status == 'playing'
           && validUnoStateChanges()

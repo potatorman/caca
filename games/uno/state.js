@@ -180,8 +180,14 @@ async function collectDrawCards(transaction, db, roomId, round, state, count, di
         const topCard = discardPile[discardPile.length - 1];
         const recyclable = shuffleDeck(discardPile.slice(0, -1));
 
-        const newIds = recyclable.map(() => createDocumentId());
-        recyclable.forEach((card, index) => {
+        const needed = count - cards.length;
+        const recycledCount = Math.min(recyclable.length, needed);
+        cards.push(...recyclable.slice(0, recycledCount));
+
+        // Cards handed to the player directly are not also written into the draw pile.
+        const remainingRecycled = recyclable.slice(recycledCount);
+        const newIds = remainingRecycled.map(() => createDocumentId());
+        remainingRecycled.forEach((card, index) => {
             transaction.set(drawCardRef(db, roomId, round, newIds[index]), {
                 card,
                 createdAt: serverTimestamp()
@@ -189,12 +195,8 @@ async function collectDrawCards(transaction, db, roomId, round, state, count, di
         });
 
         nextOrder = drawOrder.slice(0, state.drawIndex + fromCurrentDeck).concat(newIds);
-        const needed = count - cards.length;
-        const recycledCount = Math.min(recyclable.length, needed);
-        cards.push(...recyclable.slice(0, recycledCount));
-        nextIndex += recycledCount;
         nextDiscard = [topCard];
-        recycled = recyclable.length > 0;
+        recycled = remainingRecycled.length > 0;
     }
 
     return {
