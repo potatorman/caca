@@ -4365,6 +4365,24 @@ async function deleteActiveRoom() {
 async function removeSelfFromActiveGame(roomId) {
     if (!currentUser || !roomId) return;
     try {
+        // Create the UNO deal before a room departure removes one of its players.
+        const activeSessionRef = doc(db, "rooms", roomId, "gameSessions", "active");
+        const activeSessionSnapshot = await getDoc(activeSessionRef);
+        if (activeSessionSnapshot.exists()) {
+            const activeSession = activeSessionSnapshot.data();
+            const activeMatchPlayers = Array.isArray(activeSession.matchPlayerIds)
+                ? activeSession.matchPlayerIds
+                : [];
+            if (
+                activeSession.gameId === "uno" &&
+                activeSession.status === "playing" &&
+                activeMatchPlayers.length >= 2 &&
+                activeMatchPlayers.includes(currentUser.uid)
+            ) {
+                await ensureUnoMatch(db, roomId, activeSession.round, currentUser.uid);
+            }
+        }
+
         await runTransaction(db, async (transaction) => {
             const sessionRef = doc(db, "rooms", roomId, "gameSessions", "active");
             const snapshot = await transaction.get(sessionRef);
