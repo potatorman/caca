@@ -248,13 +248,35 @@
                                                 <select id="adminTargetSelect" aria-label="Yönetici yapılacak üyeyi seç">
                                                     <option value="">Üye seç...</option>
                                                 </select>
-                                                <select id="adminDurationSelect" aria-label="Yönetici yetkisi süresi">
-                                                    <option value="permanent">Kalıcı</option>
-                                                    <option value="3600000">1 saat</option>
-                                                    <option value="86400000">1 gün</option>
-                                                    <option value="604800000">7 gün</option>
-                                                    <option value="2592000000">30 gün</option>
-                                                </select>
+                                                <div class="admin-duration-field">
+                                                    <select id="adminDurationSelect" aria-label="Yönetici yetkisi süresi">
+                                                        <option value="permanent">Kalıcı</option>
+                                                        <option value="1000">1 saniye</option>
+                                                        <option value="5000">5 saniye</option>
+                                                        <option value="10000">10 saniye</option>
+                                                        <option value="30000">30 saniye</option>
+                                                        <option value="60000">1 dakika</option>
+                                                        <option value="300000">5 dakika</option>
+                                                        <option value="900000">15 dakika</option>
+                                                        <option value="1800000">30 dakika</option>
+                                                        <option value="3600000">1 saat</option>
+                                                        <option value="21600000">6 saat</option>
+                                                        <option value="43200000">12 saat</option>
+                                                        <option value="86400000">1 gün</option>
+                                                        <option value="604800000">7 gün</option>
+                                                        <option value="2592000000">30 gün</option>
+                                                        <option value="custom">Özel süre yaz...</option>
+                                                    </select>
+                                                    <input
+                                                        id="adminCustomDurationInput"
+                                                        class="admin-custom-duration-input"
+                                                        type="text"
+                                                        placeholder="Örn. 1sn 30dk, 2saat"
+                                                        aria-label="Özel yönetici yetkisi süresi"
+                                                        autocomplete="off"
+                                                        hidden
+                                                    >
+                                                </div>
                                                 <button id="grantAdminButton" class="admin-grant-button" type="button">Yetki ver</button>
                                             </div>
                                             <p id="adminManagementStatus" class="admin-management-status" role="status" aria-live="polite"></p>
