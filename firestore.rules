@@ -683,7 +683,7 @@ service cloud.firestore {
               && request.resource.data.playerIds == resource.data.playerIds
               && request.resource.data.readyIds == resource.data.readyIds
               && request.resource.data.playerIds.size() >= 2
-              && request.resource.data.playerIds.size() <= 10
+              && (resource.data.gameId != 'uno' || request.resource.data.playerIds.size() <= 10)
               && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
               && request.resource.data.countdownEndsAt is timestamp
             )
