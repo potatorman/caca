@@ -844,11 +844,8 @@ service cloud.firestore {
             || (
               resource.data.status == 'results'
               && request.resource.data.status == 'lobby'
-              && (
-                request.auth.uid == resource.data.hostId
-                || isRoomOwner(roomId)
-                || isActiveRoomAdmin(roomId)
-              )
+              && resource.data.finishedAt is timestamp
+              && request.time >= resource.data.finishedAt + duration.value(5, 's')
               && request.resource.data.playerIds == resource.data.playerIds
               && request.resource.data.readyIds.size() == 0
               && request.resource.data.matchPlayerIds.size() == 0
