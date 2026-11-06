@@ -3985,22 +3985,29 @@ async function manageMember(member, action) {
             const gameSession = gameSessionSnapshot.data();
             const participantFields = {};
             const players = Array.isArray(gameSession.playerIds) ? gameSession.playerIds : [];
+            const matchPlayers = Array.isArray(gameSession.matchPlayerIds)
+                ? gameSession.matchPlayerIds
+                : (["playing", "results"].includes(gameSession.status) ? players : []);
+            const spectators = Array.isArray(gameSession.spectatorIds) ? gameSession.spectatorIds : [];
             const remainingPlayers = players.filter((id) => id !== member.id);
             const hostWasKicked = gameSession.hostId === member.id;
-            const wasPlayer = players.includes(member.id);
 
-            for (const field of ["playerIds", "readyIds", "nextRoundPlayerIds", "nextRoundReadyIds"]) {
-                if (Array.isArray(gameSession[field]) && gameSession[field].includes(member.id)) {
+            for (const field of ["playerIds", "readyIds", "matchPlayerIds", "spectatorIds", "nextRoundPlayerIds", "nextRoundReadyIds"]) {
+                const source = field === "matchPlayerIds" ? matchPlayers
+                    : field === "spectatorIds" ? spectators
+                    : gameSession[field];
+                if (Array.isArray(source) && source.includes(member.id)) {
                     participantFields[field] = arrayRemove(member.id);
                 }
             }
 
-            if (gameSession.status === "starting" && (wasPlayer || hostWasKicked)) {
+            if (gameSession.status === "starting" &&
+                (players.includes(member.id) || hostWasKicked)) {
                 participantFields.status = "lobby";
                 participantFields.countdownEndsAt = null;
             }
 
-            if (hostWasKicked && ["lobby", "starting"].includes(gameSession.status)) {
+            if (hostWasKicked) {
                 if (remainingPlayers.length === 0) {
                     batch.delete(gameSessionRef);
                 } else {
@@ -4319,41 +4326,60 @@ async function removeSelfFromActiveGame(roomId) {
             const uid = currentUser.uid;
             const players = Array.isArray(session.playerIds) ? session.playerIds : [];
             const readyIds = Array.isArray(session.readyIds) ? session.readyIds : [];
+            const matchPlayers = Array.isArray(session.matchPlayerIds)
+                ? session.matchPlayerIds
+                : (["playing", "results"].includes(session.status) ? players : []);
+            const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
             const nextPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
             const nextReady = Array.isArray(session.nextRoundReadyIds) ? session.nextRoundReadyIds : [];
             const isHost = session.hostId === uid;
-            const isLobbyState = ["lobby", "starting"].includes(session.status);
+
             const remainingPlayers = players.filter((id) => id !== uid);
             const remainingReady = readyIds.filter((id) => id !== uid);
+            const remainingMatchPlayers = matchPlayers.filter((id) => id !== uid);
+            let remainingSpectators = spectators.filter((id) => id !== uid);
             const remainingNextPlayers = nextPlayers.filter((id) => id !== uid);
             const remainingNextReady = nextReady.filter((id) => id !== uid);
-            const hasParticipation = players.includes(uid)
-                || readyIds.includes(uid)
-                || nextPlayers.includes(uid)
-                || nextReady.includes(uid);
 
-            if (!hasParticipation && !(isHost && isLobbyState)) return;
+            const hasParticipation = players.includes(uid) ||
+                readyIds.includes(uid) ||
+                matchPlayers.includes(uid) ||
+                spectators.includes(uid) ||
+                nextPlayers.includes(uid) ||
+                nextReady.includes(uid);
+            if (!hasParticipation && !isHost) return;
 
-            if (isHost && isLobbyState && remainingPlayers.length === 0) {
-                transaction.delete(sessionRef);
-                return;
+            let nextHostId = null;
+            let nextPlayerIds = remainingPlayers;
+            if (isHost) {
+                if (remainingPlayers.length) {
+                    nextHostId = remainingPlayers[0];
+                } else if (remainingSpectators.length) {
+                    nextHostId = remainingSpectators[0];
+                    nextPlayerIds = [nextHostId];
+                    remainingSpectators = remainingSpectators.slice(1);
+                } else {
+                    transaction.delete(sessionRef);
+                    return;
+                }
             }
 
             const updates = {
+                playerIds: nextPlayerIds,
+                readyIds: remainingReady,
+                matchPlayerIds: remainingMatchPlayers,
+                spectatorIds: remainingSpectators,
+                nextRoundPlayerIds: remainingNextPlayers,
+                nextRoundReadyIds: remainingNextReady,
                 updatedAt: serverTimestamp()
             };
-            if (players.includes(uid)) updates.playerIds = remainingPlayers;
-            if (readyIds.includes(uid)) updates.readyIds = remainingReady;
-            if (nextPlayers.includes(uid)) updates.nextRoundPlayerIds = remainingNextPlayers;
-            if (nextReady.includes(uid)) updates.nextRoundReadyIds = remainingNextReady;
 
-            if (isLobbyState && session.status === "starting" && (players.includes(uid) || isHost)) {
+            if (session.status === "starting" &&
+                (players.includes(uid) || isHost)) {
                 updates.status = "lobby";
                 updates.countdownEndsAt = null;
             }
-            if (isHost && isLobbyState) {
-                updates.hostId = remainingPlayers[0];
-            }
+            if (isHost) updates.hostId = nextHostId;
 
             transaction.update(sessionRef, updates);
         });
@@ -4361,7 +4387,6 @@ async function removeSelfFromActiveGame(roomId) {
         console.warn("CACA game participant cleanup failed:", error);
     }
 }
-
 $("leaveRoomButton").addEventListener("click", async () => {
     if (!currentUser || !activeRoomId) return;
 
