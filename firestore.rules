@@ -1279,7 +1279,7 @@ service cloud.firestore {
               'lastActionTargetUid', 'lastActionDrawnCards', 'lastPlayedCard',
               'updatedAt', 'turnStartedAt'
             ])
-            && request.requestTime > resource.data.turnStartedAt + duration.value(90, 's');
+            && request.time > resource.data.turnStartedAt + duration.value(90, 's');
         }
 
         allow get: if isRoomMember(roomId);
