@@ -1,4 +1,4 @@
-import { getDoc, doc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+import { getDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 import { setAvatarElement } from "../../js/avatars.js";
 import { isCardPlayable } from "./engine.js";
 import {
@@ -388,7 +388,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     });
 
     const activeRef = doc(db, "rooms", roomId, "gameSessions", "active");
-    const activeUnsubscribe = (await import("https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js")).onSnapshot(
+    const activeUnsubscribe = onSnapshot(
         activeRef,
         async (snapshot) => {
             if (closed || !snapshot.exists()) return;

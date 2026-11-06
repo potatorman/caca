@@ -1240,8 +1240,9 @@ service cloud.firestore {
             && request.resource.data.handCounts == resource.data.handCounts
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'status', 'activePlayerIds', 'currentPlayerIndex', 'currentPlayerUid',
-              'unoPendingUid', 'unoCalled', 'winnerId', 'finishedAt',
-              'lastActionType', 'lastActionBy', 'updatedAt', 'turnStartedAt'
+              'drewCardId', 'drewCardPlayable', 'unoPendingUid', 'unoCalled',
+              'winnerId', 'finishedAt', 'lastActionType', 'lastActionBy',
+              'updatedAt', 'turnStartedAt'
             ])
             && (
               (

@@ -2,10 +2,6 @@ import { UNO_COLORS } from "./deck.js";
 
 export { UNO_COLORS };
 
-export function isWildCard(card) {
-    return card?.type === "wild" || card?.type === "wild4";
-}
-
 export function hasColorCard(hand, color) {
     return Array.isArray(hand) && hand.some((card) =>
         card && card.color === color && card.type !== "wild" && card.type !== "wild4"
