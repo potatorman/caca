@@ -2013,6 +2013,9 @@ async function leaveCurrentMatch() {
         ? gameSessionData.matchPlayerIds
         : (gameSessionData.playerIds || []);
     if (!matchPlayers.includes(currentUser.uid)) return;
+    if (gameSessionData.gameId === "uno" && matchPlayers.length <= 1) {
+        throw new Error("Son maç oyuncususun. Masayı kapatabilirsin; lobi üyeliğin korunur.");
+    }
     try {
         // If nobody has opened the UNO table yet, create its initial state before
         // removing this player so the remaining player can resolve a forfeit.

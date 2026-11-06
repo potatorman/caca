@@ -257,6 +257,11 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
 
         action("draw").disabled = !isMyTurn || Boolean(matchState.drewCardId);
         action("end-turn").hidden = !isMyTurn || !matchState.drewCardId;
+        action("leave").hidden = matchState.status !== "playing" || !matchState.activePlayerIds?.includes(uid);
+        action("leave").disabled = (matchState.activePlayerIds?.length || 0) <= 1;
+        action("leave").title = action("leave").disabled
+            ? "Son oyuncusun; maç sonucu otomatik tamamlanacak."
+            : "Maçtan ayrıl";
         action("uno").hidden = !(matchState.unoPendingUid === uid && !matchState.unoCalled && matchState.status === "playing");
         action("catch").hidden = !(
             matchState.activePlayerIds?.includes(uid) &&
