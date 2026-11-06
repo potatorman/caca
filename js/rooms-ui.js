@@ -1417,9 +1417,7 @@ function renderGameCatalog() {
         icon.textContent = game.icon || "🎮";
         const status = document.createElement("span");
         status.className = "game-catalog-status";
-        status.textContent = game.status === "ready"
-            ? "OYNANABİLİR"
-            : canCreateLobby ? "LOBİ TESTİ" : "YAKINDA";
+        status.textContent = game.status === "ready" ? "OYNANABİLİR" : "YAKINDA";
         top.append(icon, status);
 
         const name = document.createElement("strong");
@@ -1578,7 +1576,9 @@ function renderGameCenter() {
     }
 
     if (isPlaying && isPlayer) {
-        setGameCenterStatus("Oyuncu olarak bu turdasın. Sonraki tur için sıraya şimdi girebilirsin.");
+        setGameCenterStatus(isQueued
+            ? "Oyuncusun ve sonraki tur için sıradasın. İstersen sıradan çıkabilirsin."
+            : "Oyuncu olarak bu turdasın. Sonraki tur için sıraya şimdi girebilirsin.");
     } else if (isPlaying) {
         setGameCenterStatus(isQueued
             ? "Sonraki tur için sıradasın. İstersen sıradan çıkabilirsin."
@@ -1634,7 +1634,7 @@ async function completeGameStartCountdown(roomId, expectedEndAt, retry = 0) {
     } catch (error) {
         if (
             error.code === "permission-denied" &&
-            retry < 2 &&
+            retry < 8 &&
             activeRoomId === roomId &&
             gameSessionData?.status === "starting"
         ) {
