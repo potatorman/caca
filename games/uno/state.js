@@ -251,7 +251,6 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         const playerHandDocument = handRef(db, roomId, round, uid);
         const gameSnapshot = await transaction.get(gameDocument);
         const handSnapshot = await transaction.get(playerHandDocument);
-        const activeSnapshot = await transaction.get(sessionRef(db, roomId));
 
         if (!gameSnapshot.exists() || !handSnapshot.exists()) {
             throw new Error("Maç veya oyuncu eli bulunamadı.");
