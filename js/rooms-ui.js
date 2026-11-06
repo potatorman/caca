@@ -115,6 +115,7 @@ let gameSessionStartInProgress = false;
 let activeRoomOwnerId = null;
 let currentRoomMemberRecord = null;
 let currentAdminExpiryTimer = null;
+let ownerAdminExpiryTimer = null;
 const expiredAdminCleanupInProgress = new Set();
 let memberRenderVersion = 0;
 let bannedRenderVersion = 0;
@@ -262,6 +263,7 @@ function stopMemberListener() {
     gameSessionStartInProgress = false;
 
     clearCurrentAdminExpiryTimer();
+    clearOwnerAdminExpiryTimer();
 
     if (prankOverlayTimer) {
         clearTimeout(prankOverlayTimer);
@@ -2721,6 +2723,54 @@ function cleanupExpiredRoomAdminsForOwner(roomId, members) {
         });
 }
 
+function clearOwnerAdminExpiryTimer() {
+    if (ownerAdminExpiryTimer) {
+        clearTimeout(ownerAdminExpiryTimer);
+        ownerAdminExpiryTimer = null;
+    }
+}
+
+function scheduleOwnerAdminExpiryCleanup(roomId, members) {
+    clearOwnerAdminExpiryTimer();
+    if (activeRoomId !== roomId || activeRoomOwnerId !== currentUser?.uid) return;
+
+    const now = Date.now();
+    const nextExpiry = members
+        .filter((member) => member.id !== activeRoomOwnerId && member.role === "admin")
+        .map(getAdminExpiryMs)
+        .filter((expiryMs) => Number.isFinite(expiryMs) && expiryMs > now)
+        .sort((a, b) => a - b)[0];
+
+    if (nextExpiry === undefined) return;
+
+    const delay = Math.max(500, Math.min(nextExpiry + 1500 - now, 2147000000));
+    ownerAdminExpiryTimer = setTimeout(async () => {
+        ownerAdminExpiryTimer = null;
+        if (activeRoomId !== roomId || activeRoomOwnerId !== currentUser?.uid) return;
+
+        try {
+            const snapshot = await getDocs(collection(db, "rooms", roomId, "members"));
+            if (activeRoomId !== roomId || activeRoomOwnerId !== currentUser?.uid) return;
+
+            const latestMembers = snapshot.docs.map((memberDoc) => ({
+                id: memberDoc.id,
+                ...memberDoc.data()
+            }));
+            cleanupExpiredRoomAdminsForOwner(roomId, latestMembers);
+            scheduleOwnerAdminExpiryCleanup(roomId, latestMembers);
+        } catch (error) {
+            console.warn("CACA owner admin expiry check failed:", roomId, error);
+            // Retry a failed read while the owner remains in this room.
+            if (activeRoomId === roomId && activeRoomOwnerId === currentUser?.uid) {
+                ownerAdminExpiryTimer = setTimeout(
+                    () => scheduleOwnerAdminExpiryCleanup(roomId, members),
+                    5000
+                );
+            }
+        }
+    }, delay);
+}
+
 function isCurrentUserRoomAdmin() {
     return isActiveRoomAdmin(currentRoomMemberRecord);
 }
@@ -3035,6 +3085,15 @@ function listenToMembers(roomId, ownerId) {
                 ? { id: ownMemberSnapshot.id, ...ownMemberSnapshot.data() }
                 : null;
             syncCurrentAdminExpiry(roomId);
+            if (activeRoomOwnerId === currentUser?.uid) {
+                scheduleOwnerAdminExpiryCleanup(
+                    roomId,
+                    snapshot.docs.map((memberDoc) => ({
+                        id: memberDoc.id,
+                        ...memberDoc.data()
+                    }))
+                );
+            }
 
             const isOwnerViewing = activeRoomOwnerId === currentUser?.uid;
             const canAccessAdminPanel =
