@@ -1,6 +1,7 @@
 import {
     arrayUnion,
     doc,
+    onSnapshot,
     runTransaction,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
@@ -251,6 +252,7 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         const playerHandDocument = handRef(db, roomId, round, uid);
         const gameSnapshot = await transaction.get(gameDocument);
         const handSnapshot = await transaction.get(playerHandDocument);
+        const activeSnapshot = await transaction.get(sessionRef(db, roomId));
 
         if (!gameSnapshot.exists() || !handSnapshot.exists()) {
             throw new Error("Maç veya oyuncu eli bulunamadı.");
@@ -346,7 +348,6 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
 
         if (remainingHand.length === 0) {
             const activeRef = sessionRef(db, roomId);
-            const activeSnapshot = await transaction.get(activeRef);
             if (!activeSnapshot.exists() || activeSnapshot.data().status !== "playing") {
                 throw new Error("Kalıcı lobi maç bitişine hazır değil.");
             }
@@ -524,24 +525,117 @@ export async function catchUno(db, roomId, round, uid) {
     });
 }
 
-export function subscribeToMatch(db, roomId, round, uid, onState, onHand, onError) {
-    const gameUnsubscribe = (async () => {
-        const { onSnapshot } = await import("https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js");
-        return onSnapshot(matchRef(db, roomId, round), (snapshot) => {
+export function reconcileMatchPlayers(db, roomId, round, uid, lobbyMatchPlayerIds) {
+    return runTransaction(db, async (transaction) => {
+        const activeDocument = sessionRef(db, roomId);
+        const gameDocument = matchRef(db, roomId, round);
+        const activeSnapshot = await transaction.get(activeDocument);
+        const gameSnapshot = await transaction.get(gameDocument);
+        if (!activeSnapshot.exists() || !gameSnapshot.exists()) return false;
+
+        const session = activeSnapshot.data();
+        const state = gameSnapshot.data();
+        if (session.status !== "playing" || state.status !== "playing") return false;
+        if (!Array.isArray(lobbyMatchPlayerIds) || !lobbyMatchPlayerIds.includes(uid)) return false;
+
+        const desired = state.playerIds.filter((playerId) => lobbyMatchPlayerIds.includes(playerId));
+        const current = Array.isArray(state.activePlayerIds) ? state.activePlayerIds : state.playerIds;
+        if (desired.length === current.length && desired.every((playerId, index) => playerId === current[index])) {
+            return false;
+        }
+
+        if (desired.length === 0) return false;
+
+        if (desired.length === 1) {
+            const winnerId = desired[0];
+            transaction.update(gameDocument, {
+                activePlayerIds: desired,
+                currentPlayerIndex: 0,
+                currentPlayerUid: winnerId,
+                status: "results",
+                winnerId,
+                unoPendingUid: null,
+                unoCalled: false,
+                finishedAt: serverTimestamp(),
+                lastActionType: "forfeit",
+                lastActionBy: uid,
+                updatedAt: serverTimestamp()
+            });
+            transaction.update(activeDocument, makeResultSessionPatch(session));
+            return true;
+        }
+
+        let nextUid = state.currentPlayerUid;
+        if (!desired.includes(nextUid)) {
+            let index = Number(state.currentPlayerIndex) || 0;
+            for (let attempts = 0; attempts < state.playerIds.length; attempts += 1) {
+                index = nextPlayerIndex(index, state.direction, state.playerIds.length, 1);
+                const candidate = state.playerIds[index];
+                if (desired.includes(candidate)) {
+                    nextUid = candidate;
+                    break;
+                }
+            }
+        }
+
+        transaction.update(gameDocument, {
+            activePlayerIds: desired,
+            currentPlayerIndex: desired.indexOf(nextUid),
+            currentPlayerUid: nextUid,
+            unoPendingUid: desired.includes(state.unoPendingUid) ? state.unoPendingUid : null,
+            unoCalled: desired.includes(state.unoPendingUid) ? state.unoCalled : false,
+            lastActionType: "player-left",
+            lastActionBy: uid,
+            updatedAt: serverTimestamp(),
+            turnStartedAt: nextUid !== state.currentPlayerUid ? serverTimestamp() : state.turnStartedAt
+        });
+        return true;
+    });
+}
+
+export function skipTimedOutTurn(db, roomId, round, uid, timeoutMs = 90000) {
+    return runTransaction(db, async (transaction) => {
+        const gameDocument = matchRef(db, roomId, round);
+        const activeDocument = sessionRef(db, roomId);
+        const gameSnapshot = await transaction.get(gameDocument);
+        const activeSnapshot = await transaction.get(activeDocument);
+        if (!gameSnapshot.exists() || !activeSnapshot.exists()) return false;
+
+        const state = gameSnapshot.data();
+        const session = activeSnapshot.data();
+        requirePlayingMatch(state, uid);
+        if (session.status !== "playing" || !session.matchPlayerIds?.includes(uid)) return false;
+
+        const startedAt = state.turnStartedAt?.toMillis?.();
+        if (!Number.isFinite(startedAt) || Date.now() - startedAt < timeoutMs) return false;
+
+        const next = nextIndex(state, state.currentPlayerIndex, state.direction, 1);
+        transaction.update(gameDocument, {
+            ...createNextTurnPatch(state, next, state.direction),
+            ...clearExpiredUno(state),
+            lastActionType: "timeout",
+            lastActionBy: uid,
+            lastActionTargetUid: null,
+            lastActionDrawnCards: [],
+            lastPlayedCard: null,
+            updatedAt: serverTimestamp()
+        });
+        return true;
+    });
+}
+
+export function subscribeToMatch(db, roomId, round, uid, onState, onHand, onError, watchHand = true) {
+    const unsubscribers = [
+        onSnapshot(matchRef(db, roomId, round), (snapshot) => {
             onState(snapshot.exists() ? snapshot.data() : null);
-        }, onError);
-    })();
+        }, onError)
+    ];
 
-    const handUnsubscribe = (async () => {
-        const { onSnapshot } = await import("https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js");
-        return onSnapshot(handRef(db, roomId, round, uid), (snapshot) => {
+    if (watchHand) {
+        unsubscribers.push(onSnapshot(handRef(db, roomId, round, uid), (snapshot) => {
             onHand(snapshot.exists() ? snapshot.data() : null);
-        }, onError);
-    })();
+        }, onError));
+    }
 
-    return () => {
-        Promise.all([gameUnsubscribe, handUnsubscribe]).then((unsubscribers) => {
-            unsubscribers.forEach((unsubscribe) => unsubscribe?.());
-        }).catch(() => {});
-    };
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
 }

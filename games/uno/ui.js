@@ -7,6 +7,8 @@ import {
     endTurnAfterDraw,
     ensureMatch,
     playCard,
+    reconcileMatchPlayers,
+    skipTimedOutTurn,
     subscribeToMatch
 } from "./state.js";
 
@@ -35,7 +37,7 @@ function playerLabel(playerId, members, profiles) {
     return member?.displayNickname || member?.username || profile?.nickname || profile?.username || "Oyuncu";
 }
 
-export function openUnoGame({ db, roomId, round, uid, session, roomMembers = [], onLeave }) {
+export async function openUnoGame({ db, roomId, round, uid, session, roomMembers = [], onLeave }) {
     const root = document.createElement("section");
     root.className = "uno-overlay";
     root.setAttribute("role", "dialog");
@@ -115,6 +117,7 @@ export function openUnoGame({ db, roomId, round, uid, session, roomMembers = [],
     let handData = null;
     let selectedWildCardId = null;
     let unsubscribeMatch = null;
+    let timeoutTimer = null;
     let closed = false;
 
     const setMessage = (message, error = false) => {
@@ -287,6 +290,7 @@ export function openUnoGame({ db, roomId, round, uid, session, roomMembers = [],
         if (closed) return;
         closed = true;
         if (unsubscribeMatch) unsubscribeMatch();
+        if (timeoutTimer) clearInterval(timeoutTimer);
         root.remove();
     };
 
@@ -368,6 +372,7 @@ export function openUnoGame({ db, roomId, round, uid, session, roomMembers = [],
                 latest.matchPlayerIds.includes(uid)) {
                 try {
                     await ensureMatch(db, roomId, round, uid);
+                    await reconcileMatchPlayers(db, roomId, round, uid, latest.matchPlayerIds || []);
                 } catch (error) {
                     setMessage(error.message || "Maç başlatılamadı.", true);
                 }
@@ -391,13 +396,22 @@ export function openUnoGame({ db, roomId, round, uid, session, roomMembers = [],
             handData = hand;
             renderHand();
         },
-        (error) => setMessage(error.message || "UNO bağlantısı koptu.", true)
+        (error) => setMessage(error.message || "UNO bağlantısı koptu.", true),
+        Boolean(session?.matchPlayerIds?.includes(uid))
     );
 
     unsubscribeMatch = () => {
         activeUnsubscribe();
         matchUnsubscribe();
     };
+
+    timeoutTimer = setInterval(() => {
+        if (!closed && matchState?.status === "playing" && matchState.activePlayerIds?.includes(uid)) {
+            skipTimedOutTurn(db, roomId, round, uid).catch((error) =>
+                setMessage(error.message || "Sıra zaman aşımı denetlenemedi.", true)
+            );
+        }
+    }, 2500);
 
     if (session?.status === "playing" && session.matchPlayerIds?.includes(uid)) {
         ensureMatch(db, roomId, round, uid).catch((error) =>
