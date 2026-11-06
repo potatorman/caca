@@ -7,6 +7,8 @@ export const GAME_REGISTRY = Object.freeze([
         description: "UNO oynanışı yakında. Şimdilik lobi akışını ve oyuncu düzenini deneyebilirsin.",
         status: "coming-soon",
         lobbyEnabled: true,
+        minPlayers: 2,
+        maxPlayers: 10,
         module: "./uno/index.js"
     })
 ]);
