@@ -260,9 +260,6 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         const state = gameSnapshot.data();
         requireTurn(state, uid);
 
-        if (state.unoPendingUid && !state.unoCalled && state.unoPendingUid !== uid) {
-            throw new Error("Önce UNO demeyen oyuncuyu yakalayın veya oyuncunun UNO demesini bekleyin.");
-        }
 
         const hand = Array.isArray(handSnapshot.data().cards) ? handSnapshot.data().cards : [];
         const card = hand.find((item) => item.id === cardId);
@@ -390,9 +387,6 @@ export async function drawOneCard(db, roomId, round, uid) {
         requireTurn(state, uid);
         if (state.drewCardId) throw new Error("Bu turda zaten kart çektin.");
 
-        if (state.unoPendingUid && !state.unoCalled && state.unoPendingUid !== uid) {
-            throw new Error("Önce UNO demeyen oyuncuyu yakalayın veya oyuncunun UNO demesini bekleyin.");
-        }
 
         const hand = Array.isArray(handSnapshot.data().cards) ? handSnapshot.data().cards : [];
         const discardPile = state.discardPile || [state.topCard];
@@ -463,9 +457,6 @@ export async function endTurnAfterDraw(db, roomId, round, uid) {
 
         const state = gameSnapshot.data();
         requireTurn(state, uid);
-        if (state.unoPendingUid && !state.unoCalled && state.unoPendingUid !== uid) {
-            throw new Error("Önce UNO demeyen oyuncuyu yakalayın veya oyuncunun UNO demesini bekleyin.");
-        }
         if (!state.drewCardId) throw new Error("Önce kart çekmelisin.");
 
         const next = nextIndex(state, state.currentPlayerIndex, state.direction, 1);
