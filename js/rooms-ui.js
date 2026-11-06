@@ -1,6 +1,7 @@
 import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
+import { GAME_REGISTRY } from "../games/registry.js";
 
 import {
     onAuthStateChanged
@@ -111,6 +112,7 @@ let unsubscribePranks = null;
 let unsubscribePersonalPranks = null;
 let unsubscribeGameSession = null;
 let gameSessionData = null;
+let selectedGameId = GAME_REGISTRY.find((game) => game.lobbyEnabled !== false)?.id || "";
 let gameSessionStartInProgress = false;
 let activeRoomOwnerId = null;
 let currentRoomMemberRecord = null;
@@ -1383,6 +1385,75 @@ function setGameCenterStatus(message, isError = false) {
     status.classList.toggle("error", Boolean(isError));
 }
 
+
+function renderGameCatalog() {
+    const grid = $("gameCatalogGrid");
+    const createButton = $("createGameSessionButton");
+    if (!grid || !createButton) return;
+
+    const selectableGames = GAME_REGISTRY.filter((game) => game.lobbyEnabled !== false);
+    if (!selectableGames.some((game) => game.id === selectedGameId)) {
+        selectedGameId = selectableGames[0]?.id || "";
+    }
+
+    grid.replaceChildren();
+    GAME_REGISTRY.forEach((game) => {
+        const canCreateLobby = game.lobbyEnabled !== false;
+        const isSelected = canCreateLobby && game.id === selectedGameId;
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "game-catalog-card";
+        card.disabled = !canCreateLobby;
+        card.dataset.gameId = game.id;
+        card.setAttribute("aria-pressed", String(isSelected));
+        card.classList.toggle("is-selected", isSelected);
+
+        const top = document.createElement("span");
+        top.className = "game-catalog-card-top";
+        const icon = document.createElement("span");
+        icon.className = "game-catalog-icon";
+        icon.textContent = game.icon || "🎮";
+        const status = document.createElement("span");
+        status.className = "game-catalog-status";
+        status.textContent = game.status === "ready"
+            ? "OYNANABİLİR"
+            : canCreateLobby ? "LOBİ TESTİ" : "YAKINDA";
+        top.append(icon, status);
+
+        const name = document.createElement("strong");
+        name.className = "game-catalog-name";
+        name.textContent = game.name;
+        const description = document.createElement("span");
+        description.className = "game-catalog-description";
+        description.textContent = game.description || (canCreateLobby
+            ? "Bu oyun için lobi oluşturabilirsin."
+            : "Bu oyun yakında eklenecek.");
+
+        card.append(top, name, description);
+        grid.appendChild(card);
+    });
+
+    const placeholder = document.createElement("div");
+    placeholder.className = "game-catalog-placeholder";
+    const placeholderIcon = document.createElement("span");
+    placeholderIcon.className = "game-catalog-placeholder-icon";
+    placeholderIcon.textContent = "+";
+    const placeholderName = document.createElement("strong");
+    placeholderName.textContent = "Yeni oyunlar";
+    const placeholderStatus = document.createElement("span");
+    placeholderStatus.textContent = "YAKINDA";
+    placeholder.append(placeholderIcon, placeholderName, placeholderStatus);
+    grid.appendChild(placeholder);
+
+    const selectedGame = GAME_REGISTRY.find((game) =>
+        game.id === selectedGameId && game.lobbyEnabled !== false
+    );
+    createButton.disabled = !selectedGame;
+    createButton.textContent = selectedGame
+        ? `${selectedGame.name} lobisi oluştur`
+        : "Şu an lobi oluşturulamıyor";
+}
+
 function renderGameMemberList(containerId, memberIds, statusForMember = null) {
     const container = $(containerId);
     if (!container) return;
@@ -1423,7 +1494,10 @@ function renderGameCenter() {
 
     emptyState.hidden = Boolean(session);
     content.hidden = !session;
-    if (!session) return;
+    if (!session) {
+        renderGameCatalog();
+        return;
+    }
 
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
     const readyIds = Array.isArray(session.readyIds) ? session.readyIds : [];
@@ -1437,6 +1511,8 @@ function renderGameCenter() {
     ));
 
     $("gameSessionName").textContent = session.gameName || "Oda oyunu";
+    const hostMember = activeRoomMembers.find((member) => member.id === session.hostId);
+    $("gameSessionHost").textContent = hostMember?.displayNickname || hostMember?.username || "Oyuncu";
     $("gameSessionStatus").textContent = isPlaying ? "Oyun başladı" : "Lobi açık";
     $("gameSessionStatus").classList.toggle("is-playing", isPlaying);
     $("gameSessionSummary").textContent = isPlaying
@@ -1446,6 +1522,10 @@ function renderGameCenter() {
     $("gamePlayersHeading").textContent = isPlaying ? "Bu turun oyuncuları" : "Lobi oyuncuları";
     $("gamePlayersCount").textContent = String(players.length);
     renderGameMemberList("gamePlayersList", players, (userId) => {
+        if (userId === session.hostId) {
+            if (isPlaying) return "Lobi sahibi · Oyunda";
+            return readyIds.includes(userId) ? "Lobi sahibi · Hazır" : "Lobi sahibi";
+        }
         if (isPlaying) return "Oyunda";
         return readyIds.includes(userId) ? "Hazır" : "Hazır bekliyor";
     });
@@ -1567,10 +1647,23 @@ $("closeGameCenterButton").addEventListener("click", () => setGameCenterOpen(fal
 $("gameCenterPanel").addEventListener("click", (event) => {
     if (event.target === $("gameCenterPanel")) setGameCenterOpen(false);
 });
+$("gameCatalogGrid").addEventListener("click", (event) => {
+    const card = event.target.closest(".game-catalog-card[data-game-id]");
+    if (!card || card.disabled) return;
+    selectedGameId = card.dataset.gameId;
+    renderGameCatalog();
+});
 
 async function createGameSession() {
     if (!currentUser || !activeRoomId) {
         setGameCenterStatus("Önce bir odaya girmen gerekiyor.", true);
+        return;
+    }
+    const selectedGame = GAME_REGISTRY.find((game) =>
+        game.id === selectedGameId && game.lobbyEnabled !== false
+    );
+    if (!selectedGame) {
+        setGameCenterStatus("Önce lobi oluşturulabilen bir oyun seçmelisin.", true);
         return;
     }
     if (gameSessionData) {
@@ -1584,8 +1677,8 @@ async function createGameSession() {
     console.info("CACA game session create requested", { roomId: activeRoomId, userId: currentUser.uid });
     try {
         await setDoc(getGameSessionRef(), {
-            gameId: "room-game",
-            gameName: "Oda oyunu",
+            gameId: selectedGame.id,
+            gameName: selectedGame.name,
             status: "lobby",
             round: 1,
             hostId: currentUser.uid,
@@ -1640,11 +1733,51 @@ async function toggleGameReady() {
 async function leaveGameLobby() {
     if (!currentUser || !gameSessionData || gameSessionData.status !== "lobby") return;
     try {
-        await updateDoc(getGameSessionRef(), {
-            playerIds: arrayRemove(currentUser.uid),
-            readyIds: arrayRemove(currentUser.uid),
-            updatedAt: serverTimestamp()
+        const result = await runTransaction(db, async (transaction) => {
+            const ref = getGameSessionRef();
+            const snapshot = await transaction.get(ref);
+            if (!snapshot.exists()) return { left: false };
+
+            const latest = snapshot.data();
+            const players = Array.isArray(latest.playerIds) ? latest.playerIds : [];
+            const readyIds = Array.isArray(latest.readyIds) ? latest.readyIds : [];
+            if (latest.status !== "lobby" || !players.includes(currentUser.uid)) {
+                return { left: false };
+            }
+
+            const remainingPlayers = players.filter((id) => id !== currentUser.uid);
+            const remainingReady = readyIds.filter((id) => id !== currentUser.uid);
+            const isLeavingHost = latest.hostId === currentUser.uid;
+
+            if (isLeavingHost && remainingPlayers.length === 0) {
+                transaction.delete(ref);
+                return { left: true, closed: true };
+            }
+
+            const updates = {
+                playerIds: remainingPlayers,
+                readyIds: remainingReady,
+                updatedAt: serverTimestamp()
+            };
+            if (isLeavingHost) updates.hostId = remainingPlayers[0];
+            transaction.update(ref, updates);
+
+            return {
+                left: true,
+                hostChanged: isLeavingHost,
+                nextHostId: isLeavingHost ? remainingPlayers[0] : latest.hostId
+            };
         });
+
+        if (!result?.left) {
+            setGameCenterStatus("Lobiden ayrılamadın; lobi durumu değişmiş olabilir.", true);
+        } else if (result.closed) {
+            setGameCenterStatus("Lobide başka oyuncu kalmadığı için lobi kapatıldı.");
+        } else if (result.hostChanged) {
+            setGameCenterStatus("Lobiden ayrıldın. Lobi sahipliği sıradaki oyuncuya devredildi.");
+        } else {
+            setGameCenterStatus("Lobiden ayrıldın.");
+        }
     } catch (error) {
         setGameCenterStatus("Lobiden ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
     }
