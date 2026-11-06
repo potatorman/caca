@@ -627,10 +627,15 @@ service cloud.firestore {
                 )
                 || (
                   (isRoomOwner(roomId) || isActiveRoomAdmin(roomId))
-                  && resource.data.playerIds.hasAny([resource.data.hostId])
-                  && !request.resource.data.playerIds.hasAny([resource.data.hostId])
+                  && (
+                    !resource.data.playerIds.hasAny([resource.data.hostId])
+                    || !request.resource.data.playerIds.hasAny([resource.data.hostId])
+                  )
                   && resource.data.playerIds.hasAll(request.resource.data.playerIds)
-                  && resource.data.playerIds.size() > request.resource.data.playerIds.size()
+                  && (
+                    resource.data.playerIds.size() > request.resource.data.playerIds.size()
+                    || request.resource.data.hostId != resource.data.hostId
+                  )
                 )
               )
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -746,6 +751,20 @@ service cloud.firestore {
               && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
               && request.resource.data.startedAt is timestamp
               && request.resource.data.countdownEndsAt == null
+            )
+            // The host can hand off an idle lobby after leaving the active player list.
+            || (
+              resource.data.status in ['lobby', 'starting']
+              && request.resource.data.status == 'lobby'
+              && request.auth.uid == resource.data.hostId
+              && !resource.data.playerIds.hasAny([request.auth.uid])
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && request.resource.data.playerIds.size() >= 1
+              && request.resource.data.hostId == request.resource.data.playerIds[0]
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['hostId', 'status', 'countdownEndsAt', 'updatedAt'])
             )
             // Members in a running game can queue for the next round.
             || (
