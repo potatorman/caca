@@ -1049,10 +1049,20 @@ service cloud.firestore {
 
           allow create: if isActiveMatchPlayer()
             && updatedMatch().status == 'playing'
-            && updatedMatch().dealerId == request.auth.uid
             && updatedMatch().playerIds.hasAny([playerId])
             && request.resource.data.cards is list
-            && request.resource.data.cards.size() == 7;
+            && request.resource.data.cards.size() == 7
+            && (
+              // Initial deal: the player creating the match writes every opening hand.
+              updatedMatch().dealerId == request.auth.uid
+              // Recovery: a player may recreate only their own missing hand.
+              || (
+                playerId == request.auth.uid
+                && currentMatch().status == 'playing'
+                && currentMatch().activePlayerIds.hasAny([request.auth.uid])
+                && updatedMatch().handCounts[request.auth.uid] == 7
+              )
+            );
 
           allow update: if isActiveMatchPlayer()
             && currentMatch().status == 'playing'
