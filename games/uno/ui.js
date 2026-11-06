@@ -119,6 +119,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     let selectedWildCardId = null;
     let unsubscribeMatch = null;
     let timeoutTimer = null;
+    let timeoutAttemptedTurn = null;
     let closed = false;
 
     $("hand-area").hidden = !(
@@ -437,12 +438,27 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     };
 
     timeoutTimer = setInterval(() => {
-        if (!closed && matchState?.status === "playing" && matchState.activePlayerIds?.includes(uid)) {
-            skipTimedOutTurn(db, roomId, round, uid).catch((error) =>
-                setMessage(error.message || "Sıra zaman aşımı denetlenemedi.", true)
-            );
+        if (closed || matchState?.status !== "playing" || !matchState.activePlayerIds?.includes(uid)) {
+            return;
         }
-    }, 2500);
+
+        const turnStartedAt = matchState.turnStartedAt?.toMillis?.();
+        const turnNumber = matchState.turnNumber;
+        if (!Number.isFinite(turnStartedAt) || Date.now() - turnStartedAt < 90000) return;
+        if (timeoutAttemptedTurn === turnNumber) return;
+
+        timeoutAttemptedTurn = turnNumber;
+        skipTimedOutTurn(db, roomId, round, uid)
+            .then((skipped) => {
+                if (!skipped) timeoutAttemptedTurn = null;
+            })
+            .catch((error) => {
+                timeoutAttemptedTurn = null;
+                if (error.code !== "permission-denied") {
+                    setMessage(error.message || "Sıra zaman aşımı denetlenemedi.", true);
+                }
+            });
+    }, 5000);
 
     if (session?.status === "playing" && session.matchPlayerIds?.includes(uid)) {
         ensureMatch(db, roomId, round, uid).catch((error) =>
