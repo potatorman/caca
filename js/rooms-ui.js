@@ -2000,7 +2000,10 @@ async function leaveGameLobby() {
 
 async function leaveCurrentMatch() {
     if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") return;
-    if (!(gameSessionData.matchPlayerIds || []).includes(currentUser.uid)) return;
+    const matchPlayers = Array.isArray(gameSessionData.matchPlayerIds)
+        ? gameSessionData.matchPlayerIds
+        : (gameSessionData.playerIds || []);
+    if (!matchPlayers.includes(currentUser.uid)) return;
     try {
         await updateDoc(getGameSessionRef(), {
             matchPlayerIds: arrayRemove(currentUser.uid),
@@ -2092,8 +2095,11 @@ $("createGameSessionButton").addEventListener("click", createGameSession);
 $("joinGameSessionButton").addEventListener("click", joinGameSession);
 $("readyGameSessionButton").addEventListener("click", toggleGameReady);
 $("leaveGameSessionButton").addEventListener("click", () => {
+    const matchPlayers = Array.isArray(gameSessionData?.matchPlayerIds)
+        ? gameSessionData.matchPlayerIds
+        : (gameSessionData?.status === "playing" ? gameSessionData.playerIds || [] : []);
     if (gameSessionData?.status === "playing" &&
-        (gameSessionData.matchPlayerIds || []).includes(currentUser?.uid)) {
+        matchPlayers.includes(currentUser?.uid)) {
         leaveCurrentMatch();
     } else {
         leaveGameLobby();
