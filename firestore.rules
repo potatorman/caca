@@ -311,6 +311,23 @@ service cloud.firestore {
                 )
               )
             )
+            // An admin may only demote their own account after the server-side expiry.
+            || (
+              memberId == request.auth.uid
+              && resource.data.get('role', 'member') == 'admin'
+              && resource.data.get('adminExpiresAt', null) is timestamp
+              && request.time >= resource.data.adminExpiresAt
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'role',
+                'adminExpiresAt',
+                'adminGrantedAt',
+                'adminGrantedBy'
+              ])
+              && request.resource.data.role == 'member'
+              && request.resource.data.adminExpiresAt == null
+              && request.resource.data.adminGrantedAt == null
+              && request.resource.data.adminGrantedBy == null
+            )
           );
 
         allow delete: if signedIn()
