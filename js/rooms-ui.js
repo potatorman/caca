@@ -2,7 +2,7 @@ import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY } from "../games/registry.js";
-import { unoGame } from "../games/uno/index.js";
+import { ensureMatch as ensureUnoMatch, unoGame } from "../games/uno/index.js";
 
 import {
     onAuthStateChanged
@@ -2014,6 +2014,12 @@ async function leaveCurrentMatch() {
         : (gameSessionData.playerIds || []);
     if (!matchPlayers.includes(currentUser.uid)) return;
     try {
+        // If nobody has opened the UNO table yet, create its initial state before
+        // removing this player so the remaining player can resolve a forfeit.
+        if (gameSessionData.gameId === "uno" && matchPlayers.length >= 2) {
+            await ensureUnoMatch(db, activeRoomId, gameSessionData.round, currentUser.uid);
+        }
+
         await updateDoc(getGameSessionRef(), {
             matchPlayerIds: arrayRemove(currentUser.uid),
             updatedAt: serverTimestamp()
@@ -2101,7 +2107,8 @@ async function closeGameSession() {
 $("createGameSessionButton").addEventListener("click", createGameSession);
 $("openGameMatchButton")?.addEventListener("click", async () => {
     if (!currentUser || !activeRoomId || !gameSessionData ||
-        gameSessionData.gameId !== "uno" || gameSessionData.status !== "playing") return;
+        gameSessionData.gameId !== "uno" ||
+        !["playing", "results"].includes(gameSessionData.status)) return;
 
     const button = $("openGameMatchButton");
     button.disabled = true;
