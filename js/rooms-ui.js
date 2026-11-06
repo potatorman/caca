@@ -2,7 +2,10 @@ import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY } from "../games/registry.js";
-import { ensureMatch as ensureUnoMatch } from "../games/uno/index.js";
+import {
+    ensureMatch as ensureUnoMatch,
+    reconcileMatchPlayers as reconcileUnoMatchPlayers
+} from "../games/uno/index.js";
 
 import {
     onAuthStateChanged
@@ -114,6 +117,8 @@ let unsubscribePersonalPranks = null;
 let unsubscribeGameSession = null;
 let gameSessionData = null;
 let activeRoomGame = null;
+let observedUnoRosterRoundKey = "";
+let observedUnoRosterIds = [];
 let activeRoomGameKey = "";
 let openingRoomGameKey = "";
 let gameSessionResultsTimer = null;
@@ -1954,7 +1959,44 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
     }
 }
 
+function reconcileUnoRosterChange(roomId, sessionData) {
+    if (
+        !sessionData ||
+        sessionData.gameId !== "uno" ||
+        sessionData.status !== "playing" ||
+        !currentUser
+    ) return;
+
+    const roundKey = roomId + ":" + String(sessionData.round);
+    const currentIds = Array.isArray(sessionData.matchPlayerIds)
+        ? sessionData.matchPlayerIds
+        : [];
+    if (observedUnoRosterRoundKey !== roundKey) {
+        observedUnoRosterRoundKey = roundKey;
+        observedUnoRosterIds = [...currentIds];
+        return;
+    }
+
+    const previousIds = observedUnoRosterIds;
+    observedUnoRosterIds = [...currentIds];
+    const onlyPlayersLeft = currentIds.length < previousIds.length &&
+        currentIds.every((id) => previousIds.includes(id));
+    if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) {
+        return;
+    }
+
+    reconcileUnoMatchPlayers(db, roomId, sessionData.round, currentUser.uid)
+        .catch((error) => {
+            console.warn("CACA UNO roster reconciliation failed:", error);
+            if (activeRoomId === roomId) {
+                setGameCenterStatus("Oyuncu ayrılışı eşitlenemedi: " + (error.message || "Bilinmeyen hata"), true);
+            }
+        });
+}
+
 function listenToGameCenter(roomId) {
+    observedUnoRosterRoundKey = "";
+    observedUnoRosterIds = [];
     clearGameSessionCountdown();
     clearGameSessionResultsTimer();
     if (unsubscribeGameSession) unsubscribeGameSession();
@@ -1965,6 +2007,7 @@ function listenToGameCenter(roomId) {
         if (activeRoomId !== roomId) return;
         gameSessionData = snapshot.exists() ? snapshot.data() : null;
         renderGameCenter();
+        reconcileUnoRosterChange(roomId, gameSessionData);
         syncGameSessionCountdown(roomId, gameSessionData);
         syncGameSessionResultsReset(roomId, gameSessionData);
         if (gameSessionData) maybeStartGameWhenReady(roomId, gameSessionData);
