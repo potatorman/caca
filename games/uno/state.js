@@ -273,8 +273,12 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
                 : "Bu kart mevcut renkle veya kart sembolüyle eşleşmiyor.");
         }
 
-        if ((card.type === "wild" || card.type === "wild4") && !UNO_COLORS.includes(selectedColor)) {
+        const isWild = card.type === "wild" || card.type === "wild4";
+        if (isWild && !UNO_COLORS.includes(selectedColor)) {
             throw new Error("Renk değiştirme kartı için bir renk seçmelisin.");
+        }
+        if (!isWild && selectedColor !== null) {
+            throw new Error("Normal kartlarda renk seçilemez.");
         }
 
         const remainingHand = hand.filter((item) => item.id !== card.id);

@@ -4700,3 +4700,21 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 @media (prefers-reduced-motion: reduce) {
     .uno-overlay *, .uno-overlay *::before, .uno-overlay *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.uno-active-color::before {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 7px;
+    vertical-align: 0;
+    content: "";
+    background: #8ca3a0;
+    border: 1px solid rgba(255,255,255,.85);
+    border-radius: 50%;
+    box-shadow: 0 0 10px currentColor;
+}
+.uno-active-color.is-red::before { background: #e83e4e; }
+.uno-active-color.is-yellow::before { background: #f3cf43; }
+.uno-active-color.is-green::before { background: #35bc73; }
+.uno-active-color.is-blue::before { background: #438ce8; }
+.uno-hand .uno-card.is-playable { box-shadow: 0 0 0 2px rgba(132, 241, 183, .58), 2px 4px 0 rgba(0,0,0,.34), 0 8px 20px rgba(35, 219, 129, .16); }
