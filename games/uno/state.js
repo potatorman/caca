@@ -529,7 +529,7 @@ export async function catchUno(db, roomId, round, uid) {
 
         const handCounts = {
             ...state.handCounts,
-            [targetUid]: (Number(state.handCounts[targetUid]) || 0) + 2
+            [targetUid]: (Number(state.handCounts[targetUid]) || 0) + result.cards.length
         };
 
         transaction.update(gameDocument, {
@@ -584,7 +584,7 @@ export function reconcileMatchPlayers(db, roomId, round, uid, lobbyMatchPlayerId
                 unoPendingUid: null,
                 unoCalled: false,
                 finishedAt: serverTimestamp(),
-                lastActionType: "forfeit",
+                lastActionType: "player-left",
                 lastActionBy: uid,
                 updatedAt: serverTimestamp()
             });
