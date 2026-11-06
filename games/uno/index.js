@@ -1,5 +1,8 @@
 import { openUnoGame } from "./ui.js";
-export { ensureMatch } from "./state.js";
+export {
+    ensureMatch,
+    reconcileMatchPlayers
+} from "./state.js";
 
 export const unoGame = Object.freeze({
     id: "uno",
