@@ -114,6 +114,8 @@ let unsubscribeGameSession = null;
 let gameSessionData = null;
 let selectedGameId = GAME_REGISTRY.find((game) => game.lobbyEnabled !== false)?.id || "";
 let gameSessionStartInProgress = false;
+let gameSessionCountdownTimer = null;
+let gameSessionCountdownEndAt = null;
 let activeRoomOwnerId = null;
 let currentRoomMemberRecord = null;
 let currentAdminExpiryTimer = null;
@@ -1504,6 +1506,9 @@ function renderGameCenter() {
     const nextRoundPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
     const nextRoundReady = Array.isArray(session.nextRoundReadyIds) ? session.nextRoundReadyIds : [];
     const isPlaying = session.status === "playing";
+    const isStarting = session.status === "starting";
+    const gameDefinition = GAME_REGISTRY.find((game) => game.id === session.gameId);
+    const maxPlayers = Number(gameDefinition?.maxPlayers) || 20;
     const isPlayer = players.includes(currentUser?.uid);
     const isQueued = nextRoundPlayers.includes(currentUser?.uid);
     const canManage = Boolean(currentUser && (
@@ -1513,14 +1518,21 @@ function renderGameCenter() {
     $("gameSessionName").textContent = session.gameName || "Oda oyunu";
     const hostMember = activeRoomMembers.find((member) => member.id === session.hostId);
     $("gameSessionHost").textContent = hostMember?.displayNickname || hostMember?.username || "Oyuncu";
-    $("gameSessionStatus").textContent = isPlaying ? "Oyun başladı" : "Lobi açık";
+    $("gameSessionStatus").textContent = isPlaying
+        ? "Oyun başladı"
+        : isStarting ? "Geri sayım başladı" : "Lobi açık";
     $("gameSessionStatus").classList.toggle("is-playing", isPlaying);
+    $("gameSessionStatus").classList.toggle("is-starting", isStarting);
     $("gameSessionSummary").textContent = isPlaying
         ? `Tur ${session.round || 1} sürüyor. Oyuncular devam ederken diğer oda üyeleri izleyebilir.`
-        : `Tur ${session.round || 1} lobisi. Katılan herkes hazır olduğunda oyun otomatik başlayacak.`;
+        : isStarting
+            ? "Herkes hazır. Oyun 3 saniyelik geri sayımın sonunda başlayacak; biri hazır durumunu geri alırsa sayaç iptal edilir."
+            : `Tur ${session.round || 1} lobisi. En az ${Number(gameDefinition?.minPlayers) || 2} oyuncu katılıp hazır olduğunda geri sayım başlayacak.`;
 
-    $("gamePlayersHeading").textContent = isPlaying ? "Bu turun oyuncuları" : "Lobi oyuncuları";
-    $("gamePlayersCount").textContent = String(players.length);
+    $("gamePlayersHeading").textContent = isPlaying
+        ? "Bu turun oyuncuları"
+        : isStarting ? "Başlayacak oyuncular" : "Lobi oyuncuları";
+    $("gamePlayersCount").textContent = `${players.length}/${maxPlayers}`;
     renderGameMemberList("gamePlayersList", players, (userId) => {
         if (userId === session.hostId) {
             if (isPlaying) return "Lobi sahibi · Oyunda";
@@ -1531,7 +1543,7 @@ function renderGameCenter() {
     });
 
     const spectators = activeRoomMembers
-        .filter((member) => !players.includes(member.id))
+        .filter((member) => !players.includes(member.id) && !nextRoundPlayers.includes(member.id))
         .map((member) => member.id);
     $("gameSpectatorsCount").textContent = String(spectators.length);
     renderGameMemberList("gameSpectatorsList", spectators, (userId) =>
@@ -1539,19 +1551,22 @@ function renderGameCenter() {
     );
 
     $("gameNextRoundSection").hidden = !isPlaying || nextRoundPlayers.length === 0;
+    $("gameNextRoundCount").textContent = String(nextRoundPlayers.length);
     if (nextRoundPlayers.length) {
         renderGameMemberList("gameNextRoundList", nextRoundPlayers, (userId) =>
             nextRoundReady.includes(userId) ? "Hazır" : "Bekliyor"
         );
     }
 
-    $("joinGameSessionButton").hidden = isPlaying || isPlayer;
+    $("joinGameSessionButton").hidden = isPlaying || isStarting || isPlayer;
     $("readyGameSessionButton").hidden = isPlaying || !isPlayer;
     $("leaveGameSessionButton").hidden = isPlaying || !isPlayer;
-    $("queueNextRoundButton").hidden = !isPlaying || isQueued;
-    $("queueNextRoundButton").textContent = isPlayer
-        ? "Sonraki turda da oyna ve hazır ol"
-        : "Sonraki tur için sıraya gir ve hazır ol";
+    $("queueNextRoundButton").hidden = !isPlaying;
+    $("queueNextRoundButton").textContent = isQueued
+        ? "Sonraki tur sırasından çık"
+        : isPlayer
+            ? "Sonraki turda da oyna ve hazır ol"
+            : "Sonraki tur için sıraya gir ve hazır ol";
     $("finishGameRoundButton").hidden = !isPlaying || !canManage;
     $("closeGameSessionButton").hidden = !canManage;
     $("closeGameSessionButton").textContent = isPlaying ? "Oyun oturumunu kapat" : "Lobiyi kapat";
@@ -1565,22 +1580,131 @@ function renderGameCenter() {
     if (isPlaying && isPlayer) {
         setGameCenterStatus("Oyuncu olarak bu turdasın. Sonraki tur için sıraya şimdi girebilirsin.");
     } else if (isPlaying) {
-        setGameCenterStatus("Şu an izleyicisin. Sonraki turda oynamak için sıraya gir.");
+        setGameCenterStatus(isQueued
+            ? "Sonraki tur için sıradasın. İstersen sıradan çıkabilirsin."
+            : "Şu an izleyicisin. Sonraki turda oynamak için sıraya gir.");
+    } else if (isStarting && isPlayer) {
+        setGameCenterStatus("Geri sayım başladı. Hazır durumunu geri alarak oyunu durdurabilirsin.");
     } else if (isPlayer) {
-        setGameCenterStatus("Lobidesin. Herkes hazır olduğunda oturum otomatik başlayacak.");
+        setGameCenterStatus("Lobidesin. Herkes hazır olduğunda 3 saniyelik geri sayım başlayacak.");
     } else {
         setGameCenterStatus("Lobiye katılarak oyuncu olabilirsin.");
     }
 }
 
+function clearGameSessionCountdown() {
+    if (gameSessionCountdownTimer) clearInterval(gameSessionCountdownTimer);
+    gameSessionCountdownTimer = null;
+    gameSessionCountdownEndAt = null;
+}
+
+async function completeGameStartCountdown(roomId, expectedEndAt, retry = 0) {
+    if (activeRoomId !== roomId || gameSessionData?.status !== "starting") return;
+    try {
+        await runTransaction(db, async (transaction) => {
+            const ref = getGameSessionRef(roomId);
+            const snapshot = await transaction.get(ref);
+            if (!snapshot.exists()) return;
+            const latest = snapshot.data();
+            const endAt = latest.countdownEndsAt?.toMillis?.();
+            if (
+                latest.status !== "starting" ||
+                endAt !== expectedEndAt ||
+                endAt > Date.now()
+            ) return;
+
+            const players = Array.isArray(latest.playerIds) ? latest.playerIds : [];
+            const ready = Array.isArray(latest.readyIds) ? latest.readyIds : [];
+            const game = GAME_REGISTRY.find((item) => item.id === latest.gameId);
+            const minPlayers = Number(game?.minPlayers) || 2;
+            const maxPlayers = Number(game?.maxPlayers) || 20;
+            if (
+                players.length < minPlayers ||
+                players.length > maxPlayers ||
+                !players.every((id) => ready.includes(id))
+            ) return;
+
+            transaction.update(ref, {
+                status: "playing",
+                startedAt: serverTimestamp(),
+                countdownEndsAt: null,
+                updatedAt: serverTimestamp()
+            });
+        });
+    } catch (error) {
+        if (
+            error.code === "permission-denied" &&
+            retry < 2 &&
+            activeRoomId === roomId &&
+            gameSessionData?.status === "starting"
+        ) {
+            setTimeout(() => completeGameStartCountdown(roomId, expectedEndAt, retry + 1), 700);
+            return;
+        }
+        if (activeRoomId === roomId) {
+            console.warn("CACA game countdown completion failed:", error);
+            setGameCenterStatus("Oyun başlatılamadı: " + (error.message || "Bilinmeyen hata"), true);
+        }
+    }
+}
+
+function syncGameSessionCountdown(roomId, sessionData) {
+    if (sessionData?.status !== "starting") {
+        clearGameSessionCountdown();
+        return;
+    }
+
+    const endAt = sessionData.countdownEndsAt?.toMillis?.();
+    if (!Number.isFinite(endAt)) {
+        clearGameSessionCountdown();
+        return;
+    }
+    if (gameSessionCountdownTimer && gameSessionCountdownEndAt === endAt) return;
+
+    clearGameSessionCountdown();
+    gameSessionCountdownEndAt = endAt;
+    const tick = () => {
+        if (activeRoomId !== roomId || gameSessionData?.status !== "starting") {
+            clearGameSessionCountdown();
+            return;
+        }
+        const remainingMs = endAt - Date.now();
+        const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+        const status = $("gameSessionStatus");
+        if (status) {
+            status.textContent = remainingSeconds > 0
+                ? `${remainingSeconds} sn içinde başlıyor`
+                : "Oyun başlıyor…";
+        }
+        // A small buffer reduces early-start attempts caused by client clock skew.
+        if (remainingMs <= -500) {
+            clearGameSessionCountdown();
+            completeGameStartCountdown(roomId, endAt);
+        }
+    };
+    tick();
+    gameSessionCountdownTimer = setInterval(tick, 150);
+}
+
 async function maybeStartGameWhenReady(roomId, sessionData) {
+    if (sessionData?.status === "starting") {
+        syncGameSessionCountdown(roomId, sessionData);
+        return;
+    }
     if (
         !sessionData ||
         sessionData.status !== "lobby" ||
         !Array.isArray(sessionData.playerIds) ||
-        sessionData.playerIds.length < 2 ||
-        !sessionData.playerIds.every((id) => sessionData.readyIds?.includes(id)) ||
         gameSessionStartInProgress
+    ) return;
+
+    const game = GAME_REGISTRY.find((item) => item.id === sessionData.gameId);
+    const minPlayers = Number(game?.minPlayers) || 2;
+    const maxPlayers = Number(game?.maxPlayers) || 20;
+    if (
+        sessionData.playerIds.length < minPlayers ||
+        sessionData.playerIds.length > maxPlayers ||
+        !sessionData.playerIds.every((id) => sessionData.readyIds?.includes(id))
     ) return;
 
     gameSessionStartInProgress = true;
@@ -1592,18 +1716,27 @@ async function maybeStartGameWhenReady(roomId, sessionData) {
             const latest = snapshot.data();
             const players = Array.isArray(latest.playerIds) ? latest.playerIds : [];
             const ready = Array.isArray(latest.readyIds) ? latest.readyIds : [];
-            if (latest.status !== "lobby" || players.length < 2 || !players.every((id) => ready.includes(id))) return;
+            const latestGame = GAME_REGISTRY.find((item) => item.id === latest.gameId);
+            const latestMin = Number(latestGame?.minPlayers) || 2;
+            const latestMax = Number(latestGame?.maxPlayers) || 20;
+            if (
+                latest.status !== "lobby" ||
+                players.length < latestMin ||
+                players.length > latestMax ||
+                !players.every((id) => ready.includes(id))
+            ) return;
+
             transaction.update(ref, {
-                status: "playing",
-                startedAt: serverTimestamp(),
+                status: "starting",
+                countdownEndsAt: Timestamp.fromMillis(Date.now() + 3000),
                 updatedAt: serverTimestamp()
             });
         });
     } catch (error) {
         if (activeRoomId === roomId) {
-            console.warn("CACA game auto-start failed:", error);
+            console.warn("CACA game countdown start failed:", error);
             if (error.code === "permission-denied") {
-                setGameCenterStatus("Oyun başlatılamadı. Firestore Rules içindeki oyun lobisi izinlerini yayımla.", true);
+                setGameCenterStatus("Geri sayım başlatılamadı. Firestore Rules güncel olmalı.", true);
             }
         }
     } finally {
@@ -1612,11 +1745,13 @@ async function maybeStartGameWhenReady(roomId, sessionData) {
 }
 
 function listenToGameCenter(roomId) {
+    clearGameSessionCountdown();
     if (unsubscribeGameSession) unsubscribeGameSession();
     unsubscribeGameSession = onSnapshot(getGameSessionRef(roomId), (snapshot) => {
         if (activeRoomId !== roomId) return;
         gameSessionData = snapshot.exists() ? snapshot.data() : null;
         renderGameCenter();
+        syncGameSessionCountdown(roomId, gameSessionData);
         if (gameSessionData) maybeStartGameWhenReady(roomId, gameSessionData);
     }, (error) => {
         if (activeRoomId !== roomId) return;
@@ -1706,6 +1841,13 @@ async function createGameSession() {
 
 async function joinGameSession() {
     if (!currentUser || !gameSessionData || gameSessionData.status !== "lobby") return;
+    const game = GAME_REGISTRY.find((item) => item.id === gameSessionData.gameId);
+    const players = Array.isArray(gameSessionData.playerIds) ? gameSessionData.playerIds : [];
+    const maxPlayers = Number(game?.maxPlayers) || 20;
+    if (!players.includes(currentUser.uid) && players.length >= maxPlayers) {
+        setGameCenterStatus(`Lobi dolu. Bu oyun en fazla ${maxPlayers} oyuncu alabilir.`, true);
+        return;
+    }
     try {
         await updateDoc(getGameSessionRef(), {
             playerIds: arrayUnion(currentUser.uid),
@@ -1718,20 +1860,29 @@ async function joinGameSession() {
 }
 
 async function toggleGameReady() {
-    if (!currentUser || !gameSessionData || gameSessionData.status !== "lobby") return;
+    if (!currentUser || !gameSessionData || !["lobby", "starting"].includes(gameSessionData.status)) return;
     const ready = (gameSessionData.readyIds || []).includes(currentUser.uid);
+    if (gameSessionData.status === "starting" && !ready) return;
+    const updates = {
+        readyIds: ready ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
+        updatedAt: serverTimestamp()
+    };
+    if (gameSessionData.status === "starting" && ready) {
+        updates.status = "lobby";
+        updates.countdownEndsAt = null;
+    }
     try {
-        await updateDoc(getGameSessionRef(), {
-            readyIds: ready ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
-            updatedAt: serverTimestamp()
-        });
+        await updateDoc(getGameSessionRef(), updates);
+        if (gameSessionData.status === "starting" && ready) {
+            setGameCenterStatus("Hazır durumunu geri aldın. Geri sayım iptal edildi.");
+        }
     } catch (error) {
         setGameCenterStatus("Hazır durumu değiştirilemedi: " + (error.message || "Bilinmeyen hata"), true);
     }
 }
 
 async function leaveGameLobby() {
-    if (!currentUser || !gameSessionData || gameSessionData.status !== "lobby") return;
+    if (!currentUser || !gameSessionData || !["lobby", "starting"].includes(gameSessionData.status)) return;
     try {
         const result = await runTransaction(db, async (transaction) => {
             const ref = getGameSessionRef();
@@ -1741,7 +1892,7 @@ async function leaveGameLobby() {
             const latest = snapshot.data();
             const players = Array.isArray(latest.playerIds) ? latest.playerIds : [];
             const readyIds = Array.isArray(latest.readyIds) ? latest.readyIds : [];
-            if (latest.status !== "lobby" || !players.includes(currentUser.uid)) {
+            if (!["lobby", "starting"].includes(latest.status) || !players.includes(currentUser.uid)) {
                 return { left: false };
             }
 
@@ -1759,13 +1910,17 @@ async function leaveGameLobby() {
                 readyIds: remainingReady,
                 updatedAt: serverTimestamp()
             };
+            if (latest.status === "starting") {
+                updates.status = "lobby";
+                updates.countdownEndsAt = null;
+            }
             if (isLeavingHost) updates.hostId = remainingPlayers[0];
             transaction.update(ref, updates);
 
             return {
                 left: true,
                 hostChanged: isLeavingHost,
-                nextHostId: isLeavingHost ? remainingPlayers[0] : latest.hostId
+                cancelledCountdown: latest.status === "starting"
             };
         });
 
@@ -1775,6 +1930,8 @@ async function leaveGameLobby() {
             setGameCenterStatus("Lobide başka oyuncu kalmadığı için lobi kapatıldı.");
         } else if (result.hostChanged) {
             setGameCenterStatus("Lobiden ayrıldın. Lobi sahipliği sıradaki oyuncuya devredildi.");
+        } else if (result.cancelledCountdown) {
+            setGameCenterStatus("Lobiden ayrıldın. Oyuncu ayrıldığı için geri sayım iptal edildi.");
         } else {
             setGameCenterStatus("Lobiden ayrıldın.");
         }
@@ -1785,15 +1942,31 @@ async function leaveGameLobby() {
 
 async function queueForNextGameRound() {
     if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") return;
+    const queuedPlayers = Array.isArray(gameSessionData.nextRoundPlayerIds)
+        ? gameSessionData.nextRoundPlayerIds
+        : [];
+    const isQueued = queuedPlayers.includes(currentUser.uid);
+    const game = GAME_REGISTRY.find((item) => item.id === gameSessionData.gameId);
+    const maxPlayers = Number(game?.maxPlayers) || 20;
+    if (!isQueued && queuedPlayers.length >= maxPlayers) {
+        setGameCenterStatus(`Sonraki tur sırası dolu. Bu oyun en fazla ${maxPlayers} oyuncu alabilir.`, true);
+        return;
+    }
     try {
         await updateDoc(getGameSessionRef(), {
-            nextRoundPlayerIds: arrayUnion(currentUser.uid),
-            nextRoundReadyIds: arrayUnion(currentUser.uid),
+            nextRoundPlayerIds: isQueued
+                ? arrayRemove(currentUser.uid)
+                : arrayUnion(currentUser.uid),
+            nextRoundReadyIds: isQueued
+                ? arrayRemove(currentUser.uid)
+                : arrayUnion(currentUser.uid),
             updatedAt: serverTimestamp()
         });
-        setGameCenterStatus("Sonraki tur için sıraya girdin ve hazır durumdasın.");
+        setGameCenterStatus(isQueued
+            ? "Sonraki tur sırasından çıktın."
+            : "Sonraki tur için sıraya girdin ve hazır durumdasın.");
     } catch (error) {
-        setGameCenterStatus("Sonraki tur sırasına eklenemedin: " + (error.message || "Bilinmeyen hata"), true);
+        setGameCenterStatus("Sonraki tur sırası güncellenemedi: " + (error.message || "Bilinmeyen hata"), true);
     }
 }
 
