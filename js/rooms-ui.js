@@ -2014,7 +2014,8 @@ async function leaveCurrentMatch() {
         : (gameSessionData.playerIds || []);
     if (!matchPlayers.includes(currentUser.uid)) return;
     if (gameSessionData.gameId === "uno" && matchPlayers.length <= 1) {
-        throw new Error("Son maç oyuncususun. Masayı kapatabilirsin; lobi üyeliğin korunur.");
+        setGameCenterStatus("Son maç oyuncususun. Masayı kapatabilirsin; lobi üyeliğin korunur.", true);
+        return;
     }
     try {
         // If nobody has opened the UNO table yet, create its initial state before
