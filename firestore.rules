@@ -598,7 +598,24 @@ service cloud.firestore {
           && validGameSession(request.resource.data)
           && request.resource.data.gameId == resource.data.gameId
           && request.resource.data.gameName == resource.data.gameName
-          && request.resource.data.hostId == resource.data.hostId
+          && (
+            request.resource.data.hostId == resource.data.hostId
+            || (
+              resource.data.status == 'lobby'
+              && request.resource.data.status == 'lobby'
+              && request.auth.uid == resource.data.hostId
+              && resource.data.playerIds.hasAny([request.auth.uid])
+              && !request.resource.data.playerIds.hasAny([request.auth.uid])
+              && request.resource.data.playerIds.size() >= 1
+              && resource.data.playerIds.size() == request.resource.data.playerIds.size() + 1
+              && request.resource.data.hostId == request.resource.data.playerIds[0]
+              && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'hostId', 'playerIds', 'readyIds', 'updatedAt'
+              ])
+            )
+          )
           && request.resource.data.createdAt == resource.data.createdAt
           && (
             // Join or leave the waiting room.
@@ -606,7 +623,7 @@ service cloud.firestore {
               resource.data.status == 'lobby'
               && request.resource.data.status == 'lobby'
               && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['playerIds', 'readyIds', 'updatedAt'])
+                .hasOnly(['hostId', 'playerIds', 'readyIds', 'updatedAt'])
               && (
                 (
                   !resource.data.playerIds.hasAny([request.auth.uid])
