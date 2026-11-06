@@ -1682,8 +1682,8 @@ function syncGameSessionCountdown(roomId, sessionData) {
             completeGameStartCountdown(roomId, endAt);
         }
     };
-    tick();
     gameSessionCountdownTimer = setInterval(tick, 150);
+    tick();
 }
 
 async function maybeStartGameWhenReady(roomId, sessionData) {
@@ -1823,6 +1823,7 @@ async function createGameSession() {
             nextRoundReadyIds: [],
             createdAt: serverTimestamp(),
             startedAt: null,
+            countdownEndsAt: null,
             updatedAt: serverTimestamp()
         });
         setGameCenterStatus("Lobi açıldı. Diğer oyuncular katılabilir.");
