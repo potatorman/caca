@@ -2,6 +2,7 @@ import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY } from "../games/registry.js";
+import { unoGame } from "../games/uno/index.js";
 
 import {
     onAuthStateChanged
@@ -112,6 +113,7 @@ let unsubscribePranks = null;
 let unsubscribePersonalPranks = null;
 let unsubscribeGameSession = null;
 let gameSessionData = null;
+let activeUnoGame = null;
 let selectedGameId = GAME_REGISTRY.find((game) => game.lobbyEnabled !== false)?.id || "";
 let gameSessionStartInProgress = false;
 let gameSessionCountdownTimer = null;
@@ -1573,7 +1575,16 @@ function renderGameCenter() {
         ? "Maçtan ayrıl (lobide kal)"
         : "Lobiden ayrıl";
 
-    $("finishGameRoundButton").hidden = !isPlaying || !canManage;
+    const openMatchButton = $("openGameMatchButton");
+    if (openMatchButton) {
+        openMatchButton.hidden = !(
+            session.gameId === "uno" &&
+            isPlaying &&
+            (isMatchPlayer || isSpectator)
+        );
+        openMatchButton.textContent = isSpectator ? "UNO masasını izle" : "UNO masasına gir";
+    }
+    $("finishGameRoundButton").hidden = !isPlaying || !canManage || session.gameId === "uno";
     $("returnToLobbyButton").hidden = !isResults || !canManage;
     $("closeGameSessionButton").hidden = !canManage;
     $("closeGameSessionButton").textContent = "Lobiyi tamamen kapat";
@@ -2088,6 +2099,30 @@ async function closeGameSession() {
 }
 
 $("createGameSessionButton").addEventListener("click", createGameSession);
+$("openGameMatchButton")?.addEventListener("click", async () => {
+    if (!currentUser || !activeRoomId || !gameSessionData ||
+        gameSessionData.gameId !== "uno" || gameSessionData.status !== "playing") return;
+
+    const button = $("openGameMatchButton");
+    button.disabled = true;
+    try {
+        activeUnoGame?.close();
+        activeUnoGame = await unoGame.open({
+            db,
+            roomId: activeRoomId,
+            round: gameSessionData.round,
+            uid: currentUser.uid,
+            session: gameSessionData,
+            roomMembers: activeRoomMembers,
+            onLeave: leaveCurrentMatch
+        });
+    } catch (error) {
+        console.error("CACA UNO launch failed:", error);
+        setGameCenterStatus("UNO masası açılamadı: " + (error.message || "Bilinmeyen hata"), true);
+    } finally {
+        button.disabled = false;
+    }
+});
 $("joinGameSessionButton").addEventListener("click", joinGameSession);
 $("readyGameSessionButton").addEventListener("click", toggleGameReady);
 $("leaveGameSessionButton").addEventListener("click", () => {
