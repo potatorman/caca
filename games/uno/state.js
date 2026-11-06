@@ -1,4 +1,5 @@
 import {
+    arrayUnion,
     doc,
     onSnapshot,
     runTransaction,
@@ -103,7 +104,46 @@ export async function ensureMatch(db, roomId, round, uid) {
         }
 
         if (matchSnapshot.exists()) {
-            return matchSnapshot.data();
+            const ownHandDocument = handRef(db, roomId, round, uid);
+            const ownHandSnapshot = await transaction.get(ownHandDocument);
+            const existingState = matchSnapshot.data();
+
+            // Recover a missing private hand without exposing another player's cards.
+            if (!ownHandSnapshot.exists()) {
+                const recovered = collectDrawCards(
+                    existingState,
+                    7,
+                    existingState.discardPile || [existingState.topCard]
+                );
+                if (recovered.cards.length !== 7) {
+                    throw new Error("Eksik oyuncu eli güvenli şekilde tamamlanamadı.");
+                }
+
+                const handCounts = {
+                    ...(existingState.handCounts || {}),
+                    [uid]: 7
+                };
+                transaction.update(gameRef, {
+                    drawPile: recovered.drawPile,
+                    discardPile: recovered.discardPile,
+                    handCounts,
+                    updatedAt: serverTimestamp()
+                });
+                transaction.set(ownHandDocument, {
+                    cards: recovered.cards,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                });
+
+                return {
+                    ...existingState,
+                    drawPile: recovered.drawPile,
+                    discardPile: recovered.discardPile,
+                    handCounts
+                };
+            }
+
+            return existingState;
         }
 
         const deck = shuffleDeck(createUnoDeck());
@@ -238,31 +278,25 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         let targetUid = null;
         let drawnCards = [];
         let targetHandDocument = null;
-        let targetHand = [];
 
         if (effect.drawCount > 0) {
             const targetIndex = nextIndex(state, currentIndex, state.direction, effect.targetIndexOffset);
             targetUid = playerIds[targetIndex];
             targetHandDocument = handRef(db, roomId, round, targetUid);
-            const targetHandSnapshot = await transaction.get(targetHandDocument);
-            if (!targetHandSnapshot.exists()) {
-                throw new Error("Ceza kartı alacak oyuncunun eli bulunamadı.");
-            }
-            targetHand = Array.isArray(targetHandSnapshot.data().cards)
-                ? targetHandSnapshot.data().cards
-                : [];
+            const targetCardCount = Number(state.handCounts?.[targetUid]) || 0;
 
             const drawResult = collectDrawCards(state, effect.drawCount, discardAfterPlay);
             drawnCards = drawResult.cards;
             drawPile = drawResult.drawPile;
             discardPile = drawResult.discardPile;
-            handCounts[targetUid] = targetHand.length + drawnCards.length;
+            handCounts[targetUid] = targetCardCount + drawnCards.length;
             nextTurnIndex = nextIndex(state, targetIndex, state.direction, 1);
         }
 
+        // arrayUnion appends penalty cards without reading the opponent's private hand.
         if (targetHandDocument && drawnCards.length) {
             transaction.update(targetHandDocument, {
-                cards: [...targetHand, ...drawnCards],
+                cards: arrayUnion(...drawnCards),
                 updatedAt: serverTimestamp()
             });
         }
@@ -422,13 +456,7 @@ export async function catchUno(db, roomId, round, uid) {
 
         const targetUid = state.unoPendingUid;
         const targetHandDocument = handRef(db, roomId, round, targetUid);
-        const targetHandSnapshot = await transaction.get(targetHandDocument);
-        if (!targetHandSnapshot.exists()) {
-            throw new Error("UNO cezası alacak oyuncunun eli bulunamadı.");
-        }
-        const targetHand = Array.isArray(targetHandSnapshot.data().cards)
-            ? targetHandSnapshot.data().cards
-            : [];
+        const targetCardCount = Number(state.handCounts?.[targetUid]) || 0;
 
         const result = collectDrawCards(
             state,
@@ -438,14 +466,14 @@ export async function catchUno(db, roomId, round, uid) {
 
         if (result.cards.length) {
             transaction.update(targetHandDocument, {
-                cards: [...targetHand, ...result.cards],
+                cards: arrayUnion(...result.cards),
                 updatedAt: serverTimestamp()
             });
         }
 
         const handCounts = {
             ...state.handCounts,
-            [targetUid]: targetHand.length + result.cards.length
+            [targetUid]: targetCardCount + result.cards.length
         };
 
         transaction.update(gameDocument, {
