@@ -3906,7 +3906,7 @@ async function manageMember(member, action) {
                 }
             }
 
-            if (gameSession.status === "starting" && wasPlayer) {
+            if (gameSession.status === "starting" && (wasPlayer || hostWasKicked)) {
                 participantFields.status = "lobby";
                 participantFields.countdownEndsAt = null;
             }
@@ -4258,7 +4258,7 @@ async function removeSelfFromActiveGame(roomId) {
             if (nextPlayers.includes(uid)) updates.nextRoundPlayerIds = remainingNextPlayers;
             if (nextReady.includes(uid)) updates.nextRoundReadyIds = remainingNextReady;
 
-            if (isLobbyState && session.status === "starting" && players.includes(uid)) {
+            if (isLobbyState && session.status === "starting" && (players.includes(uid) || isHost)) {
                 updates.status = "lobby";
                 updates.countdownEndsAt = null;
             }
