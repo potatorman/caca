@@ -2605,17 +2605,17 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
 // ROOM ADMIN ROLES
 
 function getAdminExpiryMs(member) {
-    if (!member?.adminExpiresAt) return null;
+    if (!member || member.adminExpiresAt == null) return null;
     const expiry = typeof member.adminExpiresAt.toDate === "function"
         ? member.adminExpiresAt.toDate()
         : new Date(member.adminExpiresAt);
-    return Number.isFinite(expiry.getTime()) ? expiry.getTime() : null;
+    return Number.isFinite(expiry.getTime()) ? expiry.getTime() : Number.NaN;
 }
 
 function isActiveRoomAdmin(member) {
     if (!member || member.role !== "admin") return false;
     const expiryMs = getAdminExpiryMs(member);
-    return expiryMs === null || expiryMs > Date.now();
+    return expiryMs === null || (Number.isFinite(expiryMs) && expiryMs > Date.now());
 }
 
 function clearCurrentAdminExpiryTimer() {
@@ -2635,7 +2635,7 @@ function syncCurrentAdminExpiry(roomId) {
     ) return;
 
     const expiryMs = getAdminExpiryMs(member);
-    if (expiryMs === null) return; // No expiry means permanent admin.
+    if (expiryMs === null || !Number.isFinite(expiryMs)) return; // No valid expiry to schedule.
 
     const runDemotion = async () => {
         currentAdminExpiryTimer = null;
@@ -2683,7 +2683,7 @@ function cleanupExpiredRoomAdminsForOwner(roomId, members) {
         member.id !== activeRoomOwnerId &&
         member.role === "admin" &&
         getAdminExpiryMs(member) !== null &&
-        getAdminExpiryMs(member) <= Date.now()
+        (!Number.isFinite(getAdminExpiryMs(member)) || getAdminExpiryMs(member) <= Date.now())
     );
     if (!expired.length) return;
 
