@@ -4356,15 +4356,13 @@ async function removeSelfFromActiveGame(roomId) {
             const nextHostId = isHost ? remainingPlayers[0] : null;
             const nextPlayerIds = remainingPlayers;
 
-            const updates = {
-                playerIds: nextPlayerIds,
-                readyIds: remainingReady,
-                matchPlayerIds: remainingMatchPlayers,
-                spectatorIds: remainingSpectators,
-                nextRoundPlayerIds: remainingNextPlayers,
-                nextRoundReadyIds: remainingNextReady,
-                updatedAt: serverTimestamp()
-            };
+            const updates = { updatedAt: serverTimestamp() };
+            if (players.includes(uid)) updates.playerIds = nextPlayerIds;
+            if (readyIds.includes(uid)) updates.readyIds = remainingReady;
+            if (matchPlayers.includes(uid)) updates.matchPlayerIds = remainingMatchPlayers;
+            if (spectators.includes(uid)) updates.spectatorIds = remainingSpectators;
+            if (nextPlayers.includes(uid)) updates.nextRoundPlayerIds = remainingNextPlayers;
+            if (nextReady.includes(uid)) updates.nextRoundReadyIds = remainingNextReady;
 
             if (session.status === "starting" &&
                 (players.includes(uid) || isHost)) {
