@@ -1,12 +1,11 @@
 import {
-    arrayUnion,
     doc,
     onSnapshot,
     runTransaction,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
-import { createDocumentId, createUnoDeck, shuffleDeck } from "./deck.js";
+import { createUnoDeck, shuffleDeck } from "./deck.js";
 import {
     UNO_COLORS,
     getPlayEffect,
@@ -26,9 +25,6 @@ function handRef(db, roomId, round, uid) {
     return doc(db, "rooms", roomId, "unoMatches", String(round), "hands", uid);
 }
 
-function drawCardRef(db, roomId, round, cardDocumentId) {
-    return doc(db, "rooms", roomId, "unoMatches", String(round), "drawCards", cardDocumentId);
-}
 
 function requirePlayingMatch(state, uid) {
     if (!state || state.status !== "playing") {
@@ -52,7 +48,7 @@ function nextIndex(state, index, direction, steps = 1) {
     return nextPlayerIndex(index, direction, state.activePlayerIds.length, steps);
 }
 
-function buildInitialState(roomId, round, playerIds, dealerId, deck, drawOrder) {
+function buildInitialState(roomId, round, playerIds, dealerId, deck) {
     const handCounts = {};
     playerIds.forEach((uid) => { handCounts[uid] = 7; });
 
@@ -72,8 +68,7 @@ function buildInitialState(roomId, round, playerIds, dealerId, deck, drawOrder) 
         activeColor: topCard.color,
         topCard,
         discardPile: [topCard],
-        drawOrder,
-        drawIndex: dealCount + 1,
+        drawPile: deck.slice(dealCount + 1),
         handCounts,
         drewCardId: null,
         drewCardPlayable: false,
@@ -86,7 +81,6 @@ function buildInitialState(roomId, round, playerIds, dealerId, deck, drawOrder) 
         lastActionTargetUid: null,
         lastActionDrawnCards: [],
         lastPlayedCard: null,
-        deckRecycledBy: null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         turnStartedAt: serverTimestamp()
@@ -131,8 +125,7 @@ export async function ensureMatch(db, roomId, round, uid) {
 
         [deck[dealCount], deck[openingNumberIndex]] = [deck[openingNumberIndex], deck[dealCount]];
 
-        const drawOrder = deck.map(() => createDocumentId());
-        const state = buildInitialState(roomId, round, playerIds, uid, deck, drawOrder);
+        const state = buildInitialState(roomId, round, playerIds, uid, deck);
 
         transaction.set(gameRef, state);
 
@@ -145,66 +138,26 @@ export async function ensureMatch(db, roomId, round, uid) {
             });
         });
 
-        deck.forEach((card, index) => {
-            transaction.set(drawCardRef(db, roomId, round, drawOrder[index]), {
-                card,
-                createdAt: serverTimestamp()
-            });
-        });
 
         return state;
     });
 }
 
-async function collectDrawCards(transaction, db, roomId, round, state, count, discardPile, uid) {
-    const drawOrder = [...state.drawOrder];
-    const remaining = Math.max(0, drawOrder.length - state.drawIndex);
-    const cards = [];
-
-    const fromCurrentDeck = Math.min(remaining, count);
-    for (let offset = 0; offset < fromCurrentDeck; offset += 1) {
-        const documentId = drawOrder[state.drawIndex + offset];
-        const snapshot = await transaction.get(drawCardRef(db, roomId, round, documentId));
-        if (!snapshot.exists() || !snapshot.data()?.card) {
-            throw new Error("Çekme destesindeki kart bulunamadı. Maç durumu tutarsız.");
-        }
-        cards.push(snapshot.data().card);
-    }
-
-    let nextOrder = drawOrder;
-    let nextIndex = state.drawIndex + fromCurrentDeck;
+function collectDrawCards(state, count, discardPile) {
+    let drawPile = [...(state.drawPile || [])];
     let nextDiscard = [...discardPile];
-    let recycled = false;
 
-    if (cards.length < count) {
-        const topCard = discardPile[discardPile.length - 1];
-        const recyclable = shuffleDeck(discardPile.slice(0, -1));
-
-        const needed = count - cards.length;
-        const recycledCount = Math.min(recyclable.length, needed);
-        cards.push(...recyclable.slice(0, recycledCount));
-
-        // Cards handed to the player directly are not also written into the draw pile.
-        const remainingRecycled = recyclable.slice(recycledCount);
-        const newIds = remainingRecycled.map(() => createDocumentId());
-        remainingRecycled.forEach((card, index) => {
-            transaction.set(drawCardRef(db, roomId, round, newIds[index]), {
-                card,
-                createdAt: serverTimestamp()
-            });
-        });
-
-        nextOrder = drawOrder.slice(0, state.drawIndex + fromCurrentDeck).concat(newIds);
-        nextDiscard = [topCard];
-        recycled = remainingRecycled.length > 0;
+    if (drawPile.length < count) {
+        const topCard = nextDiscard[nextDiscard.length - 1];
+        drawPile = drawPile.concat(shuffleDeck(nextDiscard.slice(0, -1)));
+        nextDiscard = topCard ? [topCard] : [];
     }
 
+    const cards = drawPile.splice(0, count);
     return {
         cards,
-        drawOrder: nextOrder,
-        drawIndex: nextIndex,
-        discardPile: nextDiscard,
-        deckRecycledBy: recycled ? uid : null
+        drawPile,
+        discardPile: nextDiscard
     };
 }
 
@@ -260,7 +213,6 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         const state = gameSnapshot.data();
         requireTurn(state, uid);
 
-
         const hand = Array.isArray(handSnapshot.data().cards) ? handSnapshot.data().cards : [];
         const card = hand.find((item) => item.id === cardId);
 
@@ -288,44 +240,40 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         const effect = getPlayEffect(card, playerIds.length, state.direction);
         const nextDirection = effect.direction;
         const discardAfterPlay = [...(state.discardPile || [state.topCard]), card];
-        let drawOrder = state.drawOrder;
-        let drawIndex = state.drawIndex;
+        let drawPile = [...(state.drawPile || [])];
         let discardPile = discardAfterPlay;
-        let deckRecycledBy = null;
         let handCounts = { ...state.handCounts, [uid]: remainingHand.length };
         let nextTurnIndex = nextIndex(state, currentIndex, nextDirection, effect.steps);
         let targetUid = null;
         let drawnCards = [];
+        let targetHandDocument = null;
+        let targetHand = [];
 
         if (effect.drawCount > 0) {
             const targetIndex = nextIndex(state, currentIndex, state.direction, effect.targetIndexOffset);
             targetUid = playerIds[targetIndex];
-
-            const drawResult = await collectDrawCards(
-                transaction,
-                db,
-                roomId,
-                round,
-                { ...state, direction: state.direction },
-                effect.drawCount,
-                discardAfterPlay,
-                uid
-            );
-
-            drawnCards = drawResult.cards;
-            drawOrder = drawResult.drawOrder;
-            drawIndex = drawResult.drawIndex;
-            discardPile = drawResult.discardPile;
-            deckRecycledBy = drawResult.deckRecycledBy;
-            handCounts[targetUid] = (Number(handCounts[targetUid]) || 0) + drawnCards.length;
-            nextTurnIndex = nextIndex(state, targetIndex, state.direction, 1);
-
-            if (drawnCards.length) {
-                transaction.update(handRef(db, roomId, round, targetUid), {
-                    cards: arrayUnion(...drawnCards),
-                    updatedAt: serverTimestamp()
-                });
+            targetHandDocument = handRef(db, roomId, round, targetUid);
+            const targetHandSnapshot = await transaction.get(targetHandDocument);
+            if (!targetHandSnapshot.exists()) {
+                throw new Error("Ceza kartı alacak oyuncunun eli bulunamadı.");
             }
+            targetHand = Array.isArray(targetHandSnapshot.data().cards)
+                ? targetHandSnapshot.data().cards
+                : [];
+
+            const drawResult = collectDrawCards(state, effect.drawCount, discardAfterPlay);
+            drawnCards = drawResult.cards;
+            drawPile = drawResult.drawPile;
+            discardPile = drawResult.discardPile;
+            handCounts[targetUid] = targetHand.length + drawnCards.length;
+            nextTurnIndex = nextIndex(state, targetIndex, state.direction, 1);
+        }
+
+        if (targetHandDocument && drawnCards.length) {
+            transaction.update(targetHandDocument, {
+                cards: [...targetHand, ...drawnCards],
+                updatedAt: serverTimestamp()
+            });
         }
 
         transaction.update(playerHandDocument, {
@@ -337,8 +285,7 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
             topCard: card,
             activeColor: selectedColor || card.color,
             discardPile,
-            drawOrder,
-            drawIndex,
+            drawPile,
             handCounts,
             ...createNextTurnPatch(state, nextTurnIndex, nextDirection),
             unoPendingUid: remainingHand.length === 1 ? uid : null,
@@ -348,7 +295,6 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
             lastActionTargetUid: targetUid,
             lastActionDrawnCards: drawnCards,
             lastPlayedCard: card,
-            deckRecycledBy,
             updatedAt: serverTimestamp()
         };
 
@@ -387,19 +333,19 @@ export async function drawOneCard(db, roomId, round, uid) {
         requireTurn(state, uid);
         if (state.drewCardId) throw new Error("Bu turda zaten kart çektin.");
 
-
         const hand = Array.isArray(handSnapshot.data().cards) ? handSnapshot.data().cards : [];
-        const discardPile = state.discardPile || [state.topCard];
-        const result = await collectDrawCards(transaction, db, roomId, round, state, 1, discardPile, uid);
+        const result = collectDrawCards(
+            state,
+            1,
+            state.discardPile || [state.topCard]
+        );
         const card = result.cards[0];
 
         if (!card) {
             const next = nextIndex(state, state.currentPlayerIndex, state.direction, 1);
             transaction.update(gameDocument, {
-                drawOrder: result.drawOrder,
-                drawIndex: result.drawIndex,
+                drawPile: result.drawPile,
                 discardPile: result.discardPile,
-                deckRecycledBy: result.deckRecycledBy,
                 ...createNextTurnPatch(state, next, state.direction),
                 ...clearExpiredUno(state),
                 lastActionType: "pass",
@@ -426,10 +372,8 @@ export async function drawOneCard(db, roomId, round, uid) {
             : nextIndex(state, state.currentPlayerIndex, state.direction, 1);
 
         transaction.update(gameDocument, {
-            drawOrder: result.drawOrder,
-            drawIndex: result.drawIndex,
+            drawPile: result.drawPile,
             discardPile: result.discardPile,
-            deckRecycledBy: result.deckRecycledBy,
             handCounts,
             ...createNextTurnPatch(state, nextIndexValue, state.direction, {
                 drewCardId: canPlay ? card.id : null,
@@ -511,34 +455,36 @@ export async function catchUno(db, roomId, round, uid) {
         }
 
         const targetUid = state.unoPendingUid;
-        const result = await collectDrawCards(
-            transaction,
-            db,
-            roomId,
-            round,
+        const targetHandDocument = handRef(db, roomId, round, targetUid);
+        const targetHandSnapshot = await transaction.get(targetHandDocument);
+        if (!targetHandSnapshot.exists()) {
+            throw new Error("UNO cezası alacak oyuncunun eli bulunamadı.");
+        }
+        const targetHand = Array.isArray(targetHandSnapshot.data().cards)
+            ? targetHandSnapshot.data().cards
+            : [];
+
+        const result = collectDrawCards(
             state,
             2,
-            state.discardPile || [state.topCard],
-            uid
+            state.discardPile || [state.topCard]
         );
 
         if (result.cards.length) {
-            transaction.update(handRef(db, roomId, round, targetUid), {
-                cards: arrayUnion(...result.cards),
+            transaction.update(targetHandDocument, {
+                cards: [...targetHand, ...result.cards],
                 updatedAt: serverTimestamp()
             });
         }
 
         const handCounts = {
             ...state.handCounts,
-            [targetUid]: (Number(state.handCounts[targetUid]) || 0) + result.cards.length
+            [targetUid]: targetHand.length + result.cards.length
         };
 
         transaction.update(gameDocument, {
-            drawOrder: result.drawOrder,
-            drawIndex: result.drawIndex,
+            drawPile: result.drawPile,
             discardPile: result.discardPile,
-            deckRecycledBy: result.deckRecycledBy,
             handCounts,
             unoPendingUid: null,
             unoCalled: false,

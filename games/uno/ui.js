@@ -242,7 +242,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         $("active-color").textContent = "Aktif renk: " + (COLOR_LABELS[matchState.activeColor] || "—");
         $("active-color").className = "uno-active-color is-" + (matchState.activeColor || "none");
         $("direction").textContent = "Yön: " + (matchState.direction === -1 ? "←" : "→");
-        $("draw-count").textContent = Math.max(0, (matchState.drawOrder?.length || 0) - (matchState.drawIndex || 0));
+        $("draw-count").textContent = (matchState.drawPile || []).length;
         $("discard").replaceChildren();
 
         if (matchState.topCard) {

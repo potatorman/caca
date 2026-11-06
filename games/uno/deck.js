@@ -55,11 +55,3 @@ export function shuffleDeck(cards) {
 
     return shuffled;
 }
-
-export function createDocumentId() {
-    if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
-        return globalThis.crypto.randomUUID().replace(/-/g, "");
-    }
-
-    return "c" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
