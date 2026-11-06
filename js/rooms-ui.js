@@ -2,7 +2,7 @@ import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY } from "../games/registry.js";
-import { ensureMatch as ensureUnoMatch, unoGame } from "../games/uno/index.js";
+import { ensureMatch as ensureUnoMatch } from "../games/uno/index.js";
 
 import {
     onAuthStateChanged
@@ -113,7 +113,9 @@ let unsubscribePranks = null;
 let unsubscribePersonalPranks = null;
 let unsubscribeGameSession = null;
 let gameSessionData = null;
-let activeUnoGame = null;
+let activeRoomGame = null;
+let autoOpenedRoomGameKey = "";
+let openingRoomGameKey = "";
 let selectedGameId = GAME_REGISTRY.find((game) => game.lobbyEnabled !== false)?.id || "";
 let gameSessionStartInProgress = false;
 let gameSessionCountdownTimer = null;
@@ -1577,12 +1579,13 @@ function renderGameCenter() {
 
     const openMatchButton = $("openGameMatchButton");
     if (openMatchButton) {
-        const canViewUno = ["playing", "results"].includes(session.status) &&
+        const canViewGame = ["playing", "results"].includes(session.status) &&
             (isMatchPlayer || isSpectator || (isResults && isLobbyPlayer));
-        openMatchButton.hidden = !(session.gameId === "uno" && canViewUno);
+        openMatchButton.hidden = !(gameDefinition?.module && canViewGame);
+        const gameName = gameDefinition?.name || "Oyun";
         openMatchButton.textContent = isResults
-            ? "UNO sonuçlarını gör"
-            : isSpectator ? "UNO masasını izle" : "UNO masasına gir";
+            ? gameName + " sonuçlarını gör"
+            : isSpectator ? gameName + " masasını izle" : gameName + " ekranını aç";
     }
     $("finishGameRoundButton").hidden = !isPlaying || !canManage || session.gameId === "uno";
     $("returnToLobbyButton").hidden = !isResults || !canManage;
@@ -1812,15 +1815,96 @@ async function joinGameAsSpectator() {
     }
 }
 
+async function openRoomGame(sessionData, { automatic = false } = {}) {
+    if (!currentUser || !activeRoomId || !sessionData) return;
+
+    const roomId = activeRoomId;
+    const definition = GAME_REGISTRY.find((game) => game.id === sessionData.gameId);
+    if (!definition?.module) {
+        if (!automatic) setGameCenterStatus("Bu oyunun ekran modülü bulunamadı.", true);
+        return;
+    }
+
+    const matchPlayers = Array.isArray(sessionData.matchPlayerIds)
+        ? sessionData.matchPlayerIds
+        : [];
+    const spectators = Array.isArray(sessionData.spectatorIds)
+        ? sessionData.spectatorIds
+        : [];
+    const isEligible = sessionData.status === "playing"
+        ? matchPlayers.includes(currentUser.uid) || spectators.includes(currentUser.uid)
+        : sessionData.status === "results" &&
+            (matchPlayers.includes(currentUser.uid) ||
+             (sessionData.playerIds || []).includes(currentUser.uid));
+
+    if (automatic && !isEligible) return;
+
+    const gameKey = roomId + ":" + sessionData.gameId + ":" + String(sessionData.round);
+    if (automatic && (autoOpenedRoomGameKey === gameKey || openingRoomGameKey === gameKey)) {
+        return;
+    }
+    if (openingRoomGameKey === gameKey) return;
+
+    openingRoomGameKey = gameKey;
+    try {
+        const modulePath = definition.module.startsWith("./")
+            ? "../games/" + definition.module.slice(2)
+            : definition.module;
+        const gameModule = await import(modulePath);
+        const game = gameModule.default || gameModule[sessionData.gameId + "Game"];
+        if (!game || typeof game.open !== "function") {
+            throw new Error("Oyun modülü open() arayüzünü dışa aktarmıyor.");
+        }
+        if (activeRoomId !== roomId || gameSessionData?.round !== sessionData.round) return;
+
+        activeRoomGame?.close();
+        activeRoomGame = await game.open({
+            db,
+            roomId,
+            round: sessionData.round,
+            uid: currentUser.uid,
+            session: sessionData,
+            roomMembers: activeRoomMembers,
+            onLeave: leaveCurrentMatch
+        });
+        autoOpenedRoomGameKey = gameKey;
+    } catch (error) {
+        console.error("CACA room game launch failed:", error);
+        if (activeRoomId === roomId) {
+            setGameCenterStatus("Oyun ekranı açılamadı: " + (error.message || "Bilinmeyen hata"), true);
+        }
+    } finally {
+        if (openingRoomGameKey === gameKey) openingRoomGameKey = "";
+    }
+}
+
 function listenToGameCenter(roomId) {
     clearGameSessionCountdown();
     if (unsubscribeGameSession) unsubscribeGameSession();
+    activeRoomGame?.close();
+    activeRoomGame = null;
     unsubscribeGameSession = onSnapshot(getGameSessionRef(roomId), (snapshot) => {
         if (activeRoomId !== roomId) return;
         gameSessionData = snapshot.exists() ? snapshot.data() : null;
         renderGameCenter();
         syncGameSessionCountdown(roomId, gameSessionData);
         if (gameSessionData) maybeStartGameWhenReady(roomId, gameSessionData);
+
+        if (gameSessionData?.status === "playing") {
+            const matchPlayers = Array.isArray(gameSessionData.matchPlayerIds)
+                ? gameSessionData.matchPlayerIds
+                : [];
+            const spectators = Array.isArray(gameSessionData.spectatorIds)
+                ? gameSessionData.spectatorIds
+                : [];
+            if (matchPlayers.includes(currentUser?.uid) || spectators.includes(currentUser?.uid)) {
+                void openRoomGame(gameSessionData, { automatic: true });
+            }
+        } else if (!gameSessionData || gameSessionData.status === "lobby") {
+            activeRoomGame?.close();
+            activeRoomGame = null;
+        }
+
         if ($("gameCenterPanel") && !$("gameCenterPanel").hidden && gameSessionData?.status === "playing") {
             joinGameAsSpectator();
         }
@@ -2111,28 +2195,12 @@ async function closeGameSession() {
 $("createGameSessionButton").addEventListener("click", createGameSession);
 $("openGameMatchButton")?.addEventListener("click", async () => {
     if (!currentUser || !activeRoomId || !gameSessionData ||
-        gameSessionData.gameId !== "uno" ||
         !["playing", "results"].includes(gameSessionData.status)) return;
 
     const button = $("openGameMatchButton");
     button.disabled = true;
-    try {
-        activeUnoGame?.close();
-        activeUnoGame = await unoGame.open({
-            db,
-            roomId: activeRoomId,
-            round: gameSessionData.round,
-            uid: currentUser.uid,
-            session: gameSessionData,
-            roomMembers: activeRoomMembers,
-            onLeave: leaveCurrentMatch
-        });
-    } catch (error) {
-        console.error("CACA UNO launch failed:", error);
-        setGameCenterStatus("UNO masası açılamadı: " + (error.message || "Bilinmeyen hata"), true);
-    } finally {
-        button.disabled = false;
-    }
+    await openRoomGame(gameSessionData);
+    button.disabled = false;
 });
 $("joinGameSessionButton").addEventListener("click", joinGameSession);
 $("readyGameSessionButton").addEventListener("click", toggleGameReady);
