@@ -1563,8 +1563,6 @@ function renderGameCenter() {
     $("gameSpectatorsCount").textContent = String(spectators.length);
     renderGameMemberList("gameSpectatorsList", spectators, () => "İzliyor");
 
-    $("gameNextRoundSection").hidden = true;
-
     $("joinGameSessionButton").hidden = session.status !== "lobby" || isLobbyPlayer;
     $("readyGameSessionButton").hidden = !["lobby", "starting"].includes(session.status) || !isLobbyPlayer;
     $("leaveGameSessionButton").hidden = !(
