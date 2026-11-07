@@ -74,9 +74,21 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                 <div class="uno-hand-area" data-role="hand-area">
                     <div class="uno-hand-heading">
                         <strong>Senin kartların</strong>
-                        <span data-role="hand-count">0 kart</span>
+                        <div class="uno-hand-heading-actions">
+                            <span data-role="hand-count">0 kart</span>
+                            <button class="uno-secondary uno-hand-visibility" type="button"
+                                data-action="toggle-hand-visibility" aria-pressed="false">
+                                Kartları gizle
+                            </button>
+                        </div>
                     </div>
-                    <div class="uno-hand" data-role="hand"></div>
+                    <div class="uno-hand-viewport" data-role="hand-viewport">
+                        <div class="uno-hand" data-role="hand"></div>
+                        <div class="uno-hand-cover" data-role="hand-cover" hidden aria-hidden="true">
+                            <strong>KARTLAR GİZLİ</strong>
+                            <span>Göstermek için butona bas</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="uno-controls">
                     <button class="uno-primary" type="button" data-action="uno" hidden>UNO!</button>
@@ -119,6 +131,9 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     let unsubscribeMatch = null;
     let timeoutTimer = null;
     let timeoutAttemptedKey = null;
+    let handHidden = false;
+    let profileRenderVersion = 0;
+    const profileLoads = new Map();
     let closed = false;
 
     $("hand-area").hidden = !(
@@ -142,8 +157,9 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     };
 
     const loadProfiles = async (playerIds) => {
-        await Promise.all(playerIds.map(async (playerId) => {
-            if (profiles[playerId]) return;
+        await Promise.all(playerIds.map((playerId) => {
+            if (profiles[playerId]) return Promise.resolve();
+
             const known = members.find((item) => item.id === playerId);
             if (known) {
                 profiles[playerId] = {
@@ -152,15 +168,23 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                     avatarId: known.avatarId,
                     avatarData: known.avatarData
                 };
-                return;
+                return Promise.resolve();
             }
 
-            try {
-                const snapshot = await getDoc(doc(db, "users", playerId));
-                if (snapshot.exists()) profiles[playerId] = snapshot.data();
-            } catch {
-                profiles[playerId] = { username: "Oyuncu" };
-            }
+            if (profileLoads.has(playerId)) return profileLoads.get(playerId);
+
+            const pending = getDoc(doc(db, "users", playerId))
+                .then((snapshot) => {
+                    if (snapshot.exists()) profiles[playerId] = snapshot.data();
+                    else profiles[playerId] = { username: "Oyuncu" };
+                })
+                .catch(() => {
+                    profiles[playerId] = { username: "Oyuncu" };
+                })
+                .finally(() => profileLoads.delete(playerId));
+
+            profileLoads.set(playerId, pending);
+            return pending;
         }));
     };
 
@@ -217,7 +241,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                 matchState.activeColor,
                 cards
             ) && (!matchState.drewCardId || matchState.drewCardId === card.id);
-            button.disabled = !playable;
+            button.disabled = !playable || handHidden;
             button.classList.toggle("is-playable", Boolean(playable));
             const value = document.createElement("span");
             value.className = "uno-card-value";
@@ -225,55 +249,83 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             const corner = document.createElement("small");
             corner.textContent = cardLabel(card);
             button.append(corner, value, corner.cloneNode(true));
-            button.addEventListener("click", () => handlePlay(card));
+            button.addEventListener("click", () => {
+                if (!handHidden) void handlePlay(card);
+            });
             container.appendChild(button);
         });
+
+        container.inert = handHidden;
+        container.setAttribute("aria-hidden", String(handHidden));
+        $("hand-viewport").classList.toggle("is-hidden", handHidden);
+        $("hand-cover").hidden = !handHidden;
+        $("hand-cover").setAttribute("aria-hidden", String(!handHidden));
+
+        const visibilityButton = action("toggle-hand-visibility");
+        visibilityButton.textContent = handHidden ? "Kartları göster" : "Kartları gizle";
+        visibilityButton.setAttribute("aria-pressed", String(handHidden));
+        visibilityButton.title = handHidden ? "Kart yüzlerini tekrar göster" : "Kart yüzlerini gizle";
     };
 
-    const render = async () => {
+    const render = () => {
         if (!matchState) return;
-        await loadProfiles(matchState.playerIds || []);
+
+        const stateForRender = matchState;
+        const renderVersion = ++profileRenderVersion;
+
+        // Draw game state immediately; profile reads must not block the table or hand.
         renderPlayers();
         renderHand();
 
-        const currentName = playerLabel(matchState.currentPlayerUid, members, profiles);
-        const isMyTurn = matchState.currentPlayerUid === uid && matchState.status === "playing";
+        const currentName = playerLabel(stateForRender.currentPlayerUid, members, profiles);
+        const isMyTurn = stateForRender.currentPlayerUid === uid && stateForRender.status === "playing";
         $("turn").textContent = isMyTurn ? "SIRA SENDE" : "Sıra: " + currentName;
-        $("active-color").textContent = "Aktif renk: " + (COLOR_LABELS[matchState.activeColor] || "—");
-        $("active-color").className = "uno-active-color is-" + (matchState.activeColor || "none");
-        $("direction").textContent = "Yön: " + (matchState.direction === -1 ? "←" : "→");
-        $("draw-count").textContent = (matchState.drawPile || []).length;
+        $("active-color").textContent = "Aktif renk: " + (COLOR_LABELS[stateForRender.activeColor] || "—");
+        $("active-color").className = "uno-active-color is-" + (stateForRender.activeColor || "none");
+        $("direction").textContent = "Yön: " + (stateForRender.direction === -1 ? "←" : "→");
+        $("draw-count").textContent = (stateForRender.drawPile || []).length;
         $("discard").replaceChildren();
 
-        if (matchState.topCard) {
+        if (stateForRender.topCard) {
             const top = document.createElement("div");
-            top.className = "uno-card uno-card-top uno-card-" + (matchState.topCard.color || "wild");
+            top.className = "uno-card uno-card-top uno-card-" + (stateForRender.topCard.color || "wild");
             const topValue = document.createElement("span");
             topValue.className = "uno-card-value";
-            topValue.textContent = cardLabel(matchState.topCard);
+            topValue.textContent = cardLabel(stateForRender.topCard);
             top.appendChild(topValue);
             $("discard").appendChild(top);
         }
 
-        action("draw").disabled = !isMyTurn || Boolean(matchState.drewCardId);
-        action("end-turn").hidden = !isMyTurn || !matchState.drewCardId;
-        action("leave").hidden = matchState.status !== "playing" || !matchState.activePlayerIds?.includes(uid);
-        action("leave").disabled = (matchState.activePlayerIds?.length || 0) <= 1;
+        action("draw").disabled = !isMyTurn || Boolean(stateForRender.drewCardId);
+        action("end-turn").hidden = !isMyTurn || !stateForRender.drewCardId;
+        action("leave").hidden = stateForRender.status !== "playing" || !stateForRender.activePlayerIds?.includes(uid);
+        action("leave").disabled = (stateForRender.activePlayerIds?.length || 0) <= 1;
         action("leave").title = action("leave").disabled
             ? "Son oyuncusun; maç sonucu otomatik tamamlanacak."
             : "Maçı terk et";
-        action("uno").hidden = !(matchState.unoPendingUid === uid && !matchState.unoCalled && matchState.status === "playing");
+        action("uno").hidden = !(stateForRender.unoPendingUid === uid && !stateForRender.unoCalled && stateForRender.status === "playing");
         action("catch").hidden = !(
-            matchState.activePlayerIds?.includes(uid) &&
-            matchState.unoPendingUid &&
-            !matchState.unoCalled &&
-            matchState.unoPendingUid !== uid
+            stateForRender.activePlayerIds?.includes(uid) &&
+            stateForRender.unoPendingUid &&
+            !stateForRender.unoCalled &&
+            stateForRender.unoPendingUid !== uid
         );
-        setStatus(matchState.status === "results" ? "Maç tamamlandı" : isMyTurn ? "Hamleni yap" : "Diğer oyuncunun hamlesi bekleniyor");
+        setStatus(stateForRender.status === "results" ? "Maç tamamlandı" : isMyTurn ? "Hamleni yap" : "Diğer oyuncunun hamlesi bekleniyor");
 
-        if (matchState.status === "results") {
+        if (stateForRender.status === "results") {
             renderResult();
         }
+
+        void loadProfiles(stateForRender.playerIds || []).then(() => {
+            if (closed || renderVersion !== profileRenderVersion) return;
+            renderPlayers();
+            if (matchState?.status === "results") renderResult();
+            else if (matchState) {
+                const latestName = playerLabel(matchState.currentPlayerUid, members, profiles);
+                const latestMyTurn = matchState.currentPlayerUid === uid && matchState.status === "playing";
+                $("turn").textContent = latestMyTurn ? "SIRA SENDE" : "Sıra: " + latestName;
+            }
+        });
     };
 
     const renderResult = () => {
@@ -299,7 +351,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     };
 
     const handlePlay = async (card) => {
-        if (!matchState || matchState.currentPlayerUid !== uid) return;
+        if (handHidden || !matchState || matchState.currentPlayerUid !== uid) return;
         if (card.type === "wild" || card.type === "wild4") {
             selectedWildCardId = card.id;
             $("color-modal").hidden = false;
@@ -339,6 +391,11 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             button.disabled = false;
         }
     };
+
+    action("toggle-hand-visibility").addEventListener("click", () => {
+        handHidden = !handHidden;
+        renderHand();
+    });
 
     action("close").addEventListener("click", (event) => {
         if (matchState?.status === "results") {
@@ -435,7 +492,15 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             (state) => {
                 if (closed) return;
                 matchState = state;
-                render().catch((error) => setMessage(error.message || "Masa güncellenemedi.", true));
+                if (!state) {
+                    setStatus("Yeni tur hazırlanıyor…");
+                    $("players").replaceChildren();
+                    $("discard").replaceChildren();
+                    $("hand").replaceChildren();
+                    $("hand-count").textContent = "0 kart";
+                    return;
+                }
+                render();
             },
             (hand) => {
                 if (closed) return;
