@@ -657,9 +657,8 @@ export async function forfeitMatch(db, roomId, round, uid) {
 
     // Phase 1: update only the UNO match document. The match-side rule validates
     // this self-forfeit using the old and new match rosters, without a session write.
-    let matchResult;
     try {
-        matchResult = await runTransaction(db, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const gameSnapshot = await transaction.get(gameDocument);
             if (!gameSnapshot.exists()) {
                 throw new Error("Aktif UNO maç kaydı bulunamadı.");
