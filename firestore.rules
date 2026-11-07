@@ -805,6 +805,60 @@ service cloud.firestore {
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['matchPlayerIds', 'updatedAt'])
             )
+            // The final active match player may leave; reset the persistent lobby
+            // so the remaining members can start a fresh match without a stuck session.
+            || (
+              resource.data.status == 'playing'
+              && request.resource.data.status == 'lobby'
+              && request.auth.uid != resource.data.hostId
+              && matchPlayers(resource.data).size() == 1
+              && matchPlayers(resource.data).hasAny([request.auth.uid])
+              && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && request.resource.data.playerIds.size() >= 1
+              && request.resource.data.hostId == resource.data.hostId
+              && onlyRemovesSelf(matchPlayers(resource.data), request.resource.data.matchPlayerIds)
+              && request.resource.data.matchPlayerIds.size() == 0
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.spectatorIds.size() == 0
+              && request.resource.data.nextRoundPlayerIds.size() == 0
+              && request.resource.data.nextRoundReadyIds.size() == 0
+              && request.resource.data.round == resource.data.round + 1
+              && request.resource.data.startedAt == null
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.finishedAt == null
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'round', 'playerIds', 'readyIds', 'matchPlayerIds',
+                'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
+                'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+              ])
+            )
+            // If the final match player is also the host, hand the lobby to
+            // the first remaining persistent player before resetting it.
+            || (
+              resource.data.status == 'playing'
+              && request.resource.data.status == 'lobby'
+              && request.auth.uid == resource.data.hostId
+              && matchPlayers(resource.data).size() == 1
+              && matchPlayers(resource.data).hasAny([request.auth.uid])
+              && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && request.resource.data.playerIds.size() >= 1
+              && request.resource.data.hostId == request.resource.data.playerIds[0]
+              && onlyRemovesSelf(matchPlayers(resource.data), request.resource.data.matchPlayerIds)
+              && request.resource.data.matchPlayerIds.size() == 0
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.spectatorIds.size() == 0
+              && request.resource.data.nextRoundPlayerIds.size() == 0
+              && request.resource.data.nextRoundReadyIds.size() == 0
+              && request.resource.data.round == resource.data.round + 1
+              && request.resource.data.startedAt == null
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.finishedAt == null
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'round', 'hostId', 'playerIds', 'readyIds', 'matchPlayerIds',
+                'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
+                'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+              ])
+            )
             // Finish a match: promote every recorded spectator and clear readiness.
             || (
               resource.data.status == 'playing'
