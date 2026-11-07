@@ -841,9 +841,9 @@ export async function returnToLobby(db, roomId, round, uid) {
             if (matchSnapshot.exists()) {
                 const match = matchSnapshot.data();
                 const cleanupPlayers = uniqueIds(match.playerIds);
-                for (let index = 0; index < cleanupPlayers.length; index += 6) {
+                for (let index = 0; index < cleanupPlayers.length; index += 4) {
                     const batch = writeBatch(db);
-                    cleanupPlayers.slice(index, index + 6).forEach((playerId) => {
+                    cleanupPlayers.slice(index, index + 4).forEach((playerId) => {
                         batch.delete(handRef(db, roomId, round, playerId));
                     });
                     await batch.commit();
