@@ -2192,8 +2192,8 @@ async function leaveGameLobby() {
             ? initialSession.playerIds || []
             : []);
 
-    // Ensure UNO state exists before a non-final match player leaves, so the
-    // remaining clients can reconcile the frozen match roster.
+    // UNO uses the same atomic forfeit path from both the table and lobby controls.
+    // This removes the player from the persistent lobby and awards a 2-player win.
     if (
         initialSession.status === "playing" &&
         initialSession.gameId === "uno" &&
@@ -2201,11 +2201,32 @@ async function leaveGameLobby() {
         initialMatchPlayers.length > 1
     ) {
         try {
-            await ensureUnoMatch(db, activeRoomId, initialSession.round, uid);
+            const result = await forfeitUnoMatch(
+                db,
+                activeRoomId,
+                initialSession.round,
+                uid
+            );
+
+            activeRoomGame?.close();
+            activeRoomGame = null;
+            activeRoomGameKey = "";
+
+            if (result.finished && result.winner) {
+                const winner = activeRoomMembers.find((member) => member.id === result.winner);
+                setGameCenterStatus(
+                    (winner?.displayNickname || winner?.username || "Rakibin") +
+                    " maçı terk ettiğin için kazandı."
+                );
+            } else {
+                setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
+            }
+            return true;
         } catch (error) {
-            setGameCenterStatus("Maç hazırlanamadığı için lobiden ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
-            if (leaveButton) leaveButton.disabled = false;
+            setGameCenterStatus("Maçı terk edemedin: " + (error.message || "Bilinmeyen hata"), true);
             return false;
+        } finally {
+            if (leaveButton) leaveButton.disabled = false;
         }
     }
 
