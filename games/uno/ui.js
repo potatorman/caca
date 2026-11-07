@@ -113,6 +113,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                     <span class="uno-eyebrow">MAÇ SONUCU</span>
                     <h2 data-role="winner">Kazanan</h2>
                     <div data-role="result-scores"></div>
+                    <p class="uno-message uno-result-message" data-role="result-message" aria-live="assertive"></p>
                     <button class="uno-primary" type="button" data-action="close-result">Yeni tur için lobiye dön</button>
                 </div>
             </div>
@@ -149,8 +150,10 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     );
 
     const setMessage = (message, error = false) => {
-        $("message").textContent = message || "";
-        $("message").classList.toggle("is-error", Boolean(error));
+        const inResults = $("result") && !$("result").hidden;
+        const target = inResults ? $("result-message") : $("message");
+        target.textContent = message || "";
+        target.classList.toggle("is-error", Boolean(error));
     };
 
     const setStatus = (message) => {
@@ -404,7 +407,9 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             await onReturnToLobby();
             close();
         } catch (error) {
-            setMessage("Lobiye dönülemedi: " + (error.message || "Bilinmeyen hata"), true);
+            const errorMessage = error?.message || "Bilinmeyen hata";
+            const errorCode = error?.code ? " (" + error.code + ")" : "";
+            setMessage("Lobiye dönülemedi: " + errorMessage + errorCode, true);
             button.disabled = false;
         }
     };
