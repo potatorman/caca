@@ -768,7 +768,7 @@ service cloud.firestore {
             && !matchPlayers(request.resource.data).hasAny([request.auth.uid])
             && request.resource.data.playerIds.size() >= 1
             && request.resource.data.playerIds.hasAll(matchPlayers(request.resource.data))
-            && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+            && resource.data.readyIds.hasAll(request.resource.data.readyIds)
             && spectators(request.resource.data) == spectators(resource.data)
             && (
               request.resource.data.hostId == resource.data.hostId
