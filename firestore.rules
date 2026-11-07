@@ -743,18 +743,31 @@ service cloud.firestore {
             ]);
         }
 
-        // UNO self-forfeit: this document validates only its own roster transition.
+        function currentUnoForfeitMatchPath() {
+          return /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round);
+        }
+
+        // Phase two of a self-forfeit is authorized only after phase one has
+        // committed the exact same roster change to the UNO match document.
         function canSelfForfeitUnoSession() {
           return resource.data.gameId == 'uno'
             && resource.data.status == 'playing'
+            && resource.data.playerIds.hasAny([request.auth.uid])
             && matchPlayers(resource.data).hasAny([request.auth.uid])
-            && request.resource.data.status in ['playing', 'results']
+            && exists(currentUnoForfeitMatchPath())
+            && get(currentUnoForfeitMatchPath()).data.roomId == roomId
+            && get(currentUnoForfeitMatchPath()).data.round == resource.data.round
+            && get(currentUnoForfeitMatchPath()).data.forfeitedBy == request.auth.uid
+            && get(currentUnoForfeitMatchPath()).data.status == request.resource.data.status
+            && get(currentUnoForfeitMatchPath()).data.activePlayerIds is list
+            && get(currentUnoForfeitMatchPath()).data.activePlayerIds == matchPlayers(request.resource.data)
+            && !get(currentUnoForfeitMatchPath()).data.activePlayerIds.hasAny([request.auth.uid])
             && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
-            && !request.resource.data.playerIds.hasAny([request.auth.uid])
-            && request.resource.data.playerIds.size() >= 1
             && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
+            && !request.resource.data.playerIds.hasAny([request.auth.uid])
             && !matchPlayers(request.resource.data).hasAny([request.auth.uid])
-            && matchPlayers(request.resource.data).size() >= 1
+            && request.resource.data.playerIds.size() >= 1
+            && request.resource.data.playerIds.hasAll(matchPlayers(request.resource.data))
             && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
             && spectators(request.resource.data) == spectators(resource.data)
             && (
@@ -770,23 +783,26 @@ service cloud.firestore {
             ])
             && (
               (
-                matchPlayers(request.resource.data).size() == 1
-                && request.resource.data.status == 'results'
+                get(currentUnoForfeitMatchPath()).data.status == 'results'
+                && matchPlayers(request.resource.data).size() == 1
+                && get(currentUnoForfeitMatchPath()).data.winnerId
+                  == matchPlayers(request.resource.data)[0]
                 && request.resource.data.readyIds.size() == 0
                 && request.resource.data.nextRoundPlayerIds.size() == 0
                 && request.resource.data.nextRoundReadyIds.size() == 0
+                && request.resource.data.finishedAt
+                  == get(currentUnoForfeitMatchPath()).data.finishedAt
                 && request.resource.data.finishedAt is timestamp
               )
               || (
-                matchPlayers(request.resource.data).size() >= 2
-                && request.resource.data.status == 'playing'
+                get(currentUnoForfeitMatchPath()).data.status == 'playing'
+                && matchPlayers(request.resource.data).size() >= 2
                 && request.resource.data.nextRoundPlayerIds == resource.data.nextRoundPlayerIds
                 && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
                 && request.resource.data.finishedAt == resource.data.finishedAt
               )
             );
         }
-
         allow get: if sessionId == 'active' && isRoomMember(roomId);
         allow list: if false;
 
