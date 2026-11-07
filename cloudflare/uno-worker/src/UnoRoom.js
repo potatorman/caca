@@ -238,7 +238,7 @@ export class UnoRoom extends DurableObject {
             type: "state",
             state: publicState(match, uid)
         });
-        if (role === "player" && match.status === "playing") {
+        if (role === "player") {
             this.send(socket, {
                 type: "hand",
                 hand: { cards: match.hands[uid] || [] }
