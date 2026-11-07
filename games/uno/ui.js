@@ -476,10 +476,18 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
 
     if (isMatchPlayer) {
         setStatus("Kartlar dağıtılıyor…");
-        ensureMatch(db, roomId, round, uid)
-            .then(() => {
+        ensureMatch(db, roomId, round, uid, { recoverStaleSession: true })
+            .then((result) => {
+                if (closed) return;
+
+                if (result?.sessionReset) {
+                    setStatus("Eski maç kaydı düzeltildi. Yeni tur için oyun lobisine döndün.");
+                    close();
+                    return;
+                }
+
                 // The private hand document must exist before its listener is attached.
-                if (!closed) startMatchSubscription(true);
+                startMatchSubscription(true);
             })
             .catch((error) => {
                 if (!closed) setMessage("Kart dağıtımı başarısız: " + (error.message || "Maç hazırlanamadı."), true);
