@@ -86,13 +86,7 @@ export async function ensureMatch(db, roomId, round, uid) {
         const matchSnapshot = await transaction.get(gameRef);
 
         if (matchSnapshot.exists()) {
-            const ownHandSnapshot = await transaction.get(ownHandDocument);
             const existingState = matchSnapshot.data();
-
-            if (ownHandSnapshot.exists()) {
-                return existingState;
-            }
-
             const activeSnapshot = await transaction.get(activeRef);
             if (!activeSnapshot.exists()) {
                 throw new Error("Kalıcı oyun lobisi bulunamadı.");
@@ -106,7 +100,25 @@ export async function ensureMatch(db, roomId, round, uid) {
                 Number(session.round) !== Number(round) ||
                 !activePlayers.includes(uid)
             ) {
-                throw new Error("Eksik oyuncu eli yalnızca aktif maç oyuncusu tarafından onarılabilir.");
+                throw new Error("Bu UNO turu artık aktif değil. Lobi ekranını yenileyip güncel tura gir.");
+            }
+
+            // Never reuse an old winner/result document as a newly-started round.
+            if (
+                existingState.status !== "playing" ||
+                Number(existingState.round) !== Number(round) ||
+                existingState.roomId !== roomId
+            ) {
+                throw new Error("Bu tur numarasında eski bir UNO maç kaydı bulundu. Sonuç ekranından 'Yeni tur için lobiye dön' seçeneğini kullan.");
+            }
+
+            if (!Array.isArray(existingState.activePlayerIds) || !existingState.activePlayerIds.includes(uid)) {
+                throw new Error("Bu turda aktif oyuncu değilsin.");
+            }
+
+            const ownHandSnapshot = await transaction.get(ownHandDocument);
+            if (ownHandSnapshot.exists()) {
+                return existingState;
             }
 
             // Recover a missing private hand without exposing another player's cards.
