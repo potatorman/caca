@@ -4,7 +4,8 @@ import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY, getGameDefinition } from "../games/registry.js";
 import {
     reconcileMatchPlayers as reconcileUnoMatchPlayers,
-    forfeitMatch as forfeitUnoMatch
+    forfeitMatch as forfeitUnoMatch,
+    returnToLobby as returnUnoToLobby
 } from "../games/uno/index.js";
 
 import {
@@ -1538,6 +1539,11 @@ function renderGameCenter() {
         ? session.matchPlayerIds
         : (["playing", "results"].includes(session.status) ? players : []);
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
+    const resultReturnIds = Array.isArray(session.resultReturnIds) ? session.resultReturnIds : [];
+    const hasReturnedFromUnoResults =
+        session.gameId === "uno" &&
+        session.status === "results" &&
+        resultReturnIds.includes(currentUser?.uid);
     const isPlaying = session.status === "playing";
     const isStarting = session.status === "starting";
     const isResults = session.status === "results";
@@ -1570,7 +1576,9 @@ function renderGameCenter() {
         : isStarting
             ? "Herkes hazır. Oyun 3 saniyelik geri sayımın sonunda başlayacak; biri vazgeçerse sayaç iptal edilir."
             : isResults
-                ? "Maç bitti. İzleyiciler otomatik olarak lobi üyelerine eklendi. Yeni maç için lobiye dön."
+                ? session.gameId === "uno"
+                    ? `Sonuç ekranı · ${resultReturnIds.length}/${matchPlayers.length} aktif oyuncu lobiye dönmeyi onayladı.`
+                    : "Maç bitti. İzleyiciler otomatik olarak lobi üyelerine eklendi. Yeni maç için lobiye dön."
                 : `Kalıcı lobi · Maç ${session.round || 1}. En az ${minPlayers} oyuncu hazır olduğunda geri sayım başlayacak.`;
 
     $("gamePlayersHeading").textContent = "Kalıcı lobi üyeleri";
@@ -1585,7 +1593,10 @@ function renderGameCenter() {
                 : "Sonraki maç için lobide";
         }
         if (isResults) {
-            return matchPlayers.includes(userId) ? "Maç oyuncusu" : "Lobi üyesi";
+            if (session.gameId === "uno" && resultReturnIds.includes(userId)) {
+                return "Lobiye döndü";
+            }
+            return matchPlayers.includes(userId) ? "Sonuç ekranında" : "Lobi üyesi";
         }
         if (userId === session.hostId) {
             return readyIds.includes(userId) ? "Lobi sahibi · Hazır" : "Lobi sahibi";
@@ -1621,7 +1632,8 @@ function renderGameCenter() {
     const openMatchButton = $("openGameMatchButton");
     if (openMatchButton) {
         const canViewGame = ["playing", "results"].includes(session.status) &&
-            (isMatchPlayer || isSpectator || (isResults && isLobbyPlayer));
+            (isMatchPlayer || isSpectator || (isResults && isLobbyPlayer)) &&
+            !hasReturnedFromUnoResults;
         openMatchButton.hidden = !(gameDefinition?.module && canViewGame);
         const gameName = gameDefinition?.name || "Oyun";
         openMatchButton.textContent = isResults
@@ -1648,9 +1660,16 @@ function renderGameCenter() {
         setGameCenterStatus("Sonraki maç için lobiye katıldın. Sonuç ekranı kapanınca otomatik ekleneceksin.");
     } else if (isResults && canQueueForNextRound) {
         setGameCenterStatus("Maç sonuçlandı. Şimdi lobiye katılarak sonraki maçta yer alabilirsin.");
+    } else if (isResults && hasReturnedFromUnoResults) {
+        const waiting = Math.max(0, matchPlayers.length - resultReturnIds.length);
+        setGameCenterStatus(
+            waiting > 0
+                ? "Lobiye döndün. Diğer " + waiting + " aktif oyuncunun onayı bekleniyor."
+                : "Tüm oyuncular döndü. Yeni lobi hazırlanıyor."
+        );
     } else if (isResults) {
         setGameCenterStatus(session.gameId === "uno"
-            ? "Maç sonuçlandı. Sonraki tura geçmek için oyun ekranındaki “Lobi ekranına dön” düğmesine bas."
+            ? "Maç sonuçlandı. Her oyuncu kendi sonuç ekranındaki “Yeni tur için lobiye dön” düğmesine basınca yeni lobi açılacak."
             : "Sonuçlar 5 saniye gösterilecek. Ardından lobi otomatik sıfırlanacak.");
     } else if (isStarting && isLobbyPlayer) {
         setGameCenterStatus("Geri sayım başladı. Hazır durumunu geri alarak maçı durdurabilirsin.");
@@ -1674,132 +1693,25 @@ function clearGameSessionResultsTimer() {
 }
 
 async function returnUnoToLobbyFromResults(roomId, expectedRound) {
-    const ref = getGameSessionRef(roomId);
-    const matchPath = doc(db, "rooms", roomId, "unoMatches", String(expectedRound));
+    if (!currentUser) throw new Error("Oturum bulunamadı.");
 
-    const transition = await runTransaction(db, async (transaction) => {
-        const snapshot = await transaction.get(ref);
-        if (!snapshot.exists()) {
-            throw new Error("Oyun lobisi bulunamadı.");
-        }
+    const result = await returnUnoToLobby(
+        db,
+        roomId,
+        expectedRound,
+        currentUser.uid
+    );
 
-        const session = snapshot.data();
-        if (session.gameId !== "uno") {
-            throw new Error("Bu oda artık UNO lobisi değil.");
-        }
-
-        if (
-            session.status === "lobby" &&
-            Number(session.round) === Number(expectedRound) + 1
-        ) {
-            return {
-                returned: true,
-                alreadyReturned: true,
-                round: Number(session.round),
-                playerIds: Array.isArray(session.playerIds) ? session.playerIds : [],
-                matchPlayerIds: []
-            };
-        }
-
-        if (!["playing", "results"].includes(session.status) ||
-            Number(session.round) !== Number(expectedRound)) {
-            throw new Error("Bu UNO turu artık aktif değil. Güncel lobi turunu aç.");
-        }
-
-        // When the final-card result session write was rejected by older Rules,
-        // the UNO match itself is still authoritative and already says results.
-        const matchSnapshot = await transaction.get(matchPath);
-        const matchData = matchSnapshot.exists() ? matchSnapshot.data() : null;
-        if (session.status === "playing" && (
-            !matchData ||
-            matchData.roomId !== roomId ||
-            Number(matchData.round) !== Number(expectedRound) ||
-            matchData.status !== "results" ||
-            !matchData.winnerId
-        )) {
-            throw new Error("UNO maçı henüz sonuçlanmamış. Sonuç kaydı bulunamadı.");
-        }
-
-        const players = Array.isArray(session.playerIds) ? session.playerIds : [];
-        const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
-        const queued = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
-        const nextPlayers = [...new Set([...players, ...spectators, ...queued])];
-
-        if (nextPlayers.length > 10) {
-            throw new Error("Sonraki lobi UNO oyuncu sınırını aşıyor.");
-        }
-
-        const nextRound = Number(session.round) + 1;
-        const matchPlayerIds = Array.isArray(session.matchPlayerIds)
-            ? session.matchPlayerIds
-            : [];
-
-        transaction.update(ref, {
-            status: "lobby",
-            round: nextRound,
-            playerIds: nextPlayers,
-            readyIds: [],
-            matchPlayerIds: [],
-            spectatorIds: [],
-            nextRoundPlayerIds: [],
-            nextRoundReadyIds: [],
-            startedAt: null,
-            countdownEndsAt: null,
-            finishedAt: null,
-            updatedAt: serverTimestamp()
-        });
-
-        return {
-            returned: true,
-            alreadyReturned: false,
-            round: nextRound,
-            playerIds: nextPlayers,
-            matchPlayerIds: [
-                ...new Set([
-                    ...matchPlayerIds,
-                    ...(Array.isArray(matchData?.playerIds) ? matchData.playerIds : [])
-                ])
-            ]
-        };
-    });
-
-    if (transition.alreadyReturned) return transition;
-
-    // Cleanup follows the committed lobby transition, so a cleanup failure
-    // can never strand everyone on the result screen.
-    try {
-        const matchSnapshot = await getDoc(matchPath);
-        if (matchSnapshot.exists()) {
-            const matchData = matchSnapshot.data();
-            if (
-                matchData.roomId === roomId &&
-                Number(matchData.round) === Number(expectedRound) &&
-                matchData.status === "results"
-            ) {
-                const cleanupPlayerIds = [...new Set([
-                    ...transition.matchPlayerIds,
-                    ...(Array.isArray(matchData.playerIds) ? matchData.playerIds : [])
-                ])];
-
-                for (let index = 0; index < cleanupPlayerIds.length; index += 6) {
-                    const batch = writeBatch(db);
-                    cleanupPlayerIds.slice(index, index + 6).forEach((playerId) => {
-                        batch.delete(doc(
-                            db, "rooms", roomId, "unoMatches",
-                            String(expectedRound), "hands", playerId
-                        ));
-                    });
-                    await batch.commit();
-                }
-
-                await deleteDoc(matchPath);
-            }
-        }
-    } catch (error) {
-        console.warn("CACA: UNO eski tur kayıtları temizlenemedi:", error);
+    if (result.completed) {
+        setGameCenterStatus("Tüm aktif oyuncular lobiye döndü. Yeni UNO lobisi hazır.");
+    } else {
+        setGameCenterStatus(
+            "Lobiye döndün. Diğer oyuncuların dönüşü bekleniyor (" +
+            result.returnedCount + "/" + result.requiredCount + ")."
+        );
     }
 
-    return transition;
+    return result;
 }
 
 function syncGameSessionResultsReset(roomId, sessionData) {
@@ -2061,6 +1973,11 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
             return matchPlayers.includes(currentUser.uid) || spectators.includes(currentUser.uid);
         }
         if (latest.status === "results") {
+            if (
+                latest.gameId === "uno" &&
+                Array.isArray(latest.resultReturnIds) &&
+                latest.resultReturnIds.includes(currentUser.uid)
+            ) return false;
             return matchPlayers.includes(currentUser.uid) ||
                 (Array.isArray(latest.playerIds) && latest.playerIds.includes(currentUser.uid));
         }
@@ -2310,6 +2227,7 @@ async function createGameSession() {
             spectatorIds: [],
             nextRoundPlayerIds: [],
             nextRoundReadyIds: [],
+            resultReturnIds: [],
             createdAt: serverTimestamp(),
             startedAt: null,
             countdownEndsAt: null,
