@@ -78,7 +78,7 @@ function buildInitialState(roomId, round, playerIds, dealerId, drawPile, topCard
     };
 }
 
-export async function ensureMatch(db, roomId, round, uid) {
+export async function ensureMatch(db, roomId, round, uid, { recoverStaleSession = false } = {}) {
     return runTransaction(db, async (transaction) => {
         const activeRef = sessionRef(db, roomId);
         const gameRef = matchRef(db, roomId, round);
@@ -103,13 +103,48 @@ export async function ensureMatch(db, roomId, round, uid) {
                 throw new Error("Bu UNO turu artık aktif değil. Lobi ekranını yenileyip güncel tura gir.");
             }
 
-            // Never reuse an old winner/result document as a newly-started round.
+            // A previous deployment could leave the lobby marked as "playing"
+            // while its UNO match document had already reached results. Recover
+            // the lobby into a fresh round instead of trapping the player here.
             if (
                 existingState.status !== "playing" ||
                 Number(existingState.round) !== Number(round) ||
                 existingState.roomId !== roomId
             ) {
-                throw new Error("Bu tur numarasında eski bir UNO maç kaydı bulundu. Sonuç ekranından 'Yeni tur için lobiye dön' seçeneğini kullan.");
+                if (!recoverStaleSession) {
+                    throw new Error("Bu UNO turunda eski maç kaydı var. Önce oyun merkezindeki lobi durumunu yenile.");
+                }
+
+                const lobbyPlayers = Array.isArray(session.playerIds) ? session.playerIds : [];
+                const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
+                const queuedPlayers = Array.isArray(session.nextRoundPlayerIds)
+                    ? session.nextRoundPlayerIds
+                    : [];
+                const nextPlayers = [...new Set([...lobbyPlayers, ...spectators, ...queuedPlayers])];
+
+                if (nextPlayers.length > 10) {
+                    throw new Error("Eski maç düzeltilemedi: sonraki lobi UNO oyuncu sınırını aşıyor.");
+                }
+
+                transaction.update(activeRef, {
+                    status: "lobby",
+                    round: Number(session.round) + 1,
+                    playerIds: nextPlayers,
+                    readyIds: [],
+                    matchPlayerIds: [],
+                    spectatorIds: [],
+                    nextRoundPlayerIds: [],
+                    nextRoundReadyIds: [],
+                    startedAt: null,
+                    countdownEndsAt: null,
+                    finishedAt: null,
+                    updatedAt: serverTimestamp()
+                });
+
+                return {
+                    sessionReset: true,
+                    nextRound: Number(session.round) + 1
+                };
             }
 
             if (!Array.isArray(existingState.activePlayerIds) || !existingState.activePlayerIds.includes(uid)) {
