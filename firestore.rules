@@ -948,6 +948,27 @@ service cloud.firestore {
                   'finishedAt', 'updatedAt'
                 ])
             )
+            // During UNO results, a removed player can queue themselves for the next lobby.
+            || (
+              resource.data.gameId == 'uno'
+              && resource.data.status == 'results'
+              && request.resource.data.status == 'results'
+              && !resource.data.playerIds.hasAny([request.auth.uid])
+              && !spectators(resource.data).hasAny([request.auth.uid])
+              && onlyAddsSelf(resource.data.nextRoundPlayerIds, request.resource.data.nextRoundPlayerIds)
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+              && spectators(request.resource.data) == spectators(resource.data)
+              && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
+              && request.resource.data.finishedAt == resource.data.finishedAt
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.playerIds.size()
+                + spectators(resource.data).size()
+                + request.resource.data.nextRoundPlayerIds.size() <= 10
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['nextRoundPlayerIds', 'updatedAt'])
+            )
             // Return to the same persistent lobby for the next match.
             || (
               resource.data.status == 'results'
@@ -956,8 +977,21 @@ service cloud.firestore {
               && request.time >= resource.data.finishedAt + duration.value(5, 's')
               && request.resource.data.playerIds.hasAll(resource.data.playerIds)
               && request.resource.data.playerIds.hasAll(spectators(resource.data))
-              && request.resource.data.playerIds.size()
-                == resource.data.playerIds.size() + spectators(resource.data).size()
+              && (
+                (
+                  resource.data.gameId == 'uno'
+                  && request.resource.data.playerIds.hasAll(resource.data.nextRoundPlayerIds)
+                  && request.resource.data.playerIds.size()
+                    == resource.data.playerIds.size()
+                      + spectators(resource.data).size()
+                      + resource.data.nextRoundPlayerIds.size()
+                )
+                || (
+                  resource.data.gameId != 'uno'
+                  && request.resource.data.playerIds.size()
+                    == resource.data.playerIds.size() + spectators(resource.data).size()
+                )
+              )
               && request.resource.data.hostId == resource.data.hostId
               && request.resource.data.readyIds.size() == 0
               && request.resource.data.matchPlayerIds.size() == 0
