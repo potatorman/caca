@@ -1246,7 +1246,7 @@ service cloud.firestore {
               || (
                 activeSessionData().status in ['lobby', 'starting', 'playing', 'results']
                 && currentMatch().roomId == roomId
-                && currentMatch().round == resource.data.round
+                && roundId == string(currentMatch().round)
                 && currentMatch().status == 'results'
                 && currentMatch().round < activeSessionData().round
                 && (
