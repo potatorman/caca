@@ -344,6 +344,27 @@ export class UnoRoom extends DurableObject {
         try {
             const match = await this.loadMatch(false);
             if (!match) throw new Error("UNO maçı bulunamadı.");
+
+            // A room moderator may remove a member while their WebSocket is still
+            // open. Re-check the single authoritative session roster before every
+            // action so an already-connected removed player cannot keep moving.
+            const { roomId, round } = await this.getIdentity();
+            const sessionDoc = await getFirestoreDocument(
+                this.env,
+                "rooms/" + roomId + "/gameSessions/active"
+            );
+            const session = sessionDoc?.data;
+            if (
+                !session ||
+                session.gameId !== "uno" ||
+                session.status !== "playing" ||
+                Number(session.round) !== round ||
+                !getSessionPlayers(session).includes(uid) ||
+                !match.activePlayerIds.includes(uid)
+            ) {
+                throw new Error("Bu UNO maçında artık aktif oyuncu değilsin.");
+            }
+
             let result;
 
             switch (command.type) {
