@@ -1443,11 +1443,11 @@ service cloud.firestore {
               .hasAny([request.auth.uid])
             && resource.data.activePlayerIds is list
             && request.resource.data.activePlayerIds is list
-            && resource.data.activePlayerIds.hasAll(request.resource.data.activePlayerIds)
-            && request.resource.data.activePlayerIds.size() < resource.data.activePlayerIds.size()
             && request.resource.data.activePlayerIds
               == activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
+            && request.resource.data.activePlayerIds != resource.data.activePlayerIds
             && request.resource.data.activePlayerIds.size() >= 1
+            && request.resource.data.playerIds.hasAll(request.resource.data.activePlayerIds)
             && request.resource.data.playerIds == resource.data.playerIds
             && request.resource.data.round == resource.data.round
             && request.resource.data.dealerId == resource.data.dealerId
