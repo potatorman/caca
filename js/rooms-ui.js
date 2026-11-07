@@ -2093,10 +2093,9 @@ function reconcileUnoRosterChange(roomId, sessionData) {
     observedUnoRosterIds = [...currentIds];
     const onlyPlayersLeft = currentIds.length < previousIds.length &&
         currentIds.every((id) => previousIds.includes(id));
-    // Every remaining match player may attempt the transactional repair.
-    // Firestore serializes concurrent transactions; once one succeeds, the rest
-    // observe an already-synchronized roster and return without another write.
-    if (!onlyPlayersLeft || !currentIds.includes(currentUser.uid)) {
+    // Elect one deterministic remaining player to repair moderator removals.
+    // The atomic self-quit path already updates both documents and needs no repair.
+    if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) {
         return;
     }
 
