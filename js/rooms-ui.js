@@ -1767,6 +1767,7 @@ function syncGameSessionResultsReset(roomId, sessionData) {
                     spectatorIds: [],
                     nextRoundPlayerIds: [],
                     nextRoundReadyIds: [],
+                    resultReturnIds: [],
                     startedAt: null,
                     countdownEndsAt: null,
                     finishedAt: null,
@@ -2515,6 +2516,9 @@ async function leaveGameLobby() {
                 readyIds: remainingReady,
                 updatedAt: serverTimestamp()
             };
+            if (Array.isArray(latest.resultReturnIds) && latest.resultReturnIds.includes(uid)) {
+                updates.resultReturnIds = latest.resultReturnIds.filter((id) => id !== uid);
+            }
             if (Array.isArray(latest.matchPlayerIds) && isMatchPlayer) {
                 updates.matchPlayerIds = remainingMatchPlayers;
             }
@@ -4526,7 +4530,7 @@ async function manageMember(member, action) {
             const remainingPlayers = players.filter((id) => id !== member.id);
             const hostWasKicked = gameSession.hostId === member.id;
 
-            for (const field of ["playerIds", "readyIds", "matchPlayerIds", "spectatorIds", "nextRoundPlayerIds", "nextRoundReadyIds"]) {
+            for (const field of ["playerIds", "readyIds", "matchPlayerIds", "spectatorIds", "nextRoundPlayerIds", "nextRoundReadyIds", "resultReturnIds"]) {
                 const source = field === "matchPlayerIds" ? matchPlayers
                     : field === "spectatorIds" ? spectators
                     : gameSession[field];
