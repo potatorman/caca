@@ -658,7 +658,10 @@ service cloud.firestore {
           return resource.data.gameId == 'uno'
             && resource.data.status == 'playing'
             && request.resource.data.status == 'lobby'
-            && matchPlayers(resource.data).hasAny([request.auth.uid])
+            && (
+              matchPlayers(resource.data).hasAny([request.auth.uid])
+              || spectators(resource.data).hasAny([request.auth.uid])
+            )
             && exists(staleUnoMatchPath())
             && get(staleUnoMatchPath()).data.roomId == roomId
             && get(staleUnoMatchPath()).data.round == resource.data.round
