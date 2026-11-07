@@ -1629,7 +1629,7 @@ function renderGameCenter() {
     }
 
     if (isPlaying && isMatchPlayer) {
-        setGameCenterStatus("Maçtasın. Oyun ekranındaki “Maçtan ayrıl” seçeneği lobide kalmanı sağlar; buradaki “Lobiden ayrıl” seçeneği seni kalıcı listeden çıkarır.");
+        setGameCenterStatus("Maçtasın. Oyun ekranındaki “Maçı terk et” seçeneği seni maçtan ve kalıcı oyun lobisinden çıkarır. İki kişilik maçta rakibin kazanır.");
     } else if (isPlaying && isSpectator) {
         setGameCenterStatus("Bu maçı izliyorsun. “İzleyicilikten ayrıl” seçeneği seni izleyici listesinden çıkarır.");
     } else if (isPlaying) {
@@ -1639,7 +1639,7 @@ function renderGameCenter() {
     } else if (isStarting && isLobbyPlayer) {
         setGameCenterStatus("Geri sayım başladı. Hazır durumunu geri alarak maçı durdurabilirsin.");
     } else if (isLobbyPlayer) {
-        setGameCenterStatus("Kalıcı lobidesin. Maçtan ayrılsan da sonraki maçlarda burada kalırsın.");
+        setGameCenterStatus("Kalıcı oyun lobisindesin. Aktif maçta değilsin; sonraki maç için burada bekliyorsun.");
     } else {
         setGameCenterStatus("Lobiye katılarak kalıcı oyuncu olabilirsin.");
     }
