@@ -814,6 +814,7 @@ service cloud.firestore {
               && matchPlayers(resource.data).size() == 1
               && matchPlayers(resource.data).hasAny([request.auth.uid])
               && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && !request.resource.data.playerIds.hasAny([request.auth.uid])
               && request.resource.data.playerIds.size() >= 1
               && request.resource.data.hostId == resource.data.hostId
               && onlyRemovesSelf(matchPlayers(resource.data), request.resource.data.matchPlayerIds)
@@ -841,6 +842,7 @@ service cloud.firestore {
               && matchPlayers(resource.data).size() == 1
               && matchPlayers(resource.data).hasAny([request.auth.uid])
               && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && !request.resource.data.playerIds.hasAny([request.auth.uid])
               && request.resource.data.playerIds.size() >= 1
               && request.resource.data.hostId == request.resource.data.playerIds[0]
               && onlyRemovesSelf(matchPlayers(resource.data), request.resource.data.matchPlayerIds)
