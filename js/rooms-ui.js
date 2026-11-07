@@ -2461,18 +2461,14 @@ async function leaveUnoMatchFromSession(roomId, session, uid) {
         throw new Error("Maçta senden başka aktif oyuncu kalmadı; lobi sıfırlanmalı.");
     }
 
+    // Leaving does not need a private hand document. Work directly from the
+    // authoritative match roster so a missing/stale hand cannot block a forfeit.
     try {
-        // Ensure the shared match and this player's private hand exist before forfeiting.
-        await ensureUnoMatch(db, roomId, session.round, uid);
-    } catch (error) {
-        throw new Error("UNO maç verisi hazırlanamadı: " + (error?.message || "Bilinmeyen hata"));
-    }
-
-    try {
-        // The match roster and persistent lobby are removed in one transaction.
         return await forfeitUnoMatch(db, roomId, session.round, uid);
     } catch (error) {
-        throw new Error("UNO maç/lobi işlemi reddedildi: " + (error?.message || "Bilinmeyen hata"));
+        const wrapped = new Error(error?.message || "UNO maçından çıkış başarısız.");
+        wrapped.code = error?.code;
+        throw wrapped;
     }
 }
 
