@@ -1226,19 +1226,34 @@ service cloud.firestore {
           return getAfter(matchPath()).data;
         }
 
-        // A participant may clean up only the currently active UNO round, and
-        // only after its match has finished or is demonstrably stale.
+        // A participant may clean the active finished match. After the lobby
+        // advances, members of that lobby may also remove an older finished round.
         function canCleanCurrentUnoRound() {
           return isRoomMember(roomId)
             && activeSessionData().gameId == 'uno'
-            && activeSessionData().status in ['playing', 'results']
-            && roundId == string(activeSessionData().round)
             && (
-              activeSessionData().playerIds.hasAny([request.auth.uid])
-              || activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
-                .hasAny([request.auth.uid])
-              || activeSessionData().get('spectatorIds', []).hasAny([request.auth.uid])
-              || activeSessionData().get('nextRoundPlayerIds', []).hasAny([request.auth.uid])
+              (
+                activeSessionData().status in ['playing', 'results']
+                && roundId == string(activeSessionData().round)
+                && (
+                  activeSessionData().playerIds.hasAny([request.auth.uid])
+                  || activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
+                    .hasAny([request.auth.uid])
+                  || activeSessionData().get('spectatorIds', []).hasAny([request.auth.uid])
+                  || activeSessionData().get('nextRoundPlayerIds', []).hasAny([request.auth.uid])
+                )
+              )
+              || (
+                activeSessionData().status in ['lobby', 'starting', 'playing', 'results']
+                && currentMatch().roomId == roomId
+                && currentMatch().round == resource.data.round
+                && currentMatch().status == 'results'
+                && currentMatch().round < activeSessionData().round
+                && (
+                  currentMatch().playerIds.hasAny([request.auth.uid])
+                  || activeSessionData().playerIds.hasAny([request.auth.uid])
+                )
+              )
             );
         }
 
