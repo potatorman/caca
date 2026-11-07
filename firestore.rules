@@ -971,6 +971,40 @@ service cloud.firestore {
                   'countdownEndsAt', 'finishedAt', 'updatedAt'
                 ])
             )
+            // The final active UNO player may leave from the lobby controls and reset the next round.
+            || (
+              resource.data.status == 'playing'
+              && request.resource.data.status == 'lobby'
+              && resource.data.gameId == 'uno'
+              && resource.data.matchPlayerIds.hasAny([request.auth.uid])
+              && !request.resource.data.matchPlayerIds.hasAny([request.auth.uid])
+              && request.resource.data.matchPlayerIds.size() == 0
+              && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && !request.resource.data.playerIds.hasAny([request.auth.uid])
+              && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
+              && matchPlayers(request.resource.data).size() == 0
+              && (
+                request.resource.data.hostId == resource.data.hostId
+                || (
+                  request.auth.uid == resource.data.hostId
+                  && request.resource.data.playerIds.size() >= 1
+                  && request.resource.data.hostId == request.resource.data.playerIds[0]
+                )
+              )
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.spectatorIds.size() == 0
+              && request.resource.data.nextRoundPlayerIds.size() == 0
+              && request.resource.data.nextRoundReadyIds.size() == 0
+              && request.resource.data.round == resource.data.round + 1
+              && request.resource.data.startedAt == null
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.finishedAt == null
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'round', 'hostId', 'playerIds', 'readyIds', 'matchPlayerIds',
+                'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
+                'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+              ])
+            )
             // A player can leave the room during a match or results without losing the lobby for others.
             || (
               resource.data.status in ['playing', 'results']
@@ -1105,6 +1139,22 @@ service cloud.firestore {
             && activeSessionData().matchPlayerIds.hasAny([request.auth.uid]);
         }
 
+        // A forfeit updates the match and active lobby in one transaction.
+        // Use the old match roster so the quitter remains authorized even though
+        // the transaction removes them from gameSessions/active at the same time.
+        function canUpdateUnoMatch() {
+          return isRoomMember(roomId)
+            && activeSessionData().gameId == 'uno'
+            && activeSessionData().round == resource.data.round
+            && resource.data.status == 'playing'
+            && resource.data.activePlayerIds.hasAny([request.auth.uid])
+            && (
+              activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
+                .hasAny([request.auth.uid])
+              || request.resource.data.get('forfeitedBy', null) == request.auth.uid
+            );
+        }
+
         function validUnoMatch(data) {
           return data.roomId == roomId
             && data.round is int
@@ -1135,7 +1185,7 @@ service cloud.firestore {
           && request.resource.data.activePlayerIds == request.resource.data.playerIds
           && request.resource.data.dealerId == request.auth.uid;
 
-        allow update: if isActiveMatchPlayer()
+        allow update: if canUpdateUnoMatch()
           && resource.data.status == 'playing'
           && validUnoMatch(request.resource.data)
           && request.resource.data.playerIds == resource.data.playerIds
