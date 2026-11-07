@@ -1749,8 +1749,6 @@ async function returnUnoToLobbyFromResults(roomId, expectedRound) {
         };
     });
 
-    if (transition.alreadyReturned) return transition;
-
     // Cleanup is deliberately after the lobby transition. Each small batch stays
     // below Firestore's aggregate security-rule document-access-call limit.
     const matchPath = doc(db, "rooms", roomId, "unoMatches", String(expectedRound));
