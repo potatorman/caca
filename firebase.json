@@ -27,6 +27,15 @@
             "value": "no-cache, max-age=0, must-revalidate"
           }
         ]
+      },
+      {
+        "source": "**/*.css",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
       }
     ]
   }
