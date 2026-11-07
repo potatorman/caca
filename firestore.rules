@@ -1136,29 +1136,61 @@ service cloud.firestore {
           return isRoomMember(roomId)
             && activeSessionData().gameId == 'uno'
             && activeSessionData().status == 'playing'
-            && activeSessionData().matchPlayerIds.hasAny([request.auth.uid]);
+            && activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
+              .hasAny([request.auth.uid]);
         }
 
-        // A forfeit updates the match and active lobby in one transaction.
-        // Use the old match roster so the quitter remains authorized even though
-        // the transaction removes them from gameSessions/active at the same time.
+        function activeSessionAfterData() {
+          return getAfter(activeSessionPath()).data;
+        }
+
+        // A forfeit must remove the same player from both documents in one
+        // transaction. This check intentionally uses the post-transaction lobby.
+        function isAtomicUnoForfeit() {
+          return request.resource.data.get('forfeitedBy', null) == request.auth.uid
+            && request.resource.data.activePlayerIds is list
+            && request.resource.data.activePlayerIds.size()
+              == resource.data.activePlayerIds.size() - 1
+            && resource.data.activePlayerIds.hasAll(request.resource.data.activePlayerIds)
+            && !request.resource.data.activePlayerIds.hasAny([request.auth.uid])
+            && activeSessionAfterData().gameId == 'uno'
+            && activeSessionAfterData().round == resource.data.round
+            && activeSessionAfterData().get('matchPlayerIds', activeSessionAfterData().playerIds)
+              == request.resource.data.activePlayerIds
+            && (
+              (
+                request.resource.data.activePlayerIds.size() == 1
+                && activeSessionAfterData().status == 'results'
+                && request.resource.data.winnerId == request.resource.data.activePlayerIds[0]
+              )
+              || (
+                request.resource.data.activePlayerIds.size() > 1
+                && activeSessionAfterData().status == 'playing'
+              )
+            );
+        }
+
         function canUpdateUnoMatch() {
           return isRoomMember(roomId)
-            && activeSessionData().gameId == 'uno'
-            && activeSessionData().round == resource.data.round
             && resource.data.status == 'playing'
+            && resource.data.activePlayerIds is list
             && resource.data.activePlayerIds.hasAny([request.auth.uid])
             && (
-              activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
-                .hasAny([request.auth.uid])
-              || request.resource.data.get('forfeitedBy', null) == request.auth.uid
+              (
+                activeSessionData().gameId == 'uno'
+                && activeSessionData().status == 'playing'
+                && activeSessionData().round == resource.data.round
+                && activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
+                  .hasAny([request.auth.uid])
+              )
+              || isAtomicUnoForfeit()
             );
         }
 
         function validUnoMatch(data) {
           return data.roomId == roomId
             && data.round is int
-            && data.round == activeSessionData().round
+            && data.round >= 1
             && data.status in ['playing', 'results']
             && data.playerIds is list
             && data.playerIds.size() >= 2
@@ -1180,6 +1212,7 @@ service cloud.firestore {
 
         allow create: if isActiveMatchPlayer()
           && validUnoMatch(request.resource.data)
+          && request.resource.data.round == activeSessionData().round
           && request.resource.data.status == 'playing'
           && request.resource.data.playerIds == activeSessionData().matchPlayerIds
           && request.resource.data.activePlayerIds == request.resource.data.playerIds
@@ -1188,6 +1221,7 @@ service cloud.firestore {
         allow update: if canUpdateUnoMatch()
           && resource.data.status == 'playing'
           && validUnoMatch(request.resource.data)
+          && request.resource.data.round == resource.data.round
           && request.resource.data.playerIds == resource.data.playerIds
           && request.resource.data.dealerId == resource.data.dealerId
           && request.resource.data.createdAt == resource.data.createdAt;
