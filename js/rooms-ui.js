@@ -2173,7 +2173,7 @@ async function leaveGameLobby() {
         !currentUser ||
         !gameSessionData ||
         !["lobby", "starting", "playing", "results"].includes(gameSessionData.status)
-    ) return;
+    ) return false;
 
     const uid = currentUser.uid;
     const initialSession = gameSessionData;
@@ -2199,7 +2199,7 @@ async function leaveGameLobby() {
         } catch (error) {
             setGameCenterStatus("Maç hazırlanamadığı için lobiden ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
             if (leaveButton) leaveButton.disabled = false;
-            return;
+            return false;
         }
     }
 
@@ -2299,14 +2299,34 @@ async function leaveGameLobby() {
         } else if (result.left) {
             setGameCenterStatus("Oyun lobisinden ayrıldın.");
         }
+        return Boolean(result.left);
     } catch (error) {
         setGameCenterStatus("Lobiden ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
+        return false;
     } finally {
         if (leaveButton) leaveButton.disabled = false;
     }
 }
 
 async function leaveCurrentMatch() {
+    if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") {
+        return false;
+    }
+
+    const matchPlayers = Array.isArray(gameSessionData.matchPlayerIds)
+        ? gameSessionData.matchPlayerIds
+        : (gameSessionData.playerIds || []);
+    if (!matchPlayers.includes(currentUser.uid)) return false;
+
+    // Leaving from the table means leaving the persistent game lobby as well.
+    // The UNO roster listener will award the win to the remaining player.
+    const left = await leaveGameLobby();
+    if (!left) {
+        throw new Error("Maç terk edilemedi. Lobi çıkış mesajını kontrol et.");
+    }
+    return true;
+}
+
     if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") return;
     const matchPlayers = Array.isArray(gameSessionData.matchPlayerIds)
         ? gameSessionData.matchPlayerIds
