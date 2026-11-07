@@ -126,6 +126,18 @@ export async function ensureMatch(db, roomId, round, uid, { recoverStaleSession 
                     throw new Error("Eski maç düzeltilemedi: sonraki lobi UNO oyuncu sınırını aşıyor.");
                 }
 
+                // Remove the finished/stale match and every private hand document.
+                // Firestore does not cascade-delete subcollections when a parent is deleted.
+                const stalePlayerIds = [...new Set([
+                    ...(Array.isArray(existingState.playerIds) ? existingState.playerIds : []),
+                    ...(Array.isArray(existingState.activePlayerIds) ? existingState.activePlayerIds : []),
+                    ...(Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [])
+                ])];
+                stalePlayerIds.forEach((playerId) => {
+                    transaction.delete(handRef(db, roomId, round, playerId));
+                });
+                transaction.delete(gameRef);
+
                 transaction.update(activeRef, {
                     status: "lobby",
                     round: Number(session.round) + 1,
