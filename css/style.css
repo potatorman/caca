@@ -4643,6 +4643,7 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 .uno-message { min-height: 18px; margin: 0; color: #c7f4dc; font-size: 11px; text-align: center; }
 .uno-message.is-error { color: #ffb6b6; }
 .uno-hand-area { display: flex; flex-direction: column; gap: 8px; }
+.uno-hand-area[hidden] { display: none !important; }
 .uno-hand-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #deeee8; font-size: 11px; }
 .uno-hand-heading-actions { display: flex; align-items: center; gap: 9px; }
 .uno-hand-heading span { color: #97b7ac; font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
