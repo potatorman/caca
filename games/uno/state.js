@@ -509,6 +509,11 @@ export async function catchUno(db, roomId, round, uid) {
 }
 
 export async function forfeitMatch(db, roomId, round, uid) {
+    // Repair any roster shrink that was committed to the persistent room session
+    // before attempting the player's quit. This keeps both documents aligned
+    // before the atomic forfeit transaction evaluates its invariants.
+    await reconcileMatchPlayers(db, roomId, round, uid);
+
     return runTransaction(db, async (transaction) => {
         const activeDocument = sessionRef(db, roomId);
         const gameDocument = matchRef(db, roomId, round);
