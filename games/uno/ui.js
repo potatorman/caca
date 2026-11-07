@@ -132,6 +132,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     let timeoutTimer = null;
     let timeoutAttemptedKey = null;
     let handHidden = false;
+    let cardActionInProgress = false;
     let profileRenderVersion = 0;
     const profileLoads = new Map();
     let closed = false;
@@ -241,7 +242,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                 matchState.activeColor,
                 cards
             ) && (!matchState.drewCardId || matchState.drewCardId === card.id);
-            button.disabled = !playable || handHidden;
+            button.disabled = !playable || handHidden || cardActionInProgress;
             button.classList.toggle("is-playable", Boolean(playable));
             const value = document.createElement("span");
             value.className = "uno-card-value";
@@ -350,20 +351,36 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         $("result").hidden = false;
     };
 
+    const formatPlayError = (error) => {
+        const message = error?.message || "Kart oynanamadı.";
+        return error?.code ? message + " (" + error.code + ")" : message;
+    };
+
     const handlePlay = async (card) => {
-        if (handHidden || !matchState || matchState.currentPlayerUid !== uid) return;
+        if (
+            cardActionInProgress ||
+            handHidden ||
+            !matchState ||
+            matchState.currentPlayerUid !== uid
+        ) return;
+
         if (card.type === "wild" || card.type === "wild4") {
             selectedWildCardId = card.id;
             $("color-modal").hidden = false;
             return;
         }
 
+        cardActionInProgress = true;
+        renderHand();
         try {
             setMessage("Kart oynanıyor…");
             await playCard(db, roomId, round, uid, card.id);
             setMessage("");
         } catch (error) {
-            setMessage(error.message || "Kart oynanamadı.", true);
+            setMessage(formatPlayError(error), true);
+        } finally {
+            cardActionInProgress = false;
+            if (!closed && matchState?.status === "playing") renderHand();
         }
     };
 
@@ -467,16 +484,20 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
 
     root.querySelectorAll("[data-color]").forEach((button) => {
         button.addEventListener("click", async () => {
-            if (!selectedWildCardId) return;
+            if (!selectedWildCardId || cardActionInProgress || handHidden) return;
             const color = button.dataset.color;
             $("color-modal").hidden = true;
+            cardActionInProgress = true;
+            renderHand();
             try {
                 await playCard(db, roomId, round, uid, selectedWildCardId, color);
                 setMessage("Aktif renk " + COLOR_LABELS[color] + " oldu.");
             } catch (error) {
-                setMessage(error.message || "Kart oynanamadı.", true);
+                setMessage(formatPlayError(error), true);
             } finally {
                 selectedWildCardId = null;
+                cardActionInProgress = false;
+                if (!closed && matchState?.status === "playing") renderHand();
             }
         });
     });
