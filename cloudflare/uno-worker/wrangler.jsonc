@@ -1,0 +1,28 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler-schema.json",
+  "name": "caca-uno",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-08",
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "UNO_ROOMS",
+        "class_name": "UnoRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["UnoRoom"]
+    }
+  ],
+  "vars": {
+    "FIREBASE_PROJECT_ID": "caca-dfe6",
+    "FIREBASE_WEB_API_KEY": "AIzaSyDJ6cu30qrIeq9yV_FZ7U8KXyUirEksdHY"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

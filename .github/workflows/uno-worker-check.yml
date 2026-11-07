@@ -1,0 +1,29 @@
+name: CACA UNO Worker checks
+
+on:
+  push:
+    branches:
+      - cloudflare-uno-migration
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  uno-worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare/uno-worker
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js for CI
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Worker tooling
+        run: npm install --no-audit --no-fund
+      - name: Test UNO deck and rules engine
+        run: npm test
+      - name: Validate Worker bundle and Durable Object configuration
+        run: npx wrangler deploy --dry-run
