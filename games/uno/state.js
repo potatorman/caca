@@ -680,6 +680,7 @@ export function forfeitMatch(db, roomId, round, uid) {
         const currentPlayerChanged = nextCurrentUid !== state.currentPlayerUid;
         transaction.update(gameDocument, {
             activePlayerIds: remainingActivePlayers,
+            forfeitedBy: uid,
             currentPlayerIndex: remainingActivePlayers.indexOf(nextCurrentUid),
             currentPlayerUid: nextCurrentUid,
             drewCardId: currentPlayerChanged ? null : state.drewCardId,
