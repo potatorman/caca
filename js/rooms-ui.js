@@ -2326,33 +2326,6 @@ async function leaveCurrentMatch() {
     }
     return true;
 }
-
-    if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") return;
-    const matchPlayers = Array.isArray(gameSessionData.matchPlayerIds)
-        ? gameSessionData.matchPlayerIds
-        : (gameSessionData.playerIds || []);
-    if (!matchPlayers.includes(currentUser.uid)) return;
-    if (gameSessionData.gameId === "uno" && matchPlayers.length <= 1) {
-        await leaveGameLobby();
-        return;
-    }
-    try {
-        // If nobody has opened the UNO table yet, create its initial state before
-        // removing this player so the remaining player can resolve a forfeit.
-        if (gameSessionData.gameId === "uno" && matchPlayers.length >= 2) {
-            await ensureUnoMatch(db, activeRoomId, gameSessionData.round, currentUser.uid);
-        }
-
-        await updateDoc(getGameSessionRef(), {
-            matchPlayerIds: arrayRemove(currentUser.uid),
-            updatedAt: serverTimestamp()
-        });
-        setGameCenterStatus("Mevcut maçtan ayrıldın. Kalıcı lobi üyeliğin korunuyor.");
-    } catch (error) {
-        setGameCenterStatus("Maçtan ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
-    }
-}
-
 async function finishGameMatch() {
     if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") return;
     const session = gameSessionData;
