@@ -1649,7 +1649,9 @@ function renderGameCenter() {
     } else if (isResults && canQueueForNextRound) {
         setGameCenterStatus("Maç sonuçlandı. Şimdi lobiye katılarak sonraki maçta yer alabilirsin.");
     } else if (isResults) {
-        setGameCenterStatus("Sonuçlar 5 saniye gösterilecek. Ardından lobi otomatik sıfırlanacak.");
+        setGameCenterStatus(session.gameId === "uno"
+            ? "Maç sonuçlandı. Sonraki tura geçmek için oyun ekranındaki “Lobi ekranına dön” düğmesine bas."
+            : "Sonuçlar 5 saniye gösterilecek. Ardından lobi otomatik sıfırlanacak.");
     } else if (isStarting && isLobbyPlayer) {
         setGameCenterStatus("Geri sayım başladı. Hazır durumunu geri alarak maçı durdurabilirsin.");
     } else if (isLobbyPlayer) {
@@ -1671,8 +1673,55 @@ function clearGameSessionResultsTimer() {
     gameSessionResultsTimerKey = "";
 }
 
+async function returnUnoToLobbyFromResults(roomId, expectedRound) {
+    return runTransaction(db, async (transaction) => {
+        const ref = getGameSessionRef(roomId);
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists()) {
+            throw new Error("Oyun lobisi bulunamadı.");
+        }
+
+        const session = snapshot.data();
+        if (
+            session.gameId !== "uno" ||
+            session.status !== "results" ||
+            Number(session.round) !== Number(expectedRound)
+        ) {
+            throw new Error("Bu maçın sonuçları artık güncel değil. Lobi zaten yenilenmiş olabilir.");
+        }
+
+        const players = Array.isArray(session.playerIds) ? session.playerIds : [];
+        const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
+        const queued = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
+        const nextPlayers = [...new Set([...players, ...spectators, ...queued])];
+
+        if (nextPlayers.length > 10) {
+            throw new Error("Sonraki lobi UNO oyuncu sınırını aşıyor.");
+        }
+
+        transaction.update(ref, {
+            status: "lobby",
+            round: Number(session.round) + 1,
+            playerIds: nextPlayers,
+            readyIds: [],
+            matchPlayerIds: [],
+            spectatorIds: [],
+            nextRoundPlayerIds: [],
+            nextRoundReadyIds: [],
+            startedAt: null,
+            countdownEndsAt: null,
+            finishedAt: null,
+            updatedAt: serverTimestamp()
+        });
+
+        return { returned: true, round: Number(session.round) + 1, playerIds: nextPlayers };
+    });
+}
+
 function syncGameSessionResultsReset(roomId, sessionData) {
-    if (!sessionData || sessionData.status !== "results") {
+    // UNO advances only when a player presses the result screen's
+    // "Lobi ekranına dön" button. Never silently reuse a result round.
+    if (!sessionData || sessionData.status !== "results" || sessionData.gameId === "uno") {
         clearGameSessionResultsTimer();
         return;
     }
@@ -1962,7 +2011,10 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
             uid: currentUser.uid,
             session: sessionData,
             roomMembers: activeRoomMembers,
-            onLeave: leaveCurrentMatch
+            onLeave: leaveCurrentMatch,
+            onReturnToLobby: sessionData.gameId === "uno"
+                ? () => returnUnoToLobbyFromResults(roomId, sessionData.round)
+                : null
         });
         activeRoomGameKey = gameKey;
     } catch (error) {
