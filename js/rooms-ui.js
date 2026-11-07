@@ -2322,6 +2322,7 @@ let gameReadyToggleInProgress = false;
 async function toggleGameReady() {
     if (!currentUser || !activeRoomId || gameReadyToggleInProgress) return;
 
+    const roomId = activeRoomId;
     const uid = currentUser.uid;
     const button = $("readyGameSessionButton");
     gameReadyToggleInProgress = true;
@@ -2329,7 +2330,7 @@ async function toggleGameReady() {
 
     try {
         const result = await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef();
+            const ref = getGameSessionRef(roomId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) return { state: "missing" };
 
