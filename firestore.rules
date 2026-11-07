@@ -587,6 +587,7 @@ service cloud.firestore {
             && data.round is int && data.round >= 1
             && data.hostId is string
             && data.playerIds is list && data.playerIds.size() <= 20
+            && data.playerIds.toSet().size() == data.playerIds.size()
             && (data.gameId != 'uno' || data.playerIds.size() <= 10)
             && data.readyIds is list && data.readyIds.size() <= 20
             && data.readyIds.hasOnly(data.playerIds)
@@ -604,7 +605,11 @@ service cloud.firestore {
             )
             && (
               !data.keys().hasAny(['spectatorIds'])
-              || (data.spectatorIds is list && data.spectatorIds.size() <= 10)
+              || (
+                data.spectatorIds is list
+                && data.spectatorIds.size() <= 10
+                && data.spectatorIds.toSet().size() == data.spectatorIds.size()
+              )
             )
             && (!data.keys().hasAny(['countdownEndsAt']) || data.countdownEndsAt == null || data.countdownEndsAt is timestamp)
             && (!data.keys().hasAny(['finishedAt']) || data.finishedAt == null || data.finishedAt is timestamp)
@@ -896,13 +901,60 @@ service cloud.firestore {
                   'finishedAt', 'updatedAt'
                 ])
             )
+            // A player may forfeit UNO; the transaction also writes the remaining
+            // player's win into the UNO match document.
+            || (
+              resource.data.status == 'playing'
+              && request.resource.data.status == 'results'
+              && resource.data.gameId == 'uno'
+              && resource.data.matchPlayerIds.hasAny([request.auth.uid])
+              && getAfter(
+                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+              ).data.status == 'results'
+              && getAfter(
+                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+              ).data.forfeitedBy == request.auth.uid
+              && getAfter(
+                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+              ).data.winnerId is string
+              && getAfter(
+                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+              ).data.winnerId != request.auth.uid
+              && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+              && !request.resource.data.playerIds.hasAny([request.auth.uid])
+              && request.resource.data.playerIds.size() == resource.data.playerIds.size() - 1
+              && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
+              && matchPlayers(request.resource.data) == getAfter(
+                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+              ).data.activePlayerIds
+              && (
+                request.resource.data.hostId == resource.data.hostId
+                || (
+                  resource.data.hostId == request.auth.uid
+                  && request.resource.data.hostId == request.resource.data.playerIds[0]
+                )
+              )
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.spectatorIds == spectators(resource.data)
+              && request.resource.data.nextRoundPlayerIds.size() == 0
+              && request.resource.data.nextRoundReadyIds.size() == 0
+              && request.resource.data.finishedAt is timestamp
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'hostId', 'playerIds', 'readyIds', 'matchPlayerIds',
+                'nextRoundPlayerIds', 'nextRoundReadyIds', 'finishedAt', 'updatedAt'
+              ])
+            )
             // Return to the same persistent lobby for the next match.
             || (
               resource.data.status == 'results'
               && request.resource.data.status == 'lobby'
               && resource.data.finishedAt is timestamp
               && request.time >= resource.data.finishedAt + duration.value(5, 's')
-              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.playerIds.hasAll(resource.data.playerIds)
+              && request.resource.data.playerIds.hasAll(spectators(resource.data))
+              && request.resource.data.playerIds.size()
+                == resource.data.playerIds.size() + spectators(resource.data).size()
+              && request.resource.data.hostId == resource.data.hostId
               && request.resource.data.readyIds.size() == 0
               && request.resource.data.matchPlayerIds.size() == 0
               && request.resource.data.spectatorIds.size() == 0
@@ -914,7 +966,7 @@ service cloud.firestore {
               && request.resource.data.finishedAt == null
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly([
-                  'status', 'round', 'readyIds', 'matchPlayerIds', 'spectatorIds',
+                  'status', 'round', 'playerIds', 'readyIds', 'matchPlayerIds', 'spectatorIds',
                   'nextRoundPlayerIds', 'nextRoundReadyIds', 'startedAt',
                   'countdownEndsAt', 'finishedAt', 'updatedAt'
                 ])
