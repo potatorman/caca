@@ -139,22 +139,18 @@ export async function ensureMatch(db, roomId, round, uid, { recoverStaleSession 
                 transaction.delete(gameRef);
 
                 transaction.update(activeRef, {
-                    status: "lobby",
+                    // Keep the session playing with the same frozen roster.
+                    // The new round number makes every client open a fresh match
+                    // without asking everyone to ready up again.
                     round: Number(session.round) + 1,
-                    playerIds: nextPlayers,
-                    readyIds: [],
-                    matchPlayerIds: [],
-                    spectatorIds: [],
-                    nextRoundPlayerIds: [],
-                    nextRoundReadyIds: [],
-                    startedAt: null,
+                    startedAt: serverTimestamp(),
                     countdownEndsAt: null,
                     finishedAt: null,
                     updatedAt: serverTimestamp()
                 });
 
                 return {
-                    sessionReset: true,
+                    sessionAdvanced: true,
                     nextRound: Number(session.round) + 1
                 };
             }
