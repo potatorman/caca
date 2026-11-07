@@ -1158,9 +1158,12 @@ service cloud.firestore {
             && request.resource.data.cards is list
             && request.resource.data.cards.size() == 7
             && (
-              // Initial deal: the player creating the match writes every opening hand.
-              updatedMatch().dealerId == request.auth.uid
-              // Recovery: a player may recreate only their own missing hand.
+              // Initial deal: the dealer creates only their own private hand.
+              (
+                playerId == request.auth.uid
+                && updatedMatch().dealerId == request.auth.uid
+              )
+              // Recovery: a player may create only their own missing hand.
               || (
                 playerId == request.auth.uid
                 && currentMatch().status == 'playing'
