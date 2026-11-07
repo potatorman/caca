@@ -651,6 +651,44 @@ service cloud.firestore {
             ]);
         }
 
+        // A completed UNO match may still have its session marked "playing"
+        // when an older result-sync write was rejected. Let a participant move
+        // that session directly to the next lobby using the committed match result.
+        function canReturnFinishedUnoMatchToLobby() {
+          return resource.data.gameId == 'uno'
+            && resource.data.status == 'playing'
+            && request.resource.data.status == 'lobby'
+            && matchPlayers(resource.data).hasAny([request.auth.uid])
+            && exists(staleUnoMatchPath())
+            && get(staleUnoMatchPath()).data.roomId == roomId
+            && get(staleUnoMatchPath()).data.round == resource.data.round
+            && get(staleUnoMatchPath()).data.status == 'results'
+            && get(staleUnoMatchPath()).data.winnerId is string
+            && matchPlayers(resource.data).hasAny([get(staleUnoMatchPath()).data.winnerId])
+            && request.resource.data.hostId == resource.data.hostId
+            && request.resource.data.round == resource.data.round + 1
+            && request.resource.data.playerIds.hasAll(resource.data.playerIds)
+            && request.resource.data.playerIds.hasAll(spectators(resource.data))
+            && request.resource.data.playerIds.hasAll(resource.data.nextRoundPlayerIds)
+            && request.resource.data.playerIds.size()
+              == resource.data.playerIds.size()
+                + spectators(resource.data).size()
+                + resource.data.nextRoundPlayerIds.size()
+            && request.resource.data.readyIds.size() == 0
+            && request.resource.data.matchPlayerIds.size() == 0
+            && request.resource.data.spectatorIds.size() == 0
+            && request.resource.data.nextRoundPlayerIds.size() == 0
+            && request.resource.data.nextRoundReadyIds.size() == 0
+            && request.resource.data.startedAt == null
+            && request.resource.data.countdownEndsAt == null
+            && request.resource.data.finishedAt == null
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'round', 'playerIds', 'readyIds', 'matchPlayerIds',
+              'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
+              'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+            ]);
+        }
+
         // UNO self-forfeit: this document validates only its own roster transition.
         function canSelfForfeitUnoSession() {
           return resource.data.gameId == 'uno'
@@ -724,6 +762,8 @@ service cloud.firestore {
           && (
             // Recover a stale UNO result left behind by an earlier broken round transition.
             canRepairStaleUnoSession()
+            ||
+            canReturnFinishedUnoMatchToLobby()
             ||
             // UNO forfeit; no cross-document lookup is needed to authorize self-removal.
             canSelfForfeitUnoSession()
