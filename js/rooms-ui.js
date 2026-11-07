@@ -3,7 +3,6 @@ import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY, getGameDefinition } from "../games/registry.js";
 import {
-    ensureMatch as ensureUnoMatch,
     reconcileMatchPlayers as reconcileUnoMatchPlayers,
     forfeitMatch as forfeitUnoMatch
 } from "../games/uno/index.js";
