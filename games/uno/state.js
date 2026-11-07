@@ -509,10 +509,18 @@ export async function catchUno(db, roomId, round, uid) {
 }
 
 export async function forfeitMatch(db, roomId, round, uid) {
-    // Repair any roster shrink that was committed to the persistent room session
-    // before attempting the player's quit. This keeps both documents aligned
-    // before the atomic forfeit transaction evaluates its invariants.
-    await reconcileMatchPlayers(db, roomId, round, uid);
+    // Repair a stale roster before quitting. Preserve the explicit recovery path
+    // for an older build that already removed this player from the match document
+    // but failed before updating the persistent room session.
+    const matchBeforeSync = await getDoc(matchRef(db, roomId, round));
+    const matchBeforeSyncData = matchBeforeSync.exists() ? matchBeforeSync.data() : null;
+    const hasPendingLegacyForfeit = Boolean(
+        matchBeforeSyncData?.forfeitedBy === uid &&
+        !uniqueIds(matchBeforeSyncData.activePlayerIds).includes(uid)
+    );
+    if (!hasPendingLegacyForfeit) {
+        await reconcileMatchPlayers(db, roomId, round, uid);
+    }
 
     return runTransaction(db, async (transaction) => {
         const activeDocument = sessionRef(db, roomId);
