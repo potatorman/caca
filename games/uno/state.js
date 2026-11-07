@@ -48,12 +48,9 @@ function nextIndex(state, index, direction, steps = 1) {
     return nextPlayerIndex(index, direction, state.activePlayerIds.length, steps);
 }
 
-function buildInitialState(roomId, round, playerIds, dealerId, deck) {
+function buildInitialState(roomId, round, playerIds, dealerId, drawPile, topCard) {
     const handCounts = {};
     playerIds.forEach((uid) => { handCounts[uid] = 7; });
-
-    const dealCount = playerIds.length * 7;
-    const topCard = deck[dealCount];
 
     return {
         roomId,
@@ -68,7 +65,7 @@ function buildInitialState(roomId, round, playerIds, dealerId, deck) {
         activeColor: topCard.color,
         topCard,
         discardPile: [topCard],
-        drawPile: deck.slice(dealCount + 1),
+        drawPile: [...drawPile],
         handCounts,
         drewCardId: null,
         unoPendingUid: null,
@@ -163,30 +160,26 @@ export async function ensureMatch(db, roomId, round, uid) {
         }
 
         const deck = shuffleDeck(createUnoDeck());
-        const dealCount = playerIds.length * 7;
-        const openingNumberIndex = deck.findIndex((card, index) =>
-            index >= dealCount && card.type === "number"
-        );
+        const ownHandStart = playerIds.indexOf(uid) * 7;
+        const ownOpeningHand = deck.splice(ownHandStart, 7);
+        const openingNumberIndex = deck.findIndex((card) => card.type === "number");
 
-        if (openingNumberIndex < 0) {
-            throw new Error("Açılış kartı oluşturulamadı.");
+        if (ownOpeningHand.length !== 7 || openingNumberIndex < 0) {
+            throw new Error("Açılış kartları oluşturulamadı.");
         }
 
-        [deck[dealCount], deck[openingNumberIndex]] = [deck[openingNumberIndex], deck[dealCount]];
-
-        const state = buildInitialState(roomId, round, playerIds, uid, deck);
+        const [topCard] = deck.splice(openingNumberIndex, 1);
+        const state = buildInitialState(roomId, round, playerIds, uid, deck, topCard);
 
         transaction.set(gameRef, state);
-
-        playerIds.forEach((playerId, playerIndex) => {
-            const cards = deck.slice(playerIndex * 7, playerIndex * 7 + 7);
-            transaction.set(handRef(db, roomId, round, playerId), {
-                cards,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
-            });
+        transaction.set(ownHandDocument, {
+            cards: ownOpeningHand,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
         });
 
+        // Every client creates only its own private hand. Other players recover
+        // their opening seven cards from the shared draw pile in ensureMatch().
         return state;
     });
 }
@@ -738,13 +731,14 @@ export function subscribeToMatch(db, roomId, round, uid, onState, onHand, onErro
     const unsubscribers = [
         onSnapshot(matchRef(db, roomId, round), (snapshot) => {
             onState(snapshot.exists() ? snapshot.data() : null);
-        }, onError)
+        }, (error) => onError(error, "Maç verisi"))
     ];
 
     if (watchHand) {
         unsubscribers.push(onSnapshot(handRef(db, roomId, round, uid), (snapshot) => {
             onHand(snapshot.exists() ? snapshot.data() : null);
-        }, onError));
+        }, (error) => onError(error, "Kartların"))
+        );
     }
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
