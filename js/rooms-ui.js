@@ -1699,6 +1699,23 @@ async function returnUnoToLobbyFromResults(roomId, expectedRound) {
             throw new Error("Sonraki lobi UNO oyuncu sınırını aşıyor.");
         }
 
+        // Remove this round's shared match record and all private player hands.
+        // Deleting the parent document alone would leave its hands subcollection behind.
+        const matchPath = doc(db, "rooms", roomId, "unoMatches", String(expectedRound));
+        const matchPlayerIds = Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [];
+        matchPlayerIds.forEach((playerId) => {
+            transaction.delete(doc(
+                db,
+                "rooms",
+                roomId,
+                "unoMatches",
+                String(expectedRound),
+                "hands",
+                playerId
+            ));
+        });
+        transaction.delete(matchPath);
+
         transaction.update(ref, {
             status: "lobby",
             round: Number(session.round) + 1,
