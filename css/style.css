@@ -4644,7 +4644,30 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 .uno-message.is-error { color: #ffb6b6; }
 .uno-hand-area { display: flex; flex-direction: column; gap: 8px; }
 .uno-hand-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #deeee8; font-size: 11px; }
-.uno-hand-heading span { color: #97b7ac; font-size: 10px; font-variant-numeric: tabular-nums; }
+.uno-hand-heading-actions { display: flex; align-items: center; gap: 9px; }
+.uno-hand-heading span { color: #97b7ac; font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.uno-hand-visibility { min-height: 30px; padding: 5px 10px; font-size: 10px; white-space: nowrap; }
+.uno-hand-viewport { position: relative; min-width: 0; overflow: hidden; border-radius: 14px; }
+.uno-hand-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: #fff;
+    text-align: center;
+    background: #737a83;
+    border: 1px solid rgba(255,255,255,.24);
+    border-radius: 14px;
+    user-select: none;
+}
+.uno-hand-cover[hidden] { display: none; }
+.uno-hand-cover strong { font-size: 13px; font-weight: 950; letter-spacing: .12em; }
+.uno-hand-cover span { color: rgba(255,255,255,.86); font-size: 10px; }
+.uno-hand-viewport.is-hidden .uno-hand { pointer-events: none; }
 .uno-hand {
     display: flex;
     min-height: 146px;
