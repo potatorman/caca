@@ -53,7 +53,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                     <p class="uno-header-status" data-role="status">Masa hazırlanıyor…</p>
                 </div>
                 <div class="uno-header-actions">
-                    <button type="button" class="uno-secondary" data-action="leave">Maçtan ayrıl</button>
+                    <button type="button" class="uno-secondary" data-action="leave">Maçı terk et</button>
                     <button type="button" class="uno-close" data-action="close" aria-label="Oyunu kapat">×</button>
                 </div>
             </header>
@@ -325,13 +325,20 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
 
     action("close").addEventListener("click", close);
     action("close-result").addEventListener("click", close);
-    action("leave").addEventListener("click", async () => {
-        if (!window.confirm("Mevcut maçtan ayrılmak istiyor musun? Kalıcı lobi üyeliğin korunur.")) return;
+    action("leave").addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        if (!window.confirm("Maçı tamamen terk etmek istiyor musun? Oyun lobisinden de çıkarılacaksın. İki kişilik maçta kalan oyuncu kazanır.")) return;
+
+        button.disabled = true;
         try {
-            await onLeave?.();
+            const left = await onLeave?.();
+            if (left === false) {
+                throw new Error("Maç terk edilemedi. Lobi çıkış mesajını kontrol et.");
+            }
             close();
         } catch (error) {
-            setMessage(error.message || "Maçtan ayrılamadın.", true);
+            setMessage(error.message || "Maçı terk edemedin.", true);
+            button.disabled = false;
         }
     });
 
