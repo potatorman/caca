@@ -134,19 +134,20 @@ function createNextTurnPatch(state, index, direction, extra = {}) {
     };
 }
 
-function nextPlayerAfterRemoval(activePlayers, currentUid, direction, fallbackIndex = 0) {
-    if (!activePlayers.length) return null;
-    if (activePlayers.includes(currentUid)) return currentUid;
+function nextPlayerAfterRemoval(previousPlayers, remainingPlayers, currentUid, direction, fallbackIndex = 0) {
+    if (!remainingPlayers.length) return null;
+    if (remainingPlayers.includes(currentUid)) return currentUid;
 
+    const oldCount = previousPlayers.length;
     const oldIndex = Math.max(0, fallbackIndex);
-    for (let step = 1; step <= activePlayers.length + 1; step += 1) {
+    for (let step = 1; step <= oldCount; step += 1) {
         const candidateIndex = (
-            oldIndex + (direction === -1 ? -step : step) + activePlayers.length * 2
-        ) % activePlayers.length;
-        const candidate = activePlayers[candidateIndex];
-        if (candidate) return candidate;
+            oldIndex + (direction === -1 ? -step : step) + oldCount * 2
+        ) % oldCount;
+        const candidate = previousPlayers[candidateIndex];
+        if (remainingPlayers.includes(candidate)) return candidate;
     }
-    return activePlayers[0];
+    return remainingPlayers[0];
 }
 
 function resultSessionPatch(session, match) {
@@ -926,6 +927,7 @@ export async function reconcileMatchPlayers(db, roomId, round, uid) {
         }
 
         const nextUid = nextPlayerAfterRemoval(
+            oldPlayers,
             remainingPlayers,
             state.currentPlayerUid,
             state.direction,
