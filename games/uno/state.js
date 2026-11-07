@@ -358,7 +358,7 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
             throw new Error("Son kartı oynayabilmek için aktif UNO maç kaydı doğrulanamadı.");
         }
 
-        if (effect.drawCount > 0) {
+        if (effect.drawCount > 0 && !isWinningPlay) {
             const targetIndex = nextIndex(state, currentIndex, state.direction, effect.targetIndexOffset);
             targetUid = playerIds[targetIndex];
             targetHandDocument = handRef(db, roomId, round, targetUid);
