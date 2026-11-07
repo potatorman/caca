@@ -651,122 +651,234 @@ export function reconcileMatchPlayers(db, roomId, round, uid) {
     });
 }
 
-export function forfeitMatch(db, roomId, round, uid) {
-    return runTransaction(db, async (transaction) => {
-        const activeDocument = sessionRef(db, roomId);
-        const gameDocument = matchRef(db, roomId, round);
-        const activeSnapshot = await transaction.get(activeDocument);
-        const gameSnapshot = await transaction.get(gameDocument);
+export async function forfeitMatch(db, roomId, round, uid) {
+    const gameDocument = matchRef(db, roomId, round);
+    const activeDocument = sessionRef(db, roomId);
 
-        if (!activeSnapshot.exists() || !gameSnapshot.exists()) {
-            throw new Error("Aktif UNO maçı bulunamadı.");
-        }
+    // Phase 1: update only the UNO match document. The match-side rule validates
+    // this self-forfeit using the old and new match rosters, without a session write.
+    let matchResult;
+    try {
+        matchResult = await runTransaction(db, async (transaction) => {
+            const gameSnapshot = await transaction.get(gameDocument);
+            if (!gameSnapshot.exists()) {
+                throw new Error("Aktif UNO maç kaydı bulunamadı.");
+            }
 
-        const session = activeSnapshot.data();
-        const state = gameSnapshot.data();
-        const lobbyPlayers = Array.isArray(session.playerIds) ? session.playerIds : [];
-        const lobbyMatchPlayers = Array.isArray(session.matchPlayerIds)
-            ? session.matchPlayerIds
-            : lobbyPlayers;
-        const activePlayers = Array.isArray(state.activePlayerIds)
-            ? state.activePlayerIds
-            : state.playerIds;
+            const state = gameSnapshot.data();
+            const activePlayers = Array.isArray(state.activePlayerIds)
+                ? state.activePlayerIds
+                : state.playerIds;
 
-        if (
-            session.status !== "playing" ||
-            session.gameId !== "uno" ||
-            Number(session.round) !== Number(round) ||
-            state.status !== "playing" ||
-            !lobbyMatchPlayers.includes(uid) ||
-            !activePlayers.includes(uid) ||
-            !lobbyPlayers.includes(uid)
-        ) {
-            throw new Error("Bu maçta artık aktif oyuncu değilsin.");
-        }
+            // Retry support: the match phase may have committed even if the
+            // following lobby synchronization was interrupted.
+            if (
+                state.forfeitedBy === uid &&
+                Array.isArray(activePlayers) &&
+                !activePlayers.includes(uid) &&
+                ["playing", "results"].includes(state.status)
+            ) {
+                return {
+                    alreadyForfeited: true,
+                    status: state.status,
+                    winner: state.winnerId || null
+                };
+            }
 
-        const remainingLobbyPlayers = lobbyPlayers.filter((id) => id !== uid);
-        const remainingActivePlayers = activePlayers.filter((id) => id !== uid);
-        const isHost = session.hostId === uid;
-        if (!remainingLobbyPlayers.length || !remainingActivePlayers.length) {
-            throw new Error("Maçta kazanan kalmayacağı için bu çıkış şu anda yapılamıyor.");
-        }
+            if (
+                state.status !== "playing" ||
+                !Array.isArray(activePlayers) ||
+                !activePlayers.includes(uid)
+            ) {
+                throw new Error("Bu maçta artık aktif oyuncu değilsin.");
+            }
 
-        const nextHostId = isHost ? remainingLobbyPlayers[0] : session.hostId;
-        const changedAt = serverTimestamp();
-        let nextCurrentUid = state.currentPlayerUid;
+            const remainingPlayers = activePlayers.filter((playerId) => playerId !== uid);
+            if (remainingPlayers.length < 1) {
+                throw new Error("Maçta kazanan kalmayacağı için bu çıkış yapılamıyor.");
+            }
 
-        if (!remainingActivePlayers.includes(nextCurrentUid)) {
-            const oldIndex = Math.max(0, activePlayers.indexOf(state.currentPlayerUid));
-            nextCurrentUid = remainingActivePlayers[0];
-            for (let step = 1; step <= activePlayers.length; step += 1) {
-                const candidateIndex = (
-                    oldIndex + (state.direction === -1 ? -step : step) + activePlayers.length * 2
-                ) % activePlayers.length;
-                const candidate = activePlayers[candidateIndex];
-                if (remainingActivePlayers.includes(candidate)) {
-                    nextCurrentUid = candidate;
-                    break;
+            let nextCurrentUid = state.currentPlayerUid;
+            if (!remainingPlayers.includes(nextCurrentUid)) {
+                const oldIndex = Math.max(0, activePlayers.indexOf(state.currentPlayerUid));
+                nextCurrentUid = remainingPlayers[0];
+
+                for (let step = 1; step <= activePlayers.length; step += 1) {
+                    const candidateIndex = (
+                        oldIndex +
+                        (state.direction === -1 ? -step : step) +
+                        activePlayers.length * 2
+                    ) % activePlayers.length;
+                    const candidate = activePlayers[candidateIndex];
+
+                    if (remainingPlayers.includes(candidate)) {
+                        nextCurrentUid = candidate;
+                        break;
+                    }
                 }
             }
-        }
 
-        const winnerId = remainingActivePlayers.length === 1
-            ? remainingActivePlayers[0]
-            : null;
+            const winnerId = remainingPlayers.length === 1
+                ? remainingPlayers[0]
+                : null;
+            const changedAt = serverTimestamp();
 
-        if (winnerId) {
-            transaction.update(gameDocument, {
-                activePlayerIds: remainingActivePlayers,
-                currentPlayerIndex: 0,
-                currentPlayerUid: winnerId,
+            const updates = {
+                activePlayerIds: remainingPlayers,
+                currentPlayerIndex: remainingPlayers.indexOf(winnerId || nextCurrentUid),
+                currentPlayerUid: winnerId || nextCurrentUid,
                 drewCardId: null,
-                status: "results",
-                winnerId,
                 forfeitedBy: uid,
-                unoPendingUid: null,
-                unoCalled: false,
-                finishedAt: changedAt,
+                unoPendingUid: remainingPlayers.includes(state.unoPendingUid)
+                    ? state.unoPendingUid
+                    : null,
+                unoCalled: remainingPlayers.includes(state.unoPendingUid)
+                    ? state.unoCalled
+                    : false,
                 updatedAt: changedAt
-            });
+            };
 
-            transaction.update(activeDocument, {
-                status: "results",
+            if (winnerId) {
+                updates.status = "results";
+                updates.winnerId = winnerId;
+                updates.finishedAt = changedAt;
+            } else {
+                updates.turnStartedAt =
+                    nextCurrentUid !== state.currentPlayerUid
+                        ? changedAt
+                        : state.turnStartedAt;
+            }
+
+            transaction.update(gameDocument, updates);
+
+            return {
+                alreadyForfeited: false,
+                status: winnerId ? "results" : "playing",
+                winner: winnerId
+            };
+        });
+    } catch (error) {
+        const wrapped = new Error(
+            "UNO maç kaydı güncellenemedi: " + (error?.message || "Bilinmeyen hata")
+        );
+        wrapped.code = error?.code;
+        throw wrapped;
+    }
+
+    // Phase 2: mirror the committed match roster into the persistent lobby.
+    // The Firestore rule checks the committed forfeitedBy marker and exact roster.
+    try {
+        return await runTransaction(db, async (transaction) => {
+            const sessionSnapshot = await transaction.get(activeDocument);
+            const matchSnapshot = await transaction.get(gameDocument);
+
+            if (!sessionSnapshot.exists() || !matchSnapshot.exists()) {
+                throw new Error("Oyun lobisi veya UNO maç kaydı bulunamadı.");
+            }
+
+            const session = sessionSnapshot.data();
+            const state = matchSnapshot.data();
+            const lobbyPlayers = Array.isArray(session.playerIds) ? session.playerIds : [];
+            const lobbyMatchPlayers = Array.isArray(session.matchPlayerIds)
+                ? session.matchPlayerIds
+                : lobbyPlayers;
+            const activePlayers = Array.isArray(state.activePlayerIds)
+                ? state.activePlayerIds
+                : [];
+
+            // Another retry already synchronized the lobby.
+            if (
+                state.forfeitedBy === uid &&
+                !lobbyPlayers.includes(uid) &&
+                !lobbyMatchPlayers.includes(uid) &&
+                lobbyMatchPlayers.length === activePlayers.length &&
+                lobbyMatchPlayers.every((playerId, index) => playerId === activePlayers[index]) &&
+                session.round === round &&
+                session.status === state.status
+            ) {
+                return {
+                    left: true,
+                    finished: state.status === "results",
+                    winner: state.winnerId || null,
+                    alreadySynchronized: true
+                };
+            }
+
+            if (
+                session.gameId !== "uno" ||
+                session.status !== "playing" ||
+                Number(session.round) !== Number(round) ||
+                !lobbyPlayers.includes(uid) ||
+                !lobbyMatchPlayers.includes(uid) ||
+                state.forfeitedBy !== uid ||
+                !["playing", "results"].includes(state.status) ||
+                activePlayers.includes(uid)
+            ) {
+                throw new Error("Maçtan ayrılma kaydı lobiyle eşleştirilemedi.");
+            }
+
+            const remainingLobbyPlayers = lobbyPlayers.filter((playerId) => playerId !== uid);
+            const remainingMatchPlayers = lobbyMatchPlayers.filter((playerId) => playerId !== uid);
+
+            if (
+                remainingLobbyPlayers.length < 1 ||
+                remainingMatchPlayers.length !== activePlayers.length ||
+                !remainingMatchPlayers.every((playerId, index) => playerId === activePlayers[index])
+            ) {
+                throw new Error("UNO oyuncu listeleri tutarsız. Lobi güvenli biçimde güncellenmedi.");
+            }
+
+            const isHost = session.hostId === uid;
+            const nextHostId = isHost ? remainingLobbyPlayers[0] : session.hostId;
+            const isFinished = state.status === "results";
+
+            if (
+                isFinished &&
+                (remainingMatchPlayers.length !== 1 || state.winnerId !== remainingMatchPlayers[0])
+            ) {
+                throw new Error("Forfeit sonucu için kazanan doğrulanamadı.");
+            }
+
+            if (!isFinished && remainingMatchPlayers.length < 2) {
+                throw new Error("Maçın devam edebilmesi için en az iki aktif oyuncu gerekli.");
+            }
+
+            const updates = {
+                status: state.status,
                 hostId: nextHostId,
                 playerIds: remainingLobbyPlayers,
-                readyIds: [],
-                matchPlayerIds: remainingActivePlayers,
-                nextRoundPlayerIds: [],
-                nextRoundReadyIds: [],
-                finishedAt: changedAt,
-                updatedAt: changedAt
-            });
+                readyIds: isFinished
+                    ? []
+                    : (Array.isArray(session.readyIds)
+                        ? session.readyIds.filter((playerId) => playerId !== uid)
+                        : []),
+                matchPlayerIds: remainingMatchPlayers,
+                updatedAt: serverTimestamp()
+            };
 
-            return { left: true, finished: true, winner: winnerId };
-        }
+            if (isFinished) {
+                updates.nextRoundPlayerIds = [];
+                updates.nextRoundReadyIds = [];
+                updates.finishedAt = state.finishedAt || serverTimestamp();
+            }
 
-        const currentPlayerChanged = nextCurrentUid !== state.currentPlayerUid;
-        transaction.update(gameDocument, {
-            activePlayerIds: remainingActivePlayers,
-            forfeitedBy: uid,
-            currentPlayerIndex: remainingActivePlayers.indexOf(nextCurrentUid),
-            currentPlayerUid: nextCurrentUid,
-            drewCardId: currentPlayerChanged ? null : state.drewCardId,
-            unoPendingUid: remainingActivePlayers.includes(state.unoPendingUid) ? state.unoPendingUid : null,
-            unoCalled: remainingActivePlayers.includes(state.unoPendingUid) ? state.unoCalled : false,
-            updatedAt: changedAt,
-            turnStartedAt: currentPlayerChanged ? changedAt : state.turnStartedAt
+            transaction.update(activeDocument, updates);
+
+            return {
+                left: true,
+                finished: isFinished,
+                winner: state.winnerId || null,
+                alreadySynchronized: false
+            };
         });
-
-        transaction.update(activeDocument, {
-            hostId: nextHostId,
-            playerIds: remainingLobbyPlayers,
-            readyIds: (session.readyIds || []).filter((id) => id !== uid),
-            matchPlayerIds: remainingActivePlayers,
-            updatedAt: changedAt
-        });
-
-        return { left: true, finished: false, winner: null };
-    });
+    } catch (error) {
+        const wrapped = new Error(
+            "UNO lobisi oyuncu çıkışına eşitlenemedi: " +
+            (error?.message || "Bilinmeyen hata")
+        );
+        wrapped.code = error?.code;
+        throw wrapped;
+    }
 }
 
 export function skipTimedOutTurn(db, roomId, round, uid, timeoutMs = 90000) {
