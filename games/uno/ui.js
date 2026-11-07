@@ -101,7 +101,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                     <span class="uno-eyebrow">MAÇ SONUCU</span>
                     <h2 data-role="winner">Kazanan</h2>
                     <div data-role="result-scores"></div>
-                    <button class="uno-primary" type="button" data-action="close-result">Lobi ekranına dön</button>
+                    <button class="uno-primary" type="button" data-action="close-result">Yeni tur için lobiye dön</button>
                 </div>
             </div>
         </div>
@@ -323,9 +323,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         root.remove();
     };
 
-    action("close").addEventListener("click", close);
-    action("close-result").addEventListener("click", async (event) => {
-        const button = event.currentTarget;
+    const returnFromResults = async (button) => {
         if (matchState?.status !== "results" || typeof onReturnToLobby !== "function") {
             close();
             return;
@@ -340,6 +338,17 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             setMessage("Lobiye dönülemedi: " + (error.message || "Bilinmeyen hata"), true);
             button.disabled = false;
         }
+    };
+
+    action("close").addEventListener("click", (event) => {
+        if (matchState?.status === "results") {
+            void returnFromResults(event.currentTarget);
+            return;
+        }
+        close();
+    });
+    action("close-result").addEventListener("click", (event) => {
+        void returnFromResults(event.currentTarget);
     });
     action("leave").addEventListener("click", async (event) => {
         const button = event.currentTarget;
