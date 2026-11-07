@@ -578,7 +578,7 @@ service cloud.firestore {
             && data.keys().hasOnly([
               'gameId', 'gameName', 'status', 'round', 'hostId',
               'playerIds', 'readyIds', 'nextRoundPlayerIds',
-              'nextRoundReadyIds', 'matchPlayerIds', 'spectatorIds',
+              'nextRoundReadyIds', 'matchPlayerIds', 'spectatorIds', 'resultReturnIds',
               'createdAt', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
             ])
             && data.gameId is string && data.gameId.size() >= 3 && data.gameId.size() <= 32
@@ -594,6 +594,17 @@ service cloud.firestore {
             && data.nextRoundPlayerIds is list && data.nextRoundPlayerIds.size() <= 20
             && data.nextRoundReadyIds is list && data.nextRoundReadyIds.size() <= 20
             && data.nextRoundReadyIds.hasOnly(data.nextRoundPlayerIds)
+            && (
+              !data.keys().hasAny(['resultReturnIds'])
+              || (
+                data.resultReturnIds is list
+                && data.resultReturnIds.size() <= 10
+                && data.resultReturnIds.toSet().size() == data.resultReturnIds.size()
+                && data.resultReturnIds.hasOnly(
+                  data.keys().hasAny(['matchPlayerIds']) ? data.matchPlayerIds : data.playerIds
+                )
+              )
+            )
             && (
               !data.keys().hasAny(['matchPlayerIds'])
               || (
@@ -618,41 +629,16 @@ service cloud.firestore {
             && data.updatedAt is timestamp;
         }
 
-        function staleUnoMatchPath() {
+        function currentUnoMatchPath() {
           return /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round);
         }
 
-        // Repair an orphaned UNO result by advancing to a clean round while
-        // keeping the current match roster active. This avoids a false lobby reset.
-        function canRepairStaleUnoSession() {
-          return resource.data.gameId == 'uno'
-            && resource.data.status == 'playing'
-            && matchPlayers(resource.data).hasAny([request.auth.uid])
-            && exists(staleUnoMatchPath())
-            && (
-              get(staleUnoMatchPath()).data.status == 'results'
-              || get(staleUnoMatchPath()).data.round != resource.data.round
-              || get(staleUnoMatchPath()).data.roomId != roomId
-            )
-            && request.resource.data.status == 'playing'
-            && request.resource.data.hostId == resource.data.hostId
-            && request.resource.data.round == resource.data.round + 1
-            && request.resource.data.playerIds == resource.data.playerIds
-            && request.resource.data.readyIds == resource.data.readyIds
-            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
-            && spectators(request.resource.data) == spectators(resource.data)
-            && request.resource.data.nextRoundPlayerIds == resource.data.nextRoundPlayerIds
-            && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
-            && request.resource.data.startedAt is timestamp
-            && request.resource.data.countdownEndsAt == null
-            && request.resource.data.finishedAt == null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'round', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
-            ]);
+        function resultReturns(data) {
+          return data.keys().hasAny(['resultReturnIds'])
+            ? data.resultReturnIds
+            : [];
         }
 
-        // The client merges persistent players, spectators and queued players
-        // with Set(). Mirror that exact unique-roster count in Firestore Rules.
         function unoNextLobbyRosterSize() {
           return resource.data.playerIds
             .concat(spectators(resource.data))
@@ -661,66 +647,71 @@ service cloud.firestore {
             .size();
         }
 
-        // A forfeit can finish a match while leaving spectators and the updated
-        // host in the session. Validate that exact result before allowing the
-        // remaining participants to return everyone to the persistent lobby.
-        function canReturnForfeitedUnoResultsToLobby() {
-          return isRoomMember(roomId)
-            && resource.data.gameId == 'uno'
-            && resource.data.status == 'results'
-            && request.resource.data.status == 'lobby'
-            && exists(staleUnoMatchPath())
-            && get(staleUnoMatchPath()).data.roomId == roomId
-            && get(staleUnoMatchPath()).data.round == resource.data.round
-            && get(staleUnoMatchPath()).data.status == 'results'
-            && get(staleUnoMatchPath()).data.forfeitedBy is string
-            && get(staleUnoMatchPath()).data.winnerId is string
-            && matchPlayers(resource.data).hasAny([get(staleUnoMatchPath()).data.winnerId])
-            && (
-              resource.data.playerIds.hasAny([request.auth.uid])
-              || matchPlayers(resource.data).hasAny([request.auth.uid])
-              || spectators(resource.data).hasAny([request.auth.uid])
-              || resource.data.nextRoundPlayerIds.hasAny([request.auth.uid])
-            )
-            && request.resource.data.hostId == resource.data.hostId
-            && request.resource.data.round == resource.data.round + 1
-            && request.resource.data.playerIds.hasAll(resource.data.playerIds)
-            && request.resource.data.playerIds.hasAll(spectators(resource.data))
-            && request.resource.data.playerIds.hasAll(resource.data.nextRoundPlayerIds)
-            && request.resource.data.playerIds.size() == unoNextLobbyRosterSize()
-            && request.resource.data.playerIds.size() <= 10
-            && request.resource.data.readyIds.size() == 0
-            && request.resource.data.matchPlayerIds.size() == 0
-            && request.resource.data.spectatorIds.size() == 0
-            && request.resource.data.nextRoundPlayerIds.size() == 0
-            && request.resource.data.nextRoundReadyIds.size() == 0
-            && request.resource.data.startedAt == null
-            && request.resource.data.countdownEndsAt == null
-            && request.resource.data.finishedAt == null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status', 'round', 'playerIds', 'readyIds', 'matchPlayerIds',
-              'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
-              'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
-            ]);
-        }
-
-        // A completed UNO match may still have its session marked "playing"
-        // when an older result-sync write was rejected. Let a participant move
-        // that session directly to the next lobby using the committed match result.
-        function canReturnFinishedUnoMatchToLobby() {
+        // The first player may acknowledge a result while the session is still
+        // "playing" (the match document is the authoritative win record).
+        function canBeginUnoResultReturn() {
           return resource.data.gameId == 'uno'
             && resource.data.status == 'playing'
+            && request.resource.data.status == 'results'
+            && matchPlayers(resource.data).hasAny([request.auth.uid])
+            && exists(currentUnoMatchPath())
+            && get(currentUnoMatchPath()).data.roomId == roomId
+            && get(currentUnoMatchPath()).data.round == resource.data.round
+            && get(currentUnoMatchPath()).data.status == 'results'
+            && get(currentUnoMatchPath()).data.winnerId is string
+            && matchPlayers(resource.data).hasAny([get(currentUnoMatchPath()).data.winnerId])
+            && request.resource.data.resultReturnIds is list
+            && request.resource.data.resultReturnIds.size() == 1
+            && request.resource.data.resultReturnIds[0] == request.auth.uid
+            && request.resource.data.playerIds == resource.data.playerIds
+            && request.resource.data.readyIds == resource.data.readyIds
+            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+            && spectators(request.resource.data) == spectators(resource.data)
+            && request.resource.data.nextRoundPlayerIds == resource.data.nextRoundPlayerIds
+            && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
+            && request.resource.data.hostId == resource.data.hostId
+            && request.resource.data.finishedAt == get(currentUnoMatchPath()).data.finishedAt
+            && request.resource.data.finishedAt is timestamp
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'resultReturnIds', 'finishedAt', 'updatedAt'
+            ]);
+        }
+
+        // A result acknowledgement belongs to one player only. It never changes
+        // the shared round or closes another player's table.
+        function canAcknowledgeUnoResultReturn() {
+          return resource.data.gameId == 'uno'
+            && resource.data.status == 'results'
+            && request.resource.data.status == 'results'
+            && matchPlayers(resource.data).hasAny([request.auth.uid])
+            && request.resource.data.resultReturnIds is list
+            && request.resource.data.resultReturnIds.hasAll(resultReturns(resource.data))
+            && request.resource.data.resultReturnIds.size() == resultReturns(resource.data).size() + 1
+            && !resultReturns(resource.data).hasAny([request.auth.uid])
+            && request.resource.data.resultReturnIds.hasAny([request.auth.uid])
+            && request.resource.data.resultReturnIds.hasOnly(matchPlayers(resource.data))
+            && request.resource.data.playerIds == resource.data.playerIds
+            && request.resource.data.readyIds == resource.data.readyIds
+            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+            && spectators(request.resource.data) == spectators(resource.data)
+            && request.resource.data.nextRoundPlayerIds == resource.data.nextRoundPlayerIds
+            && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
+            && request.resource.data.finishedAt == resource.data.finishedAt
+            && request.resource.data.hostId == resource.data.hostId
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['resultReturnIds', 'updatedAt']);
+        }
+
+        // The shared lobby advances only after every remaining match player
+        // has individually acknowledged the result screen.
+        function canCompleteUnoResultReturn() {
+          return resource.data.gameId == 'uno'
+            && resource.data.status == 'results'
             && request.resource.data.status == 'lobby'
-            && (
-              matchPlayers(resource.data).hasAny([request.auth.uid])
-              || spectators(resource.data).hasAny([request.auth.uid])
-            )
-            && exists(staleUnoMatchPath())
-            && get(staleUnoMatchPath()).data.roomId == roomId
-            && get(staleUnoMatchPath()).data.round == resource.data.round
-            && get(staleUnoMatchPath()).data.status == 'results'
-            && get(staleUnoMatchPath()).data.winnerId is string
-            && matchPlayers(resource.data).hasAny([get(staleUnoMatchPath()).data.winnerId])
+            && matchPlayers(resource.data).size() >= 1
+            && resultReturns(resource.data).hasAll(matchPlayers(resource.data))
+            && resultReturns(resource.data).size() == matchPlayers(resource.data).size()
+            && resultReturns(resource.data).hasAny([request.auth.uid])
             && request.resource.data.hostId == resource.data.hostId
             && request.resource.data.round == resource.data.round + 1
             && request.resource.data.playerIds.hasAll(resource.data.playerIds)
@@ -733,35 +724,32 @@ service cloud.firestore {
             && request.resource.data.spectatorIds.size() == 0
             && request.resource.data.nextRoundPlayerIds.size() == 0
             && request.resource.data.nextRoundReadyIds.size() == 0
+            && request.resource.data.resultReturnIds.size() == 0
             && request.resource.data.startedAt == null
             && request.resource.data.countdownEndsAt == null
             && request.resource.data.finishedAt == null
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'status', 'round', 'playerIds', 'readyIds', 'matchPlayerIds',
               'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
-              'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+              'resultReturnIds', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
             ]);
         }
 
-        function currentUnoForfeitMatchPath() {
-          return /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round);
-        }
-
-        // Phase two of a self-forfeit is authorized only after phase one has
-        // committed the exact same roster change to the UNO match document.
+        // Atomic self-forfeit: the match update and lobby roster update are part
+        // of one transaction. The lobby rule verifies the match's post-write state.
         function canSelfForfeitUnoSession() {
           return resource.data.gameId == 'uno'
             && resource.data.status == 'playing'
             && resource.data.playerIds.hasAny([request.auth.uid])
             && matchPlayers(resource.data).hasAny([request.auth.uid])
-            && exists(currentUnoForfeitMatchPath())
-            && get(currentUnoForfeitMatchPath()).data.roomId == roomId
-            && get(currentUnoForfeitMatchPath()).data.round == resource.data.round
-            && get(currentUnoForfeitMatchPath()).data.forfeitedBy == request.auth.uid
-            && get(currentUnoForfeitMatchPath()).data.status == request.resource.data.status
-            && get(currentUnoForfeitMatchPath()).data.activePlayerIds is list
-            && get(currentUnoForfeitMatchPath()).data.activePlayerIds == matchPlayers(request.resource.data)
-            && !get(currentUnoForfeitMatchPath()).data.activePlayerIds.hasAny([request.auth.uid])
+            && exists(currentUnoMatchPath())
+            && getAfter(currentUnoMatchPath()).data.roomId == roomId
+            && getAfter(currentUnoMatchPath()).data.round == resource.data.round
+            && getAfter(currentUnoMatchPath()).data.forfeitedBy == request.auth.uid
+            && getAfter(currentUnoMatchPath()).data.status == request.resource.data.status
+            && getAfter(currentUnoMatchPath()).data.activePlayerIds is list
+            && getAfter(currentUnoMatchPath()).data.activePlayerIds == matchPlayers(request.resource.data)
+            && !getAfter(currentUnoMatchPath()).data.activePlayerIds.hasAny([request.auth.uid])
             && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
             && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
             && !request.resource.data.playerIds.hasAny([request.auth.uid])
@@ -770,6 +758,7 @@ service cloud.firestore {
             && request.resource.data.playerIds.hasAll(matchPlayers(request.resource.data))
             && resource.data.readyIds.hasAll(request.resource.data.readyIds)
             && spectators(request.resource.data) == spectators(resource.data)
+            && request.resource.data.resultReturnIds.size() == 0
             && (
               request.resource.data.hostId == resource.data.hostId
               || (
@@ -779,23 +768,82 @@ service cloud.firestore {
             )
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'status', 'hostId', 'playerIds', 'readyIds', 'matchPlayerIds',
-              'nextRoundPlayerIds', 'nextRoundReadyIds', 'finishedAt', 'updatedAt'
+              'nextRoundPlayerIds', 'nextRoundReadyIds', 'resultReturnIds',
+              'finishedAt', 'updatedAt'
             ])
             && (
               (
-                get(currentUnoForfeitMatchPath()).data.status == 'results'
+                getAfter(currentUnoMatchPath()).data.status == 'results'
                 && matchPlayers(request.resource.data).size() == 1
-                && get(currentUnoForfeitMatchPath()).data.winnerId
+                && getAfter(currentUnoMatchPath()).data.winnerId
                   == matchPlayers(request.resource.data)[0]
                 && request.resource.data.readyIds.size() == 0
                 && request.resource.data.nextRoundPlayerIds.size() == 0
                 && request.resource.data.nextRoundReadyIds.size() == 0
                 && request.resource.data.finishedAt
-                  == get(currentUnoForfeitMatchPath()).data.finishedAt
+                  == getAfter(currentUnoMatchPath()).data.finishedAt
                 && request.resource.data.finishedAt is timestamp
               )
               || (
-                get(currentUnoForfeitMatchPath()).data.status == 'playing'
+                getAfter(currentUnoMatchPath()).data.status == 'playing'
+                && matchPlayers(request.resource.data).size() >= 2
+                && request.resource.data.nextRoundPlayerIds == resource.data.nextRoundPlayerIds
+                && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
+                && request.resource.data.finishedAt == resource.data.finishedAt
+              )
+            );
+        }
+
+        // Recovery path for an older client that committed the match forfeit
+        // but failed before synchronizing the lobby document.
+        function canRecoverUnoForfeitSession() {
+          return resource.data.gameId == 'uno'
+            && resource.data.status == 'playing'
+            && resource.data.playerIds.hasAny([request.auth.uid])
+            && matchPlayers(resource.data).hasAny([request.auth.uid])
+            && exists(currentUnoMatchPath())
+            && get(currentUnoMatchPath()).data.roomId == roomId
+            && get(currentUnoMatchPath()).data.round == resource.data.round
+            && get(currentUnoMatchPath()).data.forfeitedBy == request.auth.uid
+            && get(currentUnoMatchPath()).data.status == request.resource.data.status
+            && get(currentUnoMatchPath()).data.activePlayerIds is list
+            && get(currentUnoMatchPath()).data.activePlayerIds == matchPlayers(request.resource.data)
+            && !get(currentUnoMatchPath()).data.activePlayerIds.hasAny([request.auth.uid])
+            && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+            && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
+            && !request.resource.data.playerIds.hasAny([request.auth.uid])
+            && !matchPlayers(request.resource.data).hasAny([request.auth.uid])
+            && request.resource.data.playerIds.size() >= 1
+            && request.resource.data.playerIds.hasAll(matchPlayers(request.resource.data))
+            && resource.data.readyIds.hasAll(request.resource.data.readyIds)
+            && spectators(request.resource.data) == spectators(resource.data)
+            && request.resource.data.resultReturnIds.size() == 0
+            && (
+              request.resource.data.hostId == resource.data.hostId
+              || (
+                request.auth.uid == resource.data.hostId
+                && request.resource.data.hostId == request.resource.data.playerIds[0]
+              )
+            )
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'hostId', 'playerIds', 'readyIds', 'matchPlayerIds',
+              'nextRoundPlayerIds', 'nextRoundReadyIds', 'resultReturnIds',
+              'finishedAt', 'updatedAt'
+            ])
+            && (
+              (
+                get(currentUnoMatchPath()).data.status == 'results'
+                && matchPlayers(request.resource.data).size() == 1
+                && get(currentUnoMatchPath()).data.winnerId
+                  == matchPlayers(request.resource.data)[0]
+                && request.resource.data.readyIds.size() == 0
+                && request.resource.data.nextRoundPlayerIds.size() == 0
+                && request.resource.data.nextRoundReadyIds.size() == 0
+                && request.resource.data.finishedAt == get(currentUnoMatchPath()).data.finishedAt
+                && request.resource.data.finishedAt is timestamp
+              )
+              || (
+                get(currentUnoMatchPath()).data.status == 'playing'
                 && matchPlayers(request.resource.data).size() >= 2
                 && request.resource.data.nextRoundPlayerIds == resource.data.nextRoundPlayerIds
                 && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
@@ -830,15 +878,17 @@ service cloud.firestore {
           && request.resource.data.gameName == resource.data.gameName
           && request.resource.data.createdAt == resource.data.createdAt
           && (
-            // Recover a stale UNO result left behind by an earlier broken round transition.
-            canRepairStaleUnoSession()
+            // UNO result acknowledgements and return-to-lobby lifecycle.
+            canBeginUnoResultReturn()
             ||
-            canReturnFinishedUnoMatchToLobby()
+            canAcknowledgeUnoResultReturn()
             ||
-            canReturnForfeitedUnoResultsToLobby()
+            canCompleteUnoResultReturn()
             ||
-            // UNO forfeit; no cross-document lookup is needed to authorize self-removal.
+            // Atomic UNO forfeit plus recovery for an older partial forfeit.
             canSelfForfeitUnoSession()
+            ||
+            canRecoverUnoForfeitSession()
             ||
             // A room member joins the persistent lobby.
             (
@@ -1039,6 +1089,7 @@ service cloud.firestore {
               && request.resource.data.spectatorIds.size() == 0
               && request.resource.data.nextRoundPlayerIds.size() == 0
               && request.resource.data.nextRoundReadyIds.size() == 0
+              && request.resource.data.resultReturnIds.size() == 0
               && request.resource.data.round == resource.data.round + 1
               && request.resource.data.startedAt == null
               && request.resource.data.countdownEndsAt == null
@@ -1136,28 +1187,15 @@ service cloud.firestore {
             )
             // Return to the same persistent lobby for the next match.
             || (
-              resource.data.status == 'results'
+              resource.data.gameId != 'uno'
+              && resource.data.status == 'results'
               && request.resource.data.status == 'lobby'
               && resource.data.finishedAt is timestamp
-              && (
-                resource.data.gameId == 'uno'
-                || request.time >= resource.data.finishedAt + duration.value(5, 's')
-              )
+              && request.time >= resource.data.finishedAt + duration.value(5, 's')
               && request.resource.data.playerIds.hasAll(resource.data.playerIds)
               && request.resource.data.playerIds.hasAll(spectators(resource.data))
-              && (
-                (
-                  resource.data.gameId == 'uno'
-                  && request.resource.data.playerIds.hasAll(resource.data.nextRoundPlayerIds)
-                  && request.resource.data.playerIds.size() == unoNextLobbyRosterSize()
-                  && request.resource.data.playerIds.size() <= 10
-                )
-                || (
-                  resource.data.gameId != 'uno'
-                  && request.resource.data.playerIds.size()
-                    == resource.data.playerIds.size() + spectators(resource.data).size()
-                )
-              )
+              && request.resource.data.playerIds.size()
+                == resource.data.playerIds.size() + spectators(resource.data).size()
               && request.resource.data.hostId == resource.data.hostId
               && request.resource.data.readyIds.size() == 0
               && request.resource.data.matchPlayerIds.size() == 0
