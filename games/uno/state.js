@@ -150,16 +150,6 @@ function nextPlayerAfterRemoval(previousPlayers, remainingPlayers, currentUid, d
     return remainingPlayers[0];
 }
 
-function resultSessionPatch(session, match) {
-    return {
-        status: "results",
-        resultReturnIds: [],
-        readyIds: [],
-        finishedAt: match.finishedAt || serverTimestamp(),
-        updatedAt: serverTimestamp()
-    };
-}
-
 export async function ensureMatch(db, roomId, round, uid) {
     return runTransaction(db, async (transaction) => {
         const activeDocument = sessionRef(db, roomId);
@@ -619,6 +609,7 @@ export async function forfeitMatch(db, roomId, round, uid) {
 
         const oldIndex = Math.max(0, activePlayers.indexOf(state.currentPlayerUid));
         const nextCurrentUid = nextPlayerAfterRemoval(
+            activePlayers,
             nextActivePlayers,
             state.currentPlayerUid,
             state.direction,
