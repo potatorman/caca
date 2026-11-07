@@ -534,7 +534,8 @@ export async function forfeitMatch(db, roomId, round, uid) {
             status: winner ? "results" : "playing",
             hostId: nextHost,
             playerIds: nextLobby,
-            readyIds: ids(session.readyIds).filter((id) => id !== uid),
+            // Ready state is cleared when a round starts; discard any stale values.
+            readyIds: [],
             matchPlayerIds: nextRoster,
             resultReturnIds: [],
             finishedAt: winner ? changedAt : null,
