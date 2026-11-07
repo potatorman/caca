@@ -480,8 +480,8 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             .then((result) => {
                 if (closed) return;
 
-                if (result?.sessionReset) {
-                    setStatus("Eski maç kaydı düzeltildi. Yeni tur için oyun lobisine döndün.");
+                if (result?.sessionAdvanced) {
+                    setStatus("Eski maç kaydı temizlendi. Yeni tur başlatılıyor…");
                     close();
                     return;
                 }
