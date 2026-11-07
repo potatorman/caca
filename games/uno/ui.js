@@ -392,27 +392,27 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         });
     });
 
-    const matchUnsubscribe = subscribeToMatch(
-        db,
-        roomId,
-        round,
-        uid,
-        (state) => {
-            if (closed) return;
-            matchState = state;
-            render().catch((error) => setMessage(error.message || "Masa güncellenemedi.", true));
-        },
-        (hand) => {
-            if (closed) return;
-            handData = hand;
-            renderHand();
-        },
-        (error) => setMessage(error.message || "UNO bağlantısı koptu.", true),
-        Boolean(session?.status === "playing" && session?.matchPlayerIds?.includes(uid))
-    );
+    const startMatchSubscription = (watchHand) => {
+        if (closed || unsubscribeMatch) return;
 
-    unsubscribeMatch = () => {
-        matchUnsubscribe();
+        unsubscribeMatch = subscribeToMatch(
+            db,
+            roomId,
+            round,
+            uid,
+            (state) => {
+                if (closed) return;
+                matchState = state;
+                render().catch((error) => setMessage(error.message || "Masa güncellenemedi.", true));
+            },
+            (hand) => {
+                if (closed) return;
+                handData = hand;
+                renderHand();
+            },
+            (error) => setMessage(error.message || "UNO bağlantısı koptu.", true),
+            watchHand
+        );
     };
 
     timeoutTimer = setInterval(() => {
@@ -438,11 +438,22 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             });
     }, 5000);
 
-    if (session?.status === "playing" && session.matchPlayerIds?.includes(uid)) {
-        ensureMatch(db, roomId, round, uid).catch((error) =>
-            setMessage(error.message || "Maç hazırlanamadı.", true)
-        );
+    const isMatchPlayer = session?.status === "playing" &&
+        Array.isArray(session?.matchPlayerIds) &&
+        session.matchPlayerIds.includes(uid);
+
+    if (isMatchPlayer) {
+        setStatus("Kartlar dağıtılıyor…");
+        ensureMatch(db, roomId, round, uid)
+            .then(() => {
+                // The private hand document must exist before its listener is attached.
+                if (!closed) startMatchSubscription(true);
+            })
+            .catch((error) => {
+                if (!closed) setMessage(error.message || "Maç hazırlanamadı.", true);
+            });
     } else {
+        startMatchSubscription(false);
         setMessage("İzleyici görünümü. Kart elleri yalnızca ilgili oyuncuya gösterilir.");
     }
 
