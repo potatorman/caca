@@ -2516,7 +2516,11 @@ async function leaveGameLobby() {
             }
             return true;
         } catch (error) {
-            setGameCenterStatus("Maçı terk edemedin: " + (error.message || "Bilinmeyen hata"), true);
+            const code = error?.code ? " (" + error.code + ")" : "";
+            setGameCenterStatus(
+                "Maçı terk edemedin: " + (error?.message || "Bilinmeyen hata") + code,
+                true
+            );
             return false;
         } finally {
             if (leaveButton) leaveButton.disabled = false;
