@@ -2,7 +2,8 @@ import { openUnoGame } from "./ui.js";
 export {
     ensureMatch,
     reconcileMatchPlayers,
-    forfeitMatch
+    forfeitMatch,
+    returnToLobby
 } from "./state.js";
 
 export const unoGame = Object.freeze({
