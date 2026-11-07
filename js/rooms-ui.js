@@ -4,7 +4,8 @@ import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY, getGameDefinition } from "../games/registry.js";
 import {
     ensureMatch as ensureUnoMatch,
-    reconcileMatchPlayers as reconcileUnoMatchPlayers
+    reconcileMatchPlayers as reconcileUnoMatchPlayers,
+    forfeitMatch as forfeitUnoMatch
 } from "../games/uno/index.js";
 
 import {
@@ -1694,6 +1695,10 @@ function syncGameSessionResultsReset(roomId, sessionData) {
                 transaction.update(ref, {
                     status: "lobby",
                     round: round + 1,
+                    playerIds: [...new Set([
+                        ...(Array.isArray(latest.playerIds) ? latest.playerIds : []),
+                        ...(Array.isArray(latest.spectatorIds) ? latest.spectatorIds : [])
+                    ])],
                     readyIds: [],
                     matchPlayerIds: [],
                     spectatorIds: [],
@@ -2019,7 +2024,8 @@ function listenToGameCenter(roomId) {
             const canSeeCurrentGame = gameSessionData.status === "playing"
                 ? matchPlayers.includes(currentUser?.uid) || spectators.includes(currentUser?.uid)
                 : persistentPlayers.includes(currentUser?.uid) ||
-                    matchPlayers.includes(currentUser?.uid);
+                    matchPlayers.includes(currentUser?.uid) ||
+                    spectators.includes(currentUser?.uid);
             if (canSeeCurrentGame) {
                 void openRoomGame(gameSessionData, { automatic: true });
             } else if (activeRoomGame) {
@@ -2318,14 +2324,29 @@ async function leaveCurrentMatch() {
         : (gameSessionData.playerIds || []);
     if (!matchPlayers.includes(currentUser.uid)) return false;
 
-    // Leaving from the table means leaving the persistent game lobby as well.
-    // The UNO roster listener will award the win to the remaining player.
+    if (gameSessionData.gameId === "uno") {
+        const result = await forfeitUnoMatch(
+            db,
+            activeRoomId,
+            gameSessionData.round,
+            currentUser.uid
+        );
+        if (result.finished && result.winner) {
+            const winner = activeRoomMembers.find((member) => member.id === result.winner);
+            setGameCenterStatus((winner?.displayNickname || winner?.username || "Rakibin") + " maçı terk ettiğin için kazandı.");
+        } else {
+            setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
+        }
+        return true;
+    }
+
     const left = await leaveGameLobby();
     if (!left) {
         throw new Error("Maç terk edilemedi. Lobi çıkış mesajını kontrol et.");
     }
     return true;
 }
+
 async function finishGameMatch() {
     if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") return;
     const session = gameSessionData;
