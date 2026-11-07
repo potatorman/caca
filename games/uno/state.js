@@ -294,7 +294,9 @@ function makeResultSessionPatch(session) {
 }
 
 export async function playCard(db, roomId, round, uid, cardId, selectedColor = null) {
-    return runTransaction(db, async (transaction) => {
+    // First commit the actual card play and match result. The lobby result is
+    // finalized in a second transaction after the winning match document exists.
+    const result = await runTransaction(db, async (transaction) => {
         const gameDocument = matchRef(db, roomId, round);
         const playerHandDocument = handRef(db, roomId, round, uid);
         const gameSnapshot = await transaction.get(gameDocument);
@@ -329,6 +331,7 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         }
 
         const remainingHand = hand.filter((item) => item.id !== card.id);
+        const isWinningPlay = remainingHand.length === 0;
         const playerIds = state.activePlayerIds;
         const currentIndex = state.currentPlayerIndex;
         const effect = getPlayEffect(card, playerIds.length, state.direction);
@@ -342,12 +345,17 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         let drawnCards = [];
         let targetHandDocument = null;
 
-        const activeSessionSnapshot = remainingHand.length === 0
+        const activeSessionSnapshot = isWinningPlay
             ? await transaction.get(sessionRef(db, roomId))
             : null;
-        if (remainingHand.length === 0 &&
-            (!activeSessionSnapshot?.exists() || activeSessionSnapshot.data().status !== "playing")) {
-            throw new Error("Kalıcı lobi maç bitişine hazır değil.");
+        if (isWinningPlay && (
+            !activeSessionSnapshot?.exists() ||
+            activeSessionSnapshot.data().status !== "playing" ||
+            activeSessionSnapshot.data().gameId !== "uno" ||
+            Number(activeSessionSnapshot.data().round) !== Number(round) ||
+            !activeSessionSnapshot.data().matchPlayerIds?.includes(uid)
+        )) {
+            throw new Error("Son kartı oynayabilmek için aktif UNO maç kaydı doğrulanamadı.");
         }
 
         if (effect.drawCount > 0) {
@@ -364,8 +372,9 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
             nextTurnIndex = nextIndex(state, targetIndex, state.direction, 1);
         }
 
-        // arrayUnion appends penalty cards without reading the opponent's private hand.
-        if (targetHandDocument && drawnCards.length) {
+        // A winning card ends the round, so its effect must not block the win
+        // by requiring an additional write to the next player's private hand.
+        if (targetHandDocument && drawnCards.length && !isWinningPlay) {
             transaction.update(targetHandDocument, {
                 cards: arrayUnion(...drawnCards),
                 updatedAt: serverTimestamp()
@@ -389,24 +398,75 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
             updatedAt: serverTimestamp()
         };
 
-        if (remainingHand.length === 0) {
+        if (isWinningPlay) {
             patch.status = "results";
             patch.winnerId = uid;
+            patch.currentPlayerIndex = currentIndex;
+            patch.currentPlayerUid = uid;
+            patch.direction = state.direction;
+            patch.drewCardId = null;
             patch.unoPendingUid = null;
             patch.unoCalled = false;
             patch.finishedAt = serverTimestamp();
-
-            transaction.update(
-                sessionRef(db, roomId),
-                makeResultSessionPatch(activeSessionSnapshot.data())
-            );
         }
 
         transaction.update(gameDocument, patch);
-        return { winner: remainingHand.length === 0, card };
+        return { winner: isWinningPlay, card };
     });
-}
 
+    if (result.winner) {
+        try {
+            await runTransaction(db, async (transaction) => {
+                const activeDocument = sessionRef(db, roomId);
+                const gameDocument = matchRef(db, roomId, round);
+                const activeSnapshot = await transaction.get(activeDocument);
+                const gameSnapshot = await transaction.get(gameDocument);
+
+                if (!activeSnapshot.exists() || !gameSnapshot.exists()) {
+                    throw new Error("Maç sonucu veya kalıcı lobi bulunamadı.");
+                }
+
+                const session = activeSnapshot.data();
+                const finishedMatch = gameSnapshot.data();
+
+                if (
+                    finishedMatch.status !== "results" ||
+                    finishedMatch.winnerId !== uid ||
+                    Number(finishedMatch.round) !== Number(round)
+                ) {
+                    throw new Error("Son kart kaydedildi ancak kazanan bilgisi doğrulanamadı.");
+                }
+
+                // Another client may already have completed this second phase.
+                if (
+                    session.status === "results" &&
+                    session.gameId === "uno" &&
+                    Number(session.round) === Number(round)
+                ) {
+                    return;
+                }
+
+                if (
+                    session.status !== "playing" ||
+                    session.gameId !== "uno" ||
+                    Number(session.round) !== Number(round) ||
+                    !session.matchPlayerIds?.includes(uid)
+                ) {
+                    throw new Error("Son kart kaydedildi ancak oyun lobisi sonuç durumuna geçirilemedi.");
+                }
+
+                transaction.update(activeDocument, makeResultSessionPatch(session));
+            });
+        } catch (error) {
+            throw new Error(
+                "Son kart oynandı ve kazanç kaydedildi; sonuç ekranı eşitlenirken hata oluştu: " +
+                (error.message || "Bilinmeyen hata")
+            );
+        }
+    }
+
+    return result;
+}
 export async function drawOneCard(db, roomId, round, uid) {
     return runTransaction(db, async (transaction) => {
         const gameDocument = matchRef(db, roomId, round);
