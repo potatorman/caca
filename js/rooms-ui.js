@@ -2566,17 +2566,22 @@ async function leaveGameLobby() {
 }
 
 async function leaveCurrentMatch() {
-    if (!currentUser || !gameSessionData || gameSessionData.status !== "playing") {
-        return false;
-    }
+    if (!currentUser || !activeRoomId) return false;
 
-    const matchPlayers = Array.isArray(gameSessionData.matchPlayerIds)
-        ? gameSessionData.matchPlayerIds
-        : (gameSessionData.playerIds || []);
+    // Do not authorize a quit from a possibly stale onSnapshot cache.
+    const sessionSnapshot = await getDoc(getGameSessionRef(activeRoomId));
+    if (!sessionSnapshot.exists()) return false;
+
+    const latestSession = sessionSnapshot.data();
+    if (latestSession.status !== "playing") return false;
+
+    const matchPlayers = Array.isArray(latestSession.matchPlayerIds)
+        ? latestSession.matchPlayerIds
+        : (latestSession.playerIds || []);
     if (!matchPlayers.includes(currentUser.uid)) return false;
 
-    if (gameSessionData.gameId === "uno") {
-        const result = await leaveUnoMatchFromSession(activeRoomId, gameSessionData, currentUser.uid);
+    if (latestSession.gameId === "uno") {
+        const result = await leaveUnoMatchFromSession(activeRoomId, latestSession, currentUser.uid);
         if (result.finished && result.winner) {
             const winner = activeRoomMembers.find((member) => member.id === result.winner);
             setGameCenterStatus((winner?.displayNickname || winner?.username || "Rakibin") + " maçı terk ettiğin için kazandı.");
