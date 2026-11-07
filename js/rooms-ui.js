@@ -1981,6 +1981,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
                 latest.resultReturnIds.includes(currentUser.uid)
             ) return false;
             return matchPlayers.includes(currentUser.uid) ||
+                spectators.includes(currentUser.uid) ||
                 (Array.isArray(latest.playerIds) && latest.playerIds.includes(currentUser.uid));
         }
         return false;
@@ -2036,7 +2037,9 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
             session: latest,
             roomMembers: activeRoomMembers,
             onLeave: leaveCurrentMatch,
-            onReturnToLobby: latest.gameId === "uno"
+            onReturnToLobby: latest.gameId === "uno" &&
+                Array.isArray(latest.matchPlayerIds) &&
+                latest.matchPlayerIds.includes(currentUser.uid)
                 ? () => returnUnoToLobbyFromResults(roomId, latest.round)
                 : null
         });
