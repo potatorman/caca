@@ -1,9 +1,12 @@
 import {
     arrayUnion,
+    deleteDoc,
     doc,
+    getDoc,
     onSnapshot,
     runTransaction,
-    serverTimestamp
+    serverTimestamp,
+    writeBatch
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
 import { createUnoDeck, shuffleDeck } from "./deck.js";
@@ -24,6 +27,22 @@ function matchRef(db, roomId, round) {
 
 function handRef(db, roomId, round, uid) {
     return doc(db, "rooms", roomId, "unoMatches", String(round), "hands", uid);
+}
+
+function uniqueIds(values) {
+    return [...new Set(Array.isArray(values) ? values.filter((value) => typeof value === "string" && value) : [])];
+}
+
+function sessionMatchPlayers(session) {
+    return uniqueIds(
+        Array.isArray(session?.matchPlayerIds)
+            ? session.matchPlayerIds
+            : session?.playerIds
+    );
+}
+
+function resultReturnIds(session) {
+    return uniqueIds(session?.resultReturnIds);
 }
 
 function requirePlayingMatch(state, uid) {
@@ -71,172 +90,12 @@ function buildInitialState(roomId, round, playerIds, dealerId, drawPile, topCard
         unoPendingUid: null,
         unoCalled: false,
         winnerId: null,
+        forfeitedBy: null,
         turnNumber: 1,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         turnStartedAt: serverTimestamp()
     };
-}
-
-export async function ensureMatch(db, roomId, round, uid, { recoverStaleSession = false } = {}) {
-    return runTransaction(db, async (transaction) => {
-        const activeRef = sessionRef(db, roomId);
-        const gameRef = matchRef(db, roomId, round);
-        const ownHandDocument = handRef(db, roomId, round, uid);
-        const matchSnapshot = await transaction.get(gameRef);
-
-        if (matchSnapshot.exists()) {
-            const existingState = matchSnapshot.data();
-            const activeSnapshot = await transaction.get(activeRef);
-            if (!activeSnapshot.exists()) {
-                throw new Error("Kalıcı oyun lobisi bulunamadı.");
-            }
-
-            const session = activeSnapshot.data();
-            const activePlayers = Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [];
-            if (
-                session.status !== "playing" ||
-                session.gameId !== "uno" ||
-                Number(session.round) !== Number(round) ||
-                !activePlayers.includes(uid)
-            ) {
-                throw new Error("Bu UNO turu artık aktif değil. Lobi ekranını yenileyip güncel tura gir.");
-            }
-
-            // A previous deployment could leave the lobby marked as "playing"
-            // while its UNO match document had already reached results. Recover
-            // the lobby into a fresh round instead of trapping the player here.
-            if (
-                existingState.status !== "playing" ||
-                Number(existingState.round) !== Number(round) ||
-                existingState.roomId !== roomId
-            ) {
-                if (!recoverStaleSession) {
-                    throw new Error("Bu UNO turunda eski maç kaydı var. Önce oyun merkezindeki lobi durumunu yenile.");
-                }
-
-                const lobbyPlayers = Array.isArray(session.playerIds) ? session.playerIds : [];
-                const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
-                const queuedPlayers = Array.isArray(session.nextRoundPlayerIds)
-                    ? session.nextRoundPlayerIds
-                    : [];
-                const nextPlayers = [...new Set([...lobbyPlayers, ...spectators, ...queuedPlayers])];
-
-                if (nextPlayers.length > 10) {
-                    throw new Error("Eski maç düzeltilemedi: sonraki lobi UNO oyuncu sınırını aşıyor.");
-                }
-
-                // Remove the finished/stale match and every private hand document.
-                // Firestore does not cascade-delete subcollections when a parent is deleted.
-                const stalePlayerIds = [...new Set([
-                    ...(Array.isArray(existingState.playerIds) ? existingState.playerIds : []),
-                    ...(Array.isArray(existingState.activePlayerIds) ? existingState.activePlayerIds : []),
-                    ...(Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [])
-                ])];
-                stalePlayerIds.forEach((playerId) => {
-                    transaction.delete(handRef(db, roomId, round, playerId));
-                });
-                transaction.delete(gameRef);
-
-                transaction.update(activeRef, {
-                    // Keep the session playing with the same frozen roster.
-                    // The new round number makes every client open a fresh match
-                    // without asking everyone to ready up again.
-                    round: Number(session.round) + 1,
-                    startedAt: serverTimestamp(),
-                    countdownEndsAt: null,
-                    finishedAt: null,
-                    updatedAt: serverTimestamp()
-                });
-
-                return {
-                    sessionAdvanced: true,
-                    nextRound: Number(session.round) + 1
-                };
-            }
-
-            if (!Array.isArray(existingState.activePlayerIds) || !existingState.activePlayerIds.includes(uid)) {
-                throw new Error("Bu turda aktif oyuncu değilsin.");
-            }
-
-            const ownHandSnapshot = await transaction.get(ownHandDocument);
-            if (ownHandSnapshot.exists()) {
-                return existingState;
-            }
-
-            // Recover a missing private hand without exposing another player's cards.
-            const recovered = collectDrawCards(
-                existingState,
-                7,
-                existingState.discardPile || [existingState.topCard]
-            );
-            if (recovered.cards.length !== 7) {
-                throw new Error("Eksik oyuncu eli güvenli şekilde tamamlanamadı.");
-            }
-
-            const handCounts = {
-                ...(existingState.handCounts || {}),
-                [uid]: 7
-            };
-            transaction.update(gameRef, {
-                drawPile: recovered.drawPile,
-                discardPile: recovered.discardPile,
-                handCounts,
-                updatedAt: serverTimestamp()
-            });
-            transaction.set(ownHandDocument, {
-                cards: recovered.cards,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
-            });
-
-            return {
-                ...existingState,
-                drawPile: recovered.drawPile,
-                discardPile: recovered.discardPile,
-                handCounts
-            };
-        }
-
-        const activeSnapshot = await transaction.get(activeRef);
-        if (!activeSnapshot.exists()) {
-            throw new Error("Kalıcı oyun lobisi bulunamadı.");
-        }
-
-        const session = activeSnapshot.data();
-        const playerIds = Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [];
-
-        if (session.status !== "playing" || session.gameId !== "uno" || Number(session.round) !== Number(round)) {
-            throw new Error("UNO maçı başlatılmaya hazır değil.");
-        }
-
-        if (playerIds.length < 2 || playerIds.length > 10 || !playerIds.includes(uid)) {
-            throw new Error("UNO maçına yalnızca sabitlenmiş maç oyuncuları katılabilir.");
-        }
-
-        const deck = shuffleDeck(createUnoDeck());
-        const ownHandStart = playerIds.indexOf(uid) * 7;
-        const ownOpeningHand = deck.splice(ownHandStart, 7);
-        const openingNumberIndex = deck.findIndex((card) => card.type === "number");
-
-        if (ownOpeningHand.length !== 7 || openingNumberIndex < 0) {
-            throw new Error("Açılış kartları oluşturulamadı.");
-        }
-
-        const [topCard] = deck.splice(openingNumberIndex, 1);
-        const state = buildInitialState(roomId, round, playerIds, uid, deck, topCard);
-
-        transaction.set(gameRef, state);
-        transaction.set(ownHandDocument, {
-            cards: ownOpeningHand,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        });
-
-        // Every client creates only its own private hand. Other players recover
-        // their opening seven cards from the shared draw pile in ensureMatch().
-        return state;
-    });
 }
 
 function collectDrawCards(state, count, discardPile) {
@@ -254,25 +113,6 @@ function collectDrawCards(state, count, discardPile) {
         cards,
         drawPile,
         discardPile: nextDiscard
-    };
-}
-
-function makeResultSessionPatch(session) {
-    const players = Array.isArray(session.playerIds) ? session.playerIds : [];
-    const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
-
-    return {
-        status: "results",
-        playerIds: [...new Set([...players, ...spectators])],
-        readyIds: [],
-        matchPlayerIds: Array.isArray(session.matchPlayerIds)
-            ? session.matchPlayerIds
-            : players,
-        spectatorIds: [],
-        nextRoundPlayerIds: [],
-        nextRoundReadyIds: [],
-        finishedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
     };
 }
 
@@ -294,10 +134,126 @@ function createNextTurnPatch(state, index, direction, extra = {}) {
     };
 }
 
+function nextPlayerAfterRemoval(activePlayers, currentUid, direction, fallbackIndex = 0) {
+    if (!activePlayers.length) return null;
+    if (activePlayers.includes(currentUid)) return currentUid;
+
+    const oldIndex = Math.max(0, fallbackIndex);
+    for (let step = 1; step <= activePlayers.length + 1; step += 1) {
+        const candidateIndex = (
+            oldIndex + (direction === -1 ? -step : step) + activePlayers.length * 2
+        ) % activePlayers.length;
+        const candidate = activePlayers[candidateIndex];
+        if (candidate) return candidate;
+    }
+    return activePlayers[0];
+}
+
+function resultSessionPatch(session, match) {
+    return {
+        status: "results",
+        resultReturnIds: [],
+        readyIds: [],
+        finishedAt: match.finishedAt || serverTimestamp(),
+        updatedAt: serverTimestamp()
+    };
+}
+
+export async function ensureMatch(db, roomId, round, uid) {
+    return runTransaction(db, async (transaction) => {
+        const activeDocument = sessionRef(db, roomId);
+        const gameDocument = matchRef(db, roomId, round);
+        const ownHandDocument = handRef(db, roomId, round, uid);
+
+        const activeSnapshot = await transaction.get(activeDocument);
+        const gameSnapshot = await transaction.get(gameDocument);
+        if (!activeSnapshot.exists()) throw new Error("Kalıcı oyun lobisi bulunamadı.");
+
+        const session = activeSnapshot.data();
+        const players = sessionMatchPlayers(session);
+
+        if (
+            session.gameId !== "uno" ||
+            session.status !== "playing" ||
+            Number(session.round) !== Number(round) ||
+            players.length < 2 ||
+            players.length > 10 ||
+            !players.includes(uid)
+        ) {
+            throw new Error("UNO maçı başlatılmaya hazır değil.");
+        }
+
+        if (gameSnapshot.exists()) {
+            const state = gameSnapshot.data();
+            if (
+                state.roomId !== roomId ||
+                Number(state.round) !== Number(round) ||
+                !["playing", "results"].includes(state.status)
+            ) {
+                throw new Error("Bu tur için geçersiz veya eski bir UNO maç kaydı bulundu.");
+            }
+
+            if (state.status === "results") return state;
+            if (!state.activePlayerIds?.includes(uid)) {
+                throw new Error("Bu turda aktif oyuncu değilsin.");
+            }
+
+            const handSnapshot = await transaction.get(ownHandDocument);
+            if (handSnapshot.exists()) return state;
+
+            const recovered = collectDrawCards(
+                state,
+                7,
+                state.discardPile || [state.topCard]
+            );
+            if (recovered.cards.length !== 7) {
+                throw new Error("Oyuncunun başlangıç eli güvenli şekilde dağıtılamadı.");
+            }
+
+            const handCounts = { ...(state.handCounts || {}), [uid]: 7 };
+            transaction.update(gameDocument, {
+                drawPile: recovered.drawPile,
+                discardPile: recovered.discardPile,
+                handCounts,
+                updatedAt: serverTimestamp()
+            });
+            transaction.set(ownHandDocument, {
+                cards: recovered.cards,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            return {
+                ...state,
+                drawPile: recovered.drawPile,
+                discardPile: recovered.discardPile,
+                handCounts
+            };
+        }
+
+        const deck = shuffleDeck(createUnoDeck());
+        const ownOpeningHand = deck.splice(0, 7);
+        const openingNumberIndex = deck.findIndex((card) => card.type === "number");
+        if (ownOpeningHand.length !== 7 || openingNumberIndex < 0) {
+            throw new Error("UNO destesi hazırlanamadı.");
+        }
+
+        const [topCard] = deck.splice(openingNumberIndex, 1);
+        const state = buildInitialState(roomId, round, players, uid, deck, topCard);
+
+        transaction.set(gameDocument, state);
+        transaction.set(ownHandDocument, {
+            cards: ownOpeningHand,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+
+        return state;
+    });
+}
+
 export async function playCard(db, roomId, round, uid, cardId, selectedColor = null) {
-    // First commit the actual card play and match result. The lobby result is
-    // finalized in a second transaction after the winning match document exists.
-    const result = await runTransaction(db, async (transaction) => {
+    return runTransaction(db, async (transaction) => {
         const gameDocument = matchRef(db, roomId, round);
         const playerHandDocument = handRef(db, roomId, round, uid);
         const gameSnapshot = await transaction.get(gameDocument);
@@ -312,7 +268,6 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
 
         const hand = Array.isArray(handSnapshot.data().cards) ? handSnapshot.data().cards : [];
         const card = hand.find((item) => item.id === cardId);
-
         if (!card) throw new Error("Bu kart elinde bulunmuyor.");
         if (state.drewCardId && state.drewCardId !== card.id) {
             throw new Error("Kart çektikten sonra yalnızca çektiğin kartı oynayabilirsin.");
@@ -333,59 +288,55 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
 
         const remainingHand = hand.filter((item) => item.id !== card.id);
         const isWinningPlay = remainingHand.length === 0;
-        const playerIds = state.activePlayerIds;
+        const activePlayers = state.activePlayerIds;
         const currentIndex = state.currentPlayerIndex;
-        const effect = getPlayEffect(card, playerIds.length, state.direction);
+        const effect = getPlayEffect(card, activePlayers.length, state.direction);
         const nextDirection = effect.direction;
         const discardAfterPlay = [...(state.discardPile || [state.topCard]), card];
+
         let drawPile = [...(state.drawPile || [])];
         let discardPile = discardAfterPlay;
-        let handCounts = { ...state.handCounts, [uid]: remainingHand.length };
+        const handCounts = { ...(state.handCounts || {}), [uid]: remainingHand.length };
         let nextTurnIndex = nextIndex(state, currentIndex, nextDirection, effect.steps);
-        let targetUid = null;
-        let drawnCards = [];
         let targetHandDocument = null;
-
-        const activeSessionSnapshot = isWinningPlay
-            ? await transaction.get(sessionRef(db, roomId))
-            : null;
-        if (isWinningPlay && (
-            !activeSessionSnapshot?.exists() ||
-            activeSessionSnapshot.data().status !== "playing" ||
-            activeSessionSnapshot.data().gameId !== "uno" ||
-            Number(activeSessionSnapshot.data().round) !== Number(round) ||
-            !activeSessionSnapshot.data().matchPlayerIds?.includes(uid)
-        )) {
-            throw new Error("Son kartı oynayabilmek için aktif UNO maç kaydı doğrulanamadı.");
-        }
+        let targetHandSnapshot = null;
+        let drawnCards = [];
 
         if (effect.drawCount > 0) {
-            const targetIndex = nextIndex(state, currentIndex, state.direction, effect.targetIndexOffset);
-            targetUid = playerIds[targetIndex];
+            const targetIndex = nextIndex(
+                state,
+                currentIndex,
+                state.direction,
+                effect.targetIndexOffset
+            );
+            const targetUid = activePlayers[targetIndex];
             targetHandDocument = handRef(db, roomId, round, targetUid);
-            const targetCardCount = Number(state.handCounts?.[targetUid]) || 0;
+            targetHandSnapshot = await transaction.get(targetHandDocument);
 
-            const drawResult = collectDrawCards(state, effect.drawCount, discardAfterPlay);
-            drawnCards = drawResult.cards;
-            drawPile = drawResult.drawPile;
-            discardPile = drawResult.discardPile;
-            handCounts[targetUid] = targetCardCount + drawnCards.length;
+            if (!targetHandSnapshot.exists()) {
+                throw new Error("Hedef oyuncunun kart eli henüz hazırlanmadı. Tekrar dene.");
+            }
+
+            const targetCount = Number(state.handCounts?.[targetUid]) || 0;
+            const draw = collectDrawCards(state, effect.drawCount, discardAfterPlay);
+            drawnCards = draw.cards;
+            drawPile = draw.drawPile;
+            discardPile = draw.discardPile;
+            handCounts[targetUid] = targetCount + drawnCards.length;
             nextTurnIndex = nextIndex(state, targetIndex, state.direction, 1);
-        }
-
-        // A winning card ends the round, so its effect must not block the win
-        // by requiring an additional write to the next player's private hand.
-        if (targetHandDocument && drawnCards.length) {
-            transaction.update(targetHandDocument, {
-                cards: arrayUnion(...drawnCards),
-                updatedAt: serverTimestamp()
-            });
         }
 
         transaction.update(playerHandDocument, {
             cards: remainingHand,
             updatedAt: serverTimestamp()
         });
+
+        if (targetHandDocument && drawnCards.length) {
+            transaction.update(targetHandDocument, {
+                cards: arrayUnion(...drawnCards),
+                updatedAt: serverTimestamp()
+            });
+        }
 
         const patch = {
             topCard: card,
@@ -396,7 +347,8 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
             ...createNextTurnPatch(state, nextTurnIndex, nextDirection),
             unoPendingUid: remainingHand.length === 1 ? uid : null,
             unoCalled: false,
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
+            forfeitedBy: null
         };
 
         if (isWinningPlay) {
@@ -414,11 +366,8 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         transaction.update(gameDocument, patch);
         return { winner: isWinningPlay, card };
     });
-
-    // The match document is the authoritative result. The persistent lobby
-    // remains in "playing" until a player returns from the result screen.
-    return result;
 }
+
 export async function drawOneCard(db, roomId, round, uid) {
     return runTransaction(db, async (transaction) => {
         const gameDocument = matchRef(db, roomId, round);
@@ -435,18 +384,14 @@ export async function drawOneCard(db, roomId, round, uid) {
         if (state.drewCardId) throw new Error("Bu turda zaten kart çektin.");
 
         const hand = Array.isArray(handSnapshot.data().cards) ? handSnapshot.data().cards : [];
-        const result = collectDrawCards(
-            state,
-            1,
-            state.discardPile || [state.topCard]
-        );
-        const card = result.cards[0];
+        const draw = collectDrawCards(state, 1, state.discardPile || [state.topCard]);
+        const card = draw.cards[0];
 
         if (!card) {
             const next = nextIndex(state, state.currentPlayerIndex, state.direction, 1);
             transaction.update(gameDocument, {
-                drawPile: result.drawPile,
-                discardPile: result.discardPile,
+                drawPile: draw.drawPile,
+                discardPile: draw.discardPile,
                 ...createNextTurnPatch(state, next, state.direction),
                 ...clearExpiredUno(state),
                 updatedAt: serverTimestamp()
@@ -456,22 +401,21 @@ export async function drawOneCard(db, roomId, round, uid) {
 
         const canPlay = isCardPlayable(card, state.topCard, state.activeColor, hand);
         const handAfter = [...hand, card];
-        const handCounts = { ...state.handCounts, [uid]: handAfter.length };
-
+        const handCounts = { ...(state.handCounts || {}), [uid]: handAfter.length };
         transaction.update(playerHandDocument, {
             cards: handAfter,
             updatedAt: serverTimestamp()
         });
 
-        const nextIndexValue = canPlay
+        const next = canPlay
             ? state.currentPlayerIndex
             : nextIndex(state, state.currentPlayerIndex, state.direction, 1);
 
         transaction.update(gameDocument, {
-            drawPile: result.drawPile,
-            discardPile: result.discardPile,
+            drawPile: draw.drawPile,
+            discardPile: draw.discardPile,
             handCounts,
-            ...createNextTurnPatch(state, nextIndexValue, state.direction, {
+            ...createNextTurnPatch(state, next, state.direction, {
                 drewCardId: canPlay ? card.id : null
             }),
             unoPendingUid: null,
@@ -486,10 +430,10 @@ export async function drawOneCard(db, roomId, round, uid) {
 export async function endTurnAfterDraw(db, roomId, round, uid) {
     return runTransaction(db, async (transaction) => {
         const gameDocument = matchRef(db, roomId, round);
-        const gameSnapshot = await transaction.get(gameDocument);
-        if (!gameSnapshot.exists()) throw new Error("Maç bulunamadı.");
+        const snapshot = await transaction.get(gameDocument);
+        if (!snapshot.exists()) throw new Error("Maç bulunamadı.");
 
-        const state = gameSnapshot.data();
+        const state = snapshot.data();
         requireTurn(state, uid);
         if (!state.drewCardId) throw new Error("Önce kart çekmelisin.");
 
@@ -537,368 +481,404 @@ export async function catchUno(db, roomId, round, uid) {
 
         const targetUid = state.unoPendingUid;
         const targetHandDocument = handRef(db, roomId, round, targetUid);
-        const targetCardCount = Number(state.handCounts?.[targetUid]) || 0;
+        const targetHandSnapshot = await transaction.get(targetHandDocument);
+        if (!targetHandSnapshot.exists()) {
+            throw new Error("UNO çağrısı yapan oyuncunun eli bulunamadı.");
+        }
 
-        const result = collectDrawCards(
+        const targetHand = Array.isArray(targetHandSnapshot.data().cards)
+            ? targetHandSnapshot.data().cards
+            : [];
+        const draw = collectDrawCards(
             state,
             2,
             state.discardPile || [state.topCard]
         );
 
-        if (result.cards.length) {
-            transaction.update(targetHandDocument, {
-                cards: arrayUnion(...result.cards),
-                updatedAt: serverTimestamp()
-            });
-        }
+        transaction.update(targetHandDocument, {
+            cards: [...targetHand, ...draw.cards],
+            updatedAt: serverTimestamp()
+        });
 
         const handCounts = {
-            ...state.handCounts,
-            [targetUid]: targetCardCount + result.cards.length
+            ...(state.handCounts || {}),
+            [targetUid]: targetHand.length + draw.cards.length
         };
-
         transaction.update(gameDocument, {
-            drawPile: result.drawPile,
-            discardPile: result.discardPile,
+            drawPile: draw.drawPile,
+            discardPile: draw.discardPile,
             handCounts,
             unoPendingUid: null,
             unoCalled: false,
             updatedAt: serverTimestamp()
         });
 
-        return { targetUid, count: result.cards.length };
+        return { targetUid, count: draw.cards.length };
     });
 }
 
-export function reconcileMatchPlayers(db, roomId, round, uid) {
+export async function forfeitMatch(db, roomId, round, uid) {
     return runTransaction(db, async (transaction) => {
         const activeDocument = sessionRef(db, roomId);
         const gameDocument = matchRef(db, roomId, round);
         const activeSnapshot = await transaction.get(activeDocument);
         const gameSnapshot = await transaction.get(gameDocument);
-        if (!activeSnapshot.exists() || !gameSnapshot.exists()) return false;
+
+        if (!activeSnapshot.exists() || !gameSnapshot.exists()) {
+            throw new Error("Aktif UNO maçı bulunamadı.");
+        }
 
         const session = activeSnapshot.data();
         const state = gameSnapshot.data();
-        if (session.status !== "playing" || state.status !== "playing") return false;
-
-        const lobbyMatchPlayers = Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [];
-        if (!lobbyMatchPlayers.includes(uid)) return false;
-
-        const previousPlayers = Array.isArray(state.activePlayerIds)
-            ? state.activePlayerIds
-            : state.playerIds;
-        const remainingPlayers = state.playerIds.filter((playerId) =>
-            lobbyMatchPlayers.includes(playerId)
-        );
+        const lobbyPlayers = uniqueIds(session.playerIds);
+        const lobbyMatchPlayers = sessionMatchPlayers(session);
+        const activePlayers = uniqueIds(state.activePlayerIds);
 
         if (
-            previousPlayers.length === remainingPlayers.length &&
-            previousPlayers.every((playerId, index) => playerId === remainingPlayers[index])
+            session.gameId !== "uno" ||
+            Number(session.round) !== Number(round) ||
+            !["playing", "results"].includes(session.status) ||
+            state.roomId !== roomId ||
+            Number(state.round) !== Number(round)
         ) {
-            return false;
+            throw new Error("Bu UNO turu artık aktif değil.");
         }
 
-        if (remainingPlayers.length === 0) return false;
+        // Repair a forfeit that was committed to the match by an older build,
+        // but whose second write to the persistent lobby failed.
+        const isLegacyPartialForfeit =
+            state.forfeitedBy === uid &&
+            !activePlayers.includes(uid) &&
+            lobbyPlayers.includes(uid) &&
+            lobbyMatchPlayers.includes(uid);
 
-        if (remainingPlayers.length === 1) {
-            const winnerId = remainingPlayers[0];
-            transaction.update(gameDocument, {
-                activePlayerIds: remainingPlayers,
-                currentPlayerIndex: 0,
-                currentPlayerUid: winnerId,
-                drewCardId: null,
-                status: "results",
-                winnerId,
-                unoPendingUid: null,
-                unoCalled: false,
-                finishedAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
-            });
-            transaction.update(activeDocument, makeResultSessionPatch(session));
-            return true;
-        }
-
-        let nextUid = state.currentPlayerUid;
-        if (!remainingPlayers.includes(nextUid)) {
-            const oldIndex = Math.max(0, previousPlayers.indexOf(state.currentPlayerUid));
-            nextUid = remainingPlayers[0];
-
-            for (let step = 1; step <= previousPlayers.length; step += 1) {
-                const candidateIndex = (
-                    oldIndex + (state.direction === -1 ? -step : step) + previousPlayers.length * 2
-                ) % previousPlayers.length;
-                const candidate = previousPlayers[candidateIndex];
-                if (remainingPlayers.includes(candidate)) {
-                    nextUid = candidate;
-                    break;
-                }
-            }
-        }
-
-        const currentPlayerChanged = nextUid !== state.currentPlayerUid;
-        transaction.update(gameDocument, {
-            activePlayerIds: remainingPlayers,
-            currentPlayerIndex: remainingPlayers.indexOf(nextUid),
-            currentPlayerUid: nextUid,
-            drewCardId: currentPlayerChanged ? null : state.drewCardId,
-            unoPendingUid: remainingPlayers.includes(state.unoPendingUid) ? state.unoPendingUid : null,
-            unoCalled: remainingPlayers.includes(state.unoPendingUid) ? state.unoCalled : false,
-            updatedAt: serverTimestamp(),
-            turnStartedAt: currentPlayerChanged ? serverTimestamp() : state.turnStartedAt
-        });
-        return true;
-    });
-}
-
-export async function forfeitMatch(db, roomId, round, uid) {
-    const gameDocument = matchRef(db, roomId, round);
-    const activeDocument = sessionRef(db, roomId);
-
-    // Phase 1: update only the UNO match document. The match-side rule validates
-    // this self-forfeit using the old and new match rosters, without a session write.
-    try {
-        await runTransaction(db, async (transaction) => {
-            const gameSnapshot = await transaction.get(gameDocument);
-            if (!gameSnapshot.exists()) {
-                throw new Error("Aktif UNO maç kaydı bulunamadı.");
-            }
-
-            const state = gameSnapshot.data();
+        if (isLegacyPartialForfeit) {
+            const nextLobbyPlayers = lobbyPlayers.filter((id) => id !== uid);
+            const nextMatchPlayers = lobbyMatchPlayers.filter((id) => id !== uid);
             if (
-                state.roomId !== roomId ||
-                Number(state.round) !== Number(round)
+                !nextLobbyPlayers.length ||
+                nextMatchPlayers.length !== activePlayers.length ||
+                !nextMatchPlayers.every((id, index) => id === activePlayers[index])
             ) {
-                throw new Error("UNO maç kaydı bu oda veya turla eşleşmiyor.");
+                throw new Error("Eski maçtan ayrılma kaydı tutarsız; otomatik düzeltilemedi.");
             }
 
-            const activePlayers = Array.isArray(state.activePlayerIds)
-                ? state.activePlayerIds
-                : state.playerIds;
-
-            // Retry support: the match phase may have committed even if the
-            // following lobby synchronization was interrupted.
-            if (
-                state.forfeitedBy === uid &&
-                Array.isArray(activePlayers) &&
-                !activePlayers.includes(uid) &&
-                ["playing", "results"].includes(state.status)
-            ) {
-                return {
-                    alreadyForfeited: true,
-                    status: state.status,
-                    winner: state.winnerId || null
-                };
-            }
-
-            if (
-                state.status !== "playing" ||
-                !Array.isArray(activePlayers) ||
-                !activePlayers.includes(uid)
-            ) {
-                throw new Error("Bu maçta artık aktif oyuncu değilsin.");
-            }
-
-            const remainingPlayers = activePlayers.filter((playerId) => playerId !== uid);
-            if (remainingPlayers.length < 1) {
-                throw new Error("Maçta kazanan kalmayacağı için bu çıkış yapılamıyor.");
-            }
-
-            let nextCurrentUid = state.currentPlayerUid;
-            if (!remainingPlayers.includes(nextCurrentUid)) {
-                const oldIndex = Math.max(0, activePlayers.indexOf(state.currentPlayerUid));
-                nextCurrentUid = remainingPlayers[0];
-
-                for (let step = 1; step <= activePlayers.length; step += 1) {
-                    const candidateIndex = (
-                        oldIndex +
-                        (state.direction === -1 ? -step : step) +
-                        activePlayers.length * 2
-                    ) % activePlayers.length;
-                    const candidate = activePlayers[candidateIndex];
-
-                    if (remainingPlayers.includes(candidate)) {
-                        nextCurrentUid = candidate;
-                        break;
-                    }
-                }
-            }
-
-            const winnerId = remainingPlayers.length === 1
-                ? remainingPlayers[0]
-                : null;
-            const changedAt = serverTimestamp();
-
-            const updates = {
-                activePlayerIds: remainingPlayers,
-                currentPlayerIndex: remainingPlayers.indexOf(winnerId || nextCurrentUid),
-                currentPlayerUid: winnerId || nextCurrentUid,
-                drewCardId: null,
-                forfeitedBy: uid,
-                unoPendingUid: remainingPlayers.includes(state.unoPendingUid)
-                    ? state.unoPendingUid
-                    : null,
-                unoCalled: remainingPlayers.includes(state.unoPendingUid)
-                    ? state.unoCalled
-                    : false,
-                updatedAt: changedAt
-            };
-
-            if (winnerId) {
-                updates.status = "results";
-                updates.winnerId = winnerId;
-                updates.finishedAt = changedAt;
-            } else {
-                updates.turnStartedAt =
-                    nextCurrentUid !== state.currentPlayerUid
-                        ? changedAt
-                        : state.turnStartedAt;
-            }
-
-            transaction.update(gameDocument, updates);
-
-            return {
-                alreadyForfeited: false,
-                status: winnerId ? "results" : "playing",
-                winner: winnerId
-            };
-        });
-    } catch (error) {
-        const wrapped = new Error(
-            "UNO maç kaydı güncellenemedi: " + (error?.message || "Bilinmeyen hata")
-        );
-        wrapped.code = error?.code;
-        throw wrapped;
-    }
-
-    // Phase 2: mirror the committed match roster into the persistent lobby.
-    // The Firestore rule checks the committed forfeitedBy marker and exact roster.
-    try {
-        return await runTransaction(db, async (transaction) => {
-            const sessionSnapshot = await transaction.get(activeDocument);
-            const matchSnapshot = await transaction.get(gameDocument);
-
-            if (!sessionSnapshot.exists() || !matchSnapshot.exists()) {
-                throw new Error("Oyun lobisi veya UNO maç kaydı bulunamadı.");
-            }
-
-            const session = sessionSnapshot.data();
-            const state = matchSnapshot.data();
-            const lobbyPlayers = Array.isArray(session.playerIds) ? session.playerIds : [];
-            const lobbyMatchPlayers = Array.isArray(session.matchPlayerIds)
-                ? session.matchPlayerIds
-                : lobbyPlayers;
-            const activePlayers = Array.isArray(state.activePlayerIds)
-                ? state.activePlayerIds
-                : [];
-
-            // Another retry already synchronized the lobby.
-            if (
-                state.forfeitedBy === uid &&
-                !lobbyPlayers.includes(uid) &&
-                !lobbyMatchPlayers.includes(uid) &&
-                lobbyMatchPlayers.length === activePlayers.length &&
-                lobbyMatchPlayers.every((playerId, index) => playerId === activePlayers[index]) &&
-                Number(session.round) === Number(round) &&
-                session.status === state.status
-            ) {
-                return {
-                    left: true,
-                    finished: state.status === "results",
-                    winner: state.winnerId || null,
-                    alreadySynchronized: true
-                };
-            }
-
-            if (
-                session.gameId !== "uno" ||
-                session.status !== "playing" ||
-                Number(session.round) !== Number(round) ||
-                !lobbyPlayers.includes(uid) ||
-                !lobbyMatchPlayers.includes(uid) ||
-                state.forfeitedBy !== uid ||
-                !["playing", "results"].includes(state.status) ||
-                activePlayers.includes(uid)
-            ) {
-                throw new Error("Maçtan ayrılma kaydı lobiyle eşleştirilemedi.");
-            }
-
-            const remainingLobbyPlayers = lobbyPlayers.filter((playerId) => playerId !== uid);
-            const remainingMatchPlayers = lobbyMatchPlayers.filter((playerId) => playerId !== uid);
-
-            if (
-                remainingLobbyPlayers.length < 1 ||
-                remainingMatchPlayers.length !== activePlayers.length ||
-                !remainingMatchPlayers.every((playerId, index) => playerId === activePlayers[index])
-            ) {
-                throw new Error("UNO oyuncu listeleri tutarsız. Lobi güvenli biçimde güncellenmedi.");
-            }
-
-            const isHost = session.hostId === uid;
-            const nextHostId = isHost ? remainingLobbyPlayers[0] : session.hostId;
-            const isFinished = state.status === "results";
-
-            if (
-                isFinished &&
-                (remainingMatchPlayers.length !== 1 || state.winnerId !== remainingMatchPlayers[0])
-            ) {
-                throw new Error("Forfeit sonucu için kazanan doğrulanamadı.");
-            }
-
-            if (!isFinished && remainingMatchPlayers.length < 2) {
-                throw new Error("Maçın devam edebilmesi için en az iki aktif oyuncu gerekli.");
-            }
-
+            const nextHostId = session.hostId === uid
+                ? nextLobbyPlayers[0]
+                : session.hostId;
             const updates = {
                 status: state.status,
                 hostId: nextHostId,
-                playerIds: remainingLobbyPlayers,
-                readyIds: isFinished
+                playerIds: nextLobbyPlayers,
+                readyIds: state.status === "results"
                     ? []
-                    : (Array.isArray(session.readyIds)
-                        ? session.readyIds.filter((playerId) => playerId !== uid)
-                        : []),
-                matchPlayerIds: remainingMatchPlayers,
+                    : uniqueIds(session.readyIds).filter((id) => id !== uid),
+                matchPlayerIds: nextMatchPlayers,
+                resultReturnIds: [],
                 updatedAt: serverTimestamp()
             };
 
-            if (isFinished) {
+            if (state.status === "results") {
                 updates.nextRoundPlayerIds = [];
                 updates.nextRoundReadyIds = [];
                 updates.finishedAt = state.finishedAt || serverTimestamp();
             }
 
             transaction.update(activeDocument, updates);
-
             return {
                 left: true,
-                finished: isFinished,
+                finished: state.status === "results",
                 winner: state.winnerId || null,
-                alreadySynchronized: false
+                recovered: true
             };
-        });
-    } catch (error) {
-        const wrapped = new Error(
-            "UNO lobisi oyuncu çıkışına eşitlenemedi: " +
-            (error?.message || "Bilinmeyen hata")
+        }
+
+        if (
+            session.status !== "playing" ||
+            state.status !== "playing" ||
+            !lobbyPlayers.includes(uid) ||
+            !lobbyMatchPlayers.includes(uid) ||
+            !activePlayers.includes(uid)
+        ) {
+            throw new Error("Bu maçta artık aktif oyuncu değilsin.");
+        }
+
+        const nextLobbyPlayers = lobbyPlayers.filter((id) => id !== uid);
+        const nextMatchPlayers = lobbyMatchPlayers.filter((id) => id !== uid);
+        const nextActivePlayers = activePlayers.filter((id) => id !== uid);
+
+        if (
+            !nextLobbyPlayers.length ||
+            nextMatchPlayers.length !== nextActivePlayers.length ||
+            !nextMatchPlayers.every((id, index) => id === nextActivePlayers[index]) ||
+            !nextActivePlayers.length
+        ) {
+            throw new Error("UNO oyuncu listeleri eşleşmiyor; çıkış güvenli biçimde durduruldu.");
+        }
+
+        const oldIndex = Math.max(0, activePlayers.indexOf(state.currentPlayerUid));
+        const nextCurrentUid = nextPlayerAfterRemoval(
+            nextActivePlayers,
+            state.currentPlayerUid,
+            state.direction,
+            oldIndex
         );
-        wrapped.code = error?.code;
-        throw wrapped;
-    }
+        const winnerId = nextActivePlayers.length === 1 ? nextActivePlayers[0] : null;
+        const isHost = session.hostId === uid;
+        const nextHostId = isHost ? nextLobbyPlayers[0] : session.hostId;
+        const changedAt = serverTimestamp();
+
+        const matchUpdates = {
+            activePlayerIds: nextActivePlayers,
+            currentPlayerIndex: nextActivePlayers.indexOf(winnerId || nextCurrentUid),
+            currentPlayerUid: winnerId || nextCurrentUid,
+            drewCardId: null,
+            forfeitedBy: uid,
+            unoPendingUid: nextActivePlayers.includes(state.unoPendingUid)
+                ? state.unoPendingUid
+                : null,
+            unoCalled: nextActivePlayers.includes(state.unoPendingUid)
+                ? state.unoCalled
+                : false,
+            updatedAt: changedAt
+        };
+
+        const sessionUpdates = {
+            status: winnerId ? "results" : "playing",
+            hostId: nextHostId,
+            playerIds: nextLobbyPlayers,
+            readyIds: winnerId
+                ? []
+                : uniqueIds(session.readyIds).filter((id) => id !== uid),
+            matchPlayerIds: nextMatchPlayers,
+            resultReturnIds: [],
+            updatedAt: changedAt
+        };
+
+        if (winnerId) {
+            matchUpdates.status = "results";
+            matchUpdates.winnerId = winnerId;
+            matchUpdates.finishedAt = changedAt;
+
+            sessionUpdates.nextRoundPlayerIds = [];
+            sessionUpdates.nextRoundReadyIds = [];
+            sessionUpdates.finishedAt = changedAt;
+        } else {
+            matchUpdates.status = "playing";
+            matchUpdates.winnerId = null;
+            matchUpdates.turnStartedAt = nextCurrentUid !== state.currentPlayerUid
+                ? changedAt
+                : state.turnStartedAt;
+            sessionUpdates.finishedAt = null;
+        }
+
+        transaction.update(gameDocument, matchUpdates);
+        transaction.update(activeDocument, sessionUpdates);
+
+        return { left: true, finished: Boolean(winnerId), winner: winnerId };
+    });
 }
 
-export function skipTimedOutTurn(db, roomId, round, uid, timeoutMs = 90000) {
+export async function returnToLobby(db, roomId, round, uid) {
+    const activeDocument = sessionRef(db, roomId);
+    const gameDocument = matchRef(db, roomId, round);
+
+    // First acknowledge only this player's return. No other player is moved
+    // until every remaining match player has made the same choice.
+    const acknowledgement = await runTransaction(db, async (transaction) => {
+        const activeSnapshot = await transaction.get(activeDocument);
+        const gameSnapshot = await transaction.get(gameDocument);
+        if (!activeSnapshot.exists() || !gameSnapshot.exists()) {
+            throw new Error("UNO maç sonucu veya oyun lobisi bulunamadı.");
+        }
+
+        const session = activeSnapshot.data();
+        const match = gameSnapshot.data();
+        if (
+            session.gameId !== "uno" ||
+            Number(session.round) !== Number(round) ||
+            match.roomId !== roomId ||
+            Number(match.round) !== Number(round) ||
+            match.status !== "results"
+        ) {
+            throw new Error("Bu UNO maçının sonuçları artık güncel değil.");
+        }
+
+        const matchPlayers = sessionMatchPlayers(session);
+        if (!matchPlayers.includes(uid)) {
+            throw new Error("Bu oyuncu artık sonuç ekranında aktif maç oyuncusu değil.");
+        }
+
+        if (session.status === "playing") {
+            if (
+                !match.winnerId ||
+                !matchPlayers.includes(match.winnerId) ||
+                !matchPlayers.every((id) => match.activePlayerIds?.includes(id))
+            ) {
+                throw new Error("UNO kazananı veya aktif oyuncu listesi doğrulanamadı.");
+            }
+
+            transaction.update(activeDocument, {
+                status: "results",
+                resultReturnIds: [uid],
+                finishedAt: match.finishedAt || serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            return {
+                matchPlayers,
+                returnedIds: [uid],
+                alreadyReturned: false
+            };
+        }
+
+        if (session.status !== "results") {
+            throw new Error("Oyun oturumu sonuç ekranında değil.");
+        }
+
+        const currentReturns = resultReturnIds(session);
+        if (currentReturns.includes(uid)) {
+            return {
+                matchPlayers,
+                returnedIds: currentReturns,
+                alreadyReturned: true
+            };
+        }
+
+        const nextReturns = [...currentReturns, uid];
+        transaction.update(activeDocument, {
+            resultReturnIds: nextReturns,
+            updatedAt: serverTimestamp()
+        });
+
+        return {
+            matchPlayers,
+            returnedIds: nextReturns,
+            alreadyReturned: false
+        };
+    });
+
+    const allReturned = acknowledgement.matchPlayers.length > 0 &&
+        acknowledgement.matchPlayers.every((playerId) =>
+            acknowledgement.returnedIds.includes(playerId)
+        );
+
+    if (!allReturned) {
+        return {
+            completed: false,
+            alreadyReturned: acknowledgement.alreadyReturned,
+            returnedCount: acknowledgement.returnedIds.length,
+            requiredCount: acknowledgement.matchPlayers.length,
+            waitingFor: acknowledgement.matchPlayers.filter((id) =>
+                !acknowledgement.returnedIds.includes(id)
+            )
+        };
+    }
+
+    const completed = await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(activeDocument);
+        if (!snapshot.exists()) throw new Error("Oyun lobisi bulunamadı.");
+
+        const session = snapshot.data();
+        if (
+            session.gameId !== "uno" ||
+            session.status !== "results" ||
+            Number(session.round) !== Number(round)
+        ) {
+            if (session.gameId === "uno" &&
+                session.status === "lobby" &&
+                Number(session.round) === Number(round) + 1) {
+                return { completed: true, alreadyCompleted: true };
+            }
+            throw new Error("UNO sonuç onayları değişti. Lobi geçişi yeniden denenmeli.");
+        }
+
+        const matchPlayers = sessionMatchPlayers(session);
+        const returnedIds = resultReturnIds(session);
+        if (
+            !matchPlayers.length ||
+            !matchPlayers.every((playerId) => returnedIds.includes(playerId))
+        ) {
+            return { completed: false };
+        }
+
+        const nextPlayers = uniqueIds([
+            ...uniqueIds(session.playerIds),
+            ...uniqueIds(session.spectatorIds),
+            ...uniqueIds(session.nextRoundPlayerIds)
+        ]);
+        if (nextPlayers.length > 10) {
+            throw new Error("Sonraki lobi UNO oyuncu sınırını aşıyor.");
+        }
+
+        transaction.update(activeDocument, {
+            status: "lobby",
+            round: Number(session.round) + 1,
+            playerIds: nextPlayers,
+            readyIds: [],
+            matchPlayerIds: [],
+            spectatorIds: [],
+            nextRoundPlayerIds: [],
+            nextRoundReadyIds: [],
+            resultReturnIds: [],
+            startedAt: null,
+            countdownEndsAt: null,
+            finishedAt: null,
+            updatedAt: serverTimestamp()
+        });
+
+        return { completed: true, alreadyCompleted: false };
+    });
+
+    if (!completed.completed) {
+        return {
+            completed: false,
+            returnedCount: acknowledgement.returnedIds.length,
+            requiredCount: acknowledgement.matchPlayers.length,
+            waitingFor: acknowledgement.matchPlayers.filter((id) =>
+                !acknowledgement.returnedIds.includes(id)
+            )
+        };
+    }
+
+    if (!completed.alreadyCompleted) {
+        // Cleanup is not part of the lobby transition. A cleanup failure cannot
+        // undo the next lobby or close another player's result screen.
+        try {
+            const matchSnapshot = await getDoc(gameDocument);
+            if (matchSnapshot.exists()) {
+                const match = matchSnapshot.data();
+                const cleanupPlayers = uniqueIds(match.playerIds);
+                for (let index = 0; index < cleanupPlayers.length; index += 6) {
+                    const batch = writeBatch(db);
+                    cleanupPlayers.slice(index, index + 6).forEach((playerId) => {
+                        batch.delete(handRef(db, roomId, round, playerId));
+                    });
+                    await batch.commit();
+                }
+                await deleteDoc(gameDocument);
+            }
+        } catch (error) {
+            console.warn("CACA UNO old match cleanup failed:", error);
+        }
+    }
+
+    return {
+        completed: true,
+        round: Number(round) + 1,
+        returnedCount: acknowledgement.matchPlayers.length,
+        requiredCount: acknowledgement.matchPlayers.length
+    };
+}
+
+export async function skipTimedOutTurn(db, roomId, round, uid, timeoutMs = 90000) {
     return runTransaction(db, async (transaction) => {
         const gameDocument = matchRef(db, roomId, round);
-        const activeDocument = sessionRef(db, roomId);
-        const gameSnapshot = await transaction.get(gameDocument);
-        const activeSnapshot = await transaction.get(activeDocument);
-        if (!gameSnapshot.exists() || !activeSnapshot.exists()) return false;
+        const snapshot = await transaction.get(gameDocument);
+        if (!snapshot.exists()) return false;
 
-        const state = gameSnapshot.data();
-        const session = activeSnapshot.data();
+        const state = snapshot.data();
         requirePlayingMatch(state, uid);
-        if (session.status !== "playing" || !session.matchPlayerIds?.includes(uid)) return false;
 
         const startedAt = state.turnStartedAt?.toMillis?.();
         if (!Number.isFinite(startedAt) || Date.now() - startedAt < timeoutMs) return false;
@@ -913,6 +893,73 @@ export function skipTimedOutTurn(db, roomId, round, uid, timeoutMs = 90000) {
     });
 }
 
+export async function reconcileMatchPlayers(db, roomId, round, uid) {
+    return runTransaction(db, async (transaction) => {
+        const activeDocument = sessionRef(db, roomId);
+        const gameDocument = matchRef(db, roomId, round);
+        const activeSnapshot = await transaction.get(activeDocument);
+        const gameSnapshot = await transaction.get(gameDocument);
+        if (!activeSnapshot.exists() || !gameSnapshot.exists()) return false;
+
+        const session = activeSnapshot.data();
+        const state = gameSnapshot.data();
+        if (
+            session.gameId !== "uno" ||
+            session.status !== "playing" ||
+            Number(session.round) !== Number(round) ||
+            state.status !== "playing"
+        ) {
+            return false;
+        }
+
+        const allowedPlayers = sessionMatchPlayers(session);
+        if (!allowedPlayers.includes(uid)) return false;
+
+        const oldPlayers = uniqueIds(state.activePlayerIds);
+        const remainingPlayers = oldPlayers.filter((id) => allowedPlayers.includes(id));
+        if (
+            !remainingPlayers.length ||
+            (remainingPlayers.length === oldPlayers.length &&
+                remainingPlayers.every((id, index) => id === oldPlayers[index]))
+        ) {
+            return false;
+        }
+
+        const nextUid = nextPlayerAfterRemoval(
+            remainingPlayers,
+            state.currentPlayerUid,
+            state.direction,
+            state.currentPlayerIndex
+        );
+        const isFinished = remainingPlayers.length === 1;
+        const changedAt = serverTimestamp();
+        const updates = {
+            activePlayerIds: remainingPlayers,
+            currentPlayerIndex: remainingPlayers.indexOf(isFinished ? remainingPlayers[0] : nextUid),
+            currentPlayerUid: isFinished ? remainingPlayers[0] : nextUid,
+            drewCardId: null,
+            unoPendingUid: remainingPlayers.includes(state.unoPendingUid)
+                ? state.unoPendingUid
+                : null,
+            unoCalled: remainingPlayers.includes(state.unoPendingUid)
+                ? state.unoCalled
+                : false,
+            updatedAt: changedAt
+        };
+
+        if (isFinished) {
+            updates.status = "results";
+            updates.winnerId = remainingPlayers[0];
+            updates.finishedAt = changedAt;
+        } else if (nextUid !== state.currentPlayerUid) {
+            updates.turnStartedAt = changedAt;
+        }
+
+        transaction.update(gameDocument, updates);
+        return true;
+    });
+}
+
 export function subscribeToMatch(db, roomId, round, uid, onState, onHand, onError, watchHand = true) {
     const unsubscribers = [
         onSnapshot(matchRef(db, roomId, round), (snapshot) => {
@@ -923,8 +970,7 @@ export function subscribeToMatch(db, roomId, round, uid, onState, onHand, onErro
     if (watchHand) {
         unsubscribers.push(onSnapshot(handRef(db, roomId, round, uid), (snapshot) => {
             onHand(snapshot.exists() ? snapshot.data() : null);
-        }, (error) => onError(error, "Kartların"))
-        );
+        }, (error) => onError(error, "Kartların")));
     }
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
