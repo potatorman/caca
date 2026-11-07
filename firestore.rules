@@ -1177,14 +1177,14 @@ service cloud.firestore {
             && resource.data.activePlayerIds is list
             && resource.data.activePlayerIds.hasAny([request.auth.uid])
             && (
-              (
+              isSelfForfeitUpdate()
+              || (
                 activeSessionData().gameId == 'uno'
                 && activeSessionData().status == 'playing'
                 && activeSessionData().round == resource.data.round
                 && activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
                   .hasAny([request.auth.uid])
               )
-              || isSelfForfeitUpdate()
             );
         }
 
