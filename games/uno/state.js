@@ -591,6 +591,123 @@ export function reconcileMatchPlayers(db, roomId, round, uid) {
     });
 }
 
+export function forfeitMatch(db, roomId, round, uid) {
+    return runTransaction(db, async (transaction) => {
+        const activeDocument = sessionRef(db, roomId);
+        const gameDocument = matchRef(db, roomId, round);
+        const activeSnapshot = await transaction.get(activeDocument);
+        const gameSnapshot = await transaction.get(gameDocument);
+
+        if (!activeSnapshot.exists() || !gameSnapshot.exists()) {
+            throw new Error("Aktif UNO maçı bulunamadı.");
+        }
+
+        const session = activeSnapshot.data();
+        const state = gameSnapshot.data();
+        const lobbyPlayers = Array.isArray(session.playerIds) ? session.playerIds : [];
+        const lobbyMatchPlayers = Array.isArray(session.matchPlayerIds)
+            ? session.matchPlayerIds
+            : lobbyPlayers;
+        const activePlayers = Array.isArray(state.activePlayerIds)
+            ? state.activePlayerIds
+            : state.playerIds;
+
+        if (
+            session.status !== "playing" ||
+            session.gameId !== "uno" ||
+            Number(session.round) !== Number(round) ||
+            state.status !== "playing" ||
+            !lobbyMatchPlayers.includes(uid) ||
+            !activePlayers.includes(uid) ||
+            !lobbyPlayers.includes(uid)
+        ) {
+            throw new Error("Bu maçta artık aktif oyuncu değilsin.");
+        }
+
+        const remainingLobbyPlayers = lobbyPlayers.filter((id) => id !== uid);
+        const remainingActivePlayers = activePlayers.filter((id) => id !== uid);
+        const isHost = session.hostId === uid;
+        if (!remainingLobbyPlayers.length || !remainingActivePlayers.length) {
+            throw new Error("Maçta kazanan kalmayacağı için bu çıkış şu anda yapılamıyor.");
+        }
+
+        const nextHostId = isHost ? remainingLobbyPlayers[0] : session.hostId;
+        const changedAt = serverTimestamp();
+        let nextCurrentUid = state.currentPlayerUid;
+
+        if (!remainingActivePlayers.includes(nextCurrentUid)) {
+            const oldIndex = Math.max(0, activePlayers.indexOf(state.currentPlayerUid));
+            nextCurrentUid = remainingActivePlayers[0];
+            for (let step = 1; step <= activePlayers.length; step += 1) {
+                const candidateIndex = (
+                    oldIndex + (state.direction === -1 ? -step : step) + activePlayers.length * 2
+                ) % activePlayers.length;
+                const candidate = activePlayers[candidateIndex];
+                if (remainingActivePlayers.includes(candidate)) {
+                    nextCurrentUid = candidate;
+                    break;
+                }
+            }
+        }
+
+        const winnerId = remainingActivePlayers.length === 1
+            ? remainingActivePlayers[0]
+            : null;
+
+        if (winnerId) {
+            transaction.update(gameDocument, {
+                activePlayerIds: remainingActivePlayers,
+                currentPlayerIndex: 0,
+                currentPlayerUid: winnerId,
+                drewCardId: null,
+                status: "results",
+                winnerId,
+                forfeitedBy: uid,
+                unoPendingUid: null,
+                unoCalled: false,
+                finishedAt: changedAt,
+                updatedAt: changedAt
+            });
+
+            transaction.update(activeDocument, {
+                status: "results",
+                hostId: nextHostId,
+                playerIds: remainingLobbyPlayers,
+                readyIds: [],
+                matchPlayerIds: remainingActivePlayers,
+                nextRoundPlayerIds: [],
+                nextRoundReadyIds: [],
+                finishedAt: changedAt,
+                updatedAt: changedAt
+            });
+
+            return { left: true, finished: true, winner: winnerId };
+        }
+
+        const currentPlayerChanged = nextCurrentUid !== state.currentPlayerUid;
+        transaction.update(gameDocument, {
+            activePlayerIds: remainingActivePlayers,
+            currentPlayerIndex: remainingActivePlayers.indexOf(nextCurrentUid),
+            currentPlayerUid: nextCurrentUid,
+            drewCardId: currentPlayerChanged ? null : state.drewCardId,
+            unoPendingUid: remainingActivePlayers.includes(state.unoPendingUid) ? state.unoPendingUid : null,
+            unoCalled: remainingActivePlayers.includes(state.unoPendingUid) ? state.unoCalled : false,
+            updatedAt: changedAt,
+            turnStartedAt: currentPlayerChanged ? changedAt : state.turnStartedAt
+        });
+
+        transaction.update(activeDocument, {
+            hostId: nextHostId,
+            playerIds: remainingLobbyPlayers,
+            readyIds: (session.readyIds || []).filter((id) => id !== uid),
+            matchPlayerIds: remainingActivePlayers,
+            updatedAt: changedAt
+        });
+
+        return { left: true, finished: false, winner: null };
+    });
+}
+
 export function skipTimedOutTurn(db, roomId, round, uid, timeoutMs = 90000) {
     return runTransaction(db, async (transaction) => {
         const gameDocument = matchRef(db, roomId, round);
