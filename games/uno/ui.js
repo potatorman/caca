@@ -417,7 +417,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                 handData = hand;
                 renderHand();
             },
-            (error) => setMessage(error.message || "UNO bağlantısı koptu.", true),
+            (error, source) => setMessage((source ? source + ": " : "") + (error.message || "UNO bağlantısı koptu."), true),
             watchHand
         );
     };
@@ -457,7 +457,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                 if (!closed) startMatchSubscription(true);
             })
             .catch((error) => {
-                if (!closed) setMessage(error.message || "Maç hazırlanamadı.", true);
+                if (!closed) setMessage("Kart dağıtımı başarısız: " + (error.message || "Maç hazırlanamadı."), true);
             });
     } else {
         startMatchSubscription(false);
