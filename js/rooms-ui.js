@@ -2094,7 +2094,10 @@ function reconcileUnoRosterChange(roomId, sessionData) {
     observedUnoRosterIds = [...currentIds];
     const onlyPlayersLeft = currentIds.length < previousIds.length &&
         currentIds.every((id) => previousIds.includes(id));
-    if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) {
+    // Every remaining match player may attempt the transactional repair.
+    // Firestore serializes concurrent transactions; once one succeeds, the rest
+    // observe an already-synchronized roster and return without another write.
+    if (!onlyPlayersLeft || !currentIds.includes(currentUser.uid)) {
         return;
     }
 
