@@ -1675,16 +1675,34 @@ function clearGameSessionResultsTimer() {
 }
 
 async function returnUnoToLobbyFromResults(roomId, expectedRound) {
-    return runTransaction(db, async (transaction) => {
-        const ref = getGameSessionRef(roomId);
+    const ref = getGameSessionRef(roomId);
+    const transition = await runTransaction(db, async (transaction) => {
         const snapshot = await transaction.get(ref);
         if (!snapshot.exists()) {
             throw new Error("Oyun lobisi bulunamadı.");
         }
 
         const session = snapshot.data();
+        if (session.gameId !== "uno") {
+            throw new Error("Bu oda artık UNO lobisi değil.");
+        }
+
+        // Another player may have completed the same button action first.
+        // Treat that completed transition as success instead of showing a false error.
         if (
-            session.gameId !== "uno" ||
+            session.status === "lobby" &&
+            Number(session.round) === Number(expectedRound) + 1
+        ) {
+            return {
+                returned: true,
+                alreadyReturned: true,
+                round: Number(session.round),
+                playerIds: Array.isArray(session.playerIds) ? session.playerIds : [],
+                matchPlayerIds: []
+            };
+        }
+
+        if (
             session.status !== "results" ||
             Number(session.round) !== Number(expectedRound)
         ) {
@@ -1700,26 +1718,16 @@ async function returnUnoToLobbyFromResults(roomId, expectedRound) {
             throw new Error("Sonraki lobi UNO oyuncu sınırını aşıyor.");
         }
 
-        // Remove this round's shared match record and all private player hands.
-        // Deleting the parent document alone would leave its hands subcollection behind.
-        const matchPath = doc(db, "rooms", roomId, "unoMatches", String(expectedRound));
-        const matchPlayerIds = Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [];
-        matchPlayerIds.forEach((playerId) => {
-            transaction.delete(doc(
-                db,
-                "rooms",
-                roomId,
-                "unoMatches",
-                String(expectedRound),
-                "hands",
-                playerId
-            ));
-        });
-        transaction.delete(matchPath);
+        const nextRound = Number(session.round) + 1;
+        const matchPlayerIds = Array.isArray(session.matchPlayerIds)
+            ? session.matchPlayerIds
+            : [];
 
+        // Commit the lobby transition separately from old-match cleanup.
+        // This keeps the user-facing action independent from the cleanup batch.
         transaction.update(ref, {
             status: "lobby",
-            round: Number(session.round) + 1,
+            round: nextRound,
             playerIds: nextPlayers,
             readyIds: [],
             matchPlayerIds: [],
@@ -1732,8 +1740,61 @@ async function returnUnoToLobbyFromResults(roomId, expectedRound) {
             updatedAt: serverTimestamp()
         });
 
-        return { returned: true, round: Number(session.round) + 1, playerIds: nextPlayers };
+        return {
+            returned: true,
+            alreadyReturned: false,
+            round: nextRound,
+            playerIds: nextPlayers,
+            matchPlayerIds
+        };
     });
+
+    if (transition.alreadyReturned) return transition;
+
+    // Cleanup is deliberately after the lobby transition. Each small batch stays
+    // below Firestore's aggregate security-rule document-access-call limit.
+    const matchPath = doc(db, "rooms", roomId, "unoMatches", String(expectedRound));
+    try {
+        const matchSnapshot = await getDoc(matchPath);
+        if (matchSnapshot.exists()) {
+            const matchData = matchSnapshot.data();
+            if (
+                matchData.roomId === roomId &&
+                Number(matchData.round) === Number(expectedRound) &&
+                matchData.status === "results"
+            ) {
+                const cleanupPlayerIds = [...new Set([
+                    ...transition.matchPlayerIds,
+                    ...(Array.isArray(matchData.playerIds) ? matchData.playerIds : [])
+                ])];
+
+                for (let index = 0; index < cleanupPlayerIds.length; index += 6) {
+                    const batch = writeBatch(db);
+                    const playerChunk = cleanupPlayerIds.slice(index, index + 6);
+                    playerChunk.forEach((playerId) => {
+                        batch.delete(doc(
+                            db,
+                            "rooms",
+                            roomId,
+                            "unoMatches",
+                            String(expectedRound),
+                            "hands",
+                            playerId
+                        ));
+                    });
+                    await batch.commit();
+                }
+
+                await deleteDoc(matchPath);
+            }
+        }
+    } catch (error) {
+        // The lobby has already advanced successfully. A cleanup failure must
+        // not trap players on the results screen or roll the lobby back.
+        console.warn("CACA: UNO eski tur kayıtları temizlenemedi:", error);
+    }
+
+    return transition;
 }
 
 function syncGameSessionResultsReset(roomId, sessionData) {
