@@ -478,27 +478,35 @@ export async function forfeitMatch(db, roomId, round, uid) {
         const isLegacyPartial =
             state.forfeitedBy === uid &&
             !active.includes(uid) &&
-            state.status === "results" &&
+            ["playing", "results"].includes(state.status) &&
             nextRoster.length === active.length &&
             nextRoster.every((id, index) => id === active[index]);
 
         if (isLegacyPartial) {
-            tx.update(sRef, {
-                status: "results",
+            const sessionRepair = {
+                status: state.status,
                 hostId: nextHost,
                 playerIds: nextLobby,
-                readyIds: [],
+                readyIds: ids(session.readyIds).filter((id) => id !== uid),
                 matchPlayerIds: nextRoster,
                 resultReturnIds: [],
-                nextRoundPlayerIds: [],
-                nextRoundReadyIds: [],
-                finishedAt: state.finishedAt || serverTimestamp(),
                 updatedAt: serverTimestamp()
-            });
+            };
+
+            if (state.status === "results") {
+                sessionRepair.readyIds = [];
+                sessionRepair.nextRoundPlayerIds = [];
+                sessionRepair.nextRoundReadyIds = [];
+                sessionRepair.finishedAt = state.finishedAt || serverTimestamp();
+            } else {
+                sessionRepair.finishedAt = state.finishedAt || null;
+            }
+
+            tx.update(sRef, sessionRepair);
             return {
                 left: true,
-                finished: true,
-                winner: state.winnerId || nextRoster[0] || null,
+                finished: state.status === "results",
+                winner: state.winnerId || (state.status === "results" ? nextRoster[0] : null),
                 recovered: true
             };
         }
