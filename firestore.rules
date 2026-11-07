@@ -1217,6 +1217,22 @@ service cloud.firestore {
           return getAfter(matchPath()).data;
         }
 
+        // A participant may clean up only the currently active UNO round, and
+        // only after its match has finished or is demonstrably stale.
+        function canCleanCurrentUnoRound() {
+          return isRoomMember(roomId)
+            && activeSessionData().gameId == 'uno'
+            && activeSessionData().status in ['playing', 'results']
+            && roundId == string(activeSessionData().round)
+            && (
+              activeSessionData().playerIds.hasAny([request.auth.uid])
+              || activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
+                .hasAny([request.auth.uid])
+              || activeSessionData().get('spectatorIds', []).hasAny([request.auth.uid])
+              || activeSessionData().get('nextRoundPlayerIds', []).hasAny([request.auth.uid])
+            );
+        }
+
         function removesOnlyCurrentUser(oldList, newList) {
           return oldList.hasAll(newList)
             && oldList.size() == newList.size() + 1
@@ -1316,7 +1332,12 @@ service cloud.firestore {
             ])
           );
 
-        allow delete: if false;
+        allow delete: if canCleanCurrentUnoRound()
+          && (
+            resource.data.status == 'results'
+            || resource.data.round != activeSessionData().round
+            || resource.data.roomId != roomId
+          );
 
         match /hands/{playerId} {
           allow get: if isRoomMember(roomId)
@@ -1352,7 +1373,14 @@ service cloud.firestore {
             && request.resource.data.cards is list
             && request.resource.data.cards.size() <= 108;
 
-          allow delete: if false;
+          allow delete: if canCleanCurrentUnoRound()
+            && currentMatch().playerIds is list
+            && currentMatch().playerIds.hasAny([playerId])
+            && (
+              currentMatch().status == 'results'
+              || currentMatch().round != activeSessionData().round
+              || currentMatch().roomId != roomId
+            );
         }
       }
 
