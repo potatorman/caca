@@ -618,6 +618,50 @@ service cloud.firestore {
             && data.updatedAt is timestamp;
         }
 
+        // UNO self-forfeit: this document validates only its own roster transition.
+        function canSelfForfeitUnoSession() {
+          return resource.data.gameId == 'uno'
+            && resource.data.status == 'playing'
+            && matchPlayers(resource.data).hasAny([request.auth.uid])
+            && request.resource.data.status in ['playing', 'results']
+            && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+            && !request.resource.data.playerIds.hasAny([request.auth.uid])
+            && request.resource.data.playerIds.size() >= 1
+            && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
+            && !matchPlayers(request.resource.data).hasAny([request.auth.uid])
+            && matchPlayers(request.resource.data).size() >= 1
+            && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+            && spectators(request.resource.data) == spectators(resource.data)
+            && (
+              request.resource.data.hostId == resource.data.hostId
+              || (
+                request.auth.uid == resource.data.hostId
+                && request.resource.data.hostId == request.resource.data.playerIds[0]
+              )
+            )
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'hostId', 'playerIds', 'readyIds', 'matchPlayerIds',
+              'nextRoundPlayerIds', 'nextRoundReadyIds', 'finishedAt', 'updatedAt'
+            ])
+            && (
+              (
+                matchPlayers(request.resource.data).size() == 1
+                && request.resource.data.status == 'results'
+                && request.resource.data.readyIds.size() == 0
+                && request.resource.data.nextRoundPlayerIds.size() == 0
+                && request.resource.data.nextRoundReadyIds.size() == 0
+                && request.resource.data.finishedAt is timestamp
+              )
+              || (
+                matchPlayers(request.resource.data).size() >= 2
+                && request.resource.data.status == 'playing'
+                && request.resource.data.nextRoundPlayerIds == resource.data.nextRoundPlayerIds
+                && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
+                && request.resource.data.finishedAt == resource.data.finishedAt
+              )
+            );
+        }
+
         allow get: if sessionId == 'active' && isRoomMember(roomId);
         allow list: if false;
 
@@ -645,6 +689,9 @@ service cloud.firestore {
           && request.resource.data.gameName == resource.data.gameName
           && request.resource.data.createdAt == resource.data.createdAt
           && (
+            // UNO forfeit; no cross-document lookup is needed to authorize self-removal.
+            canSelfForfeitUnoSession()
+            ||
             // A room member joins the persistent lobby.
             (
               resource.data.status == 'lobby'
@@ -901,49 +948,6 @@ service cloud.firestore {
                   'finishedAt', 'updatedAt'
                 ])
             )
-            // A player may forfeit UNO; the transaction also writes the remaining
-            // player's win into the UNO match document.
-            || (
-              resource.data.status == 'playing'
-              && request.resource.data.status == 'results'
-              && resource.data.gameId == 'uno'
-              && resource.data.matchPlayerIds.hasAny([request.auth.uid])
-              && getAfter(
-                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
-              ).data.status == 'results'
-              && getAfter(
-                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
-              ).data.forfeitedBy == request.auth.uid
-              && getAfter(
-                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
-              ).data.winnerId is string
-              && getAfter(
-                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
-              ).data.winnerId != request.auth.uid
-              && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
-              && !request.resource.data.playerIds.hasAny([request.auth.uid])
-              && request.resource.data.playerIds.size() == resource.data.playerIds.size() - 1
-              && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
-              && matchPlayers(request.resource.data) == getAfter(
-                /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
-              ).data.activePlayerIds
-              && (
-                request.resource.data.hostId == resource.data.hostId
-                || (
-                  resource.data.hostId == request.auth.uid
-                  && request.resource.data.hostId == request.resource.data.playerIds[0]
-                )
-              )
-              && request.resource.data.readyIds.size() == 0
-              && request.resource.data.spectatorIds == spectators(resource.data)
-              && request.resource.data.nextRoundPlayerIds.size() == 0
-              && request.resource.data.nextRoundReadyIds.size() == 0
-              && request.resource.data.finishedAt is timestamp
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'status', 'hostId', 'playerIds', 'readyIds', 'matchPlayerIds',
-                'nextRoundPlayerIds', 'nextRoundReadyIds', 'finishedAt', 'updatedAt'
-              ])
-            )
             // Return to the same persistent lobby for the next match.
             || (
               resource.data.status == 'results'
@@ -1140,32 +1144,22 @@ service cloud.firestore {
               .hasAny([request.auth.uid]);
         }
 
-        function activeSessionAfterData() {
-          return getAfter(activeSessionPath()).data;
-        }
-
-        // A forfeit must remove the same player from both documents in one
-        // transaction. This check intentionally uses the post-transaction lobby.
-        function isAtomicUnoForfeit() {
+        // Match-side forfeit authorization depends only on this match's old/new state.
+        function isSelfForfeitUpdate() {
           return request.resource.data.get('forfeitedBy', null) == request.auth.uid
+            && resource.data.activePlayerIds is list
             && request.resource.data.activePlayerIds is list
-            && request.resource.data.activePlayerIds.size()
-              == resource.data.activePlayerIds.size() - 1
-            && resource.data.activePlayerIds.hasAll(request.resource.data.activePlayerIds)
+            && onlyRemovesSelf(resource.data.activePlayerIds, request.resource.data.activePlayerIds)
             && !request.resource.data.activePlayerIds.hasAny([request.auth.uid])
-            && activeSessionAfterData().gameId == 'uno'
-            && activeSessionAfterData().round == resource.data.round
-            && activeSessionAfterData().get('matchPlayerIds', activeSessionAfterData().playerIds)
-              == request.resource.data.activePlayerIds
             && (
               (
                 request.resource.data.activePlayerIds.size() == 1
-                && activeSessionAfterData().status == 'results'
+                && request.resource.data.status == 'results'
                 && request.resource.data.winnerId == request.resource.data.activePlayerIds[0]
               )
               || (
-                request.resource.data.activePlayerIds.size() > 1
-                && activeSessionAfterData().status == 'playing'
+                request.resource.data.activePlayerIds.size() >= 2
+                && request.resource.data.status == 'playing'
               )
             );
         }
@@ -1183,7 +1177,7 @@ service cloud.firestore {
                 && activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
                   .hasAny([request.auth.uid])
               )
-              || isAtomicUnoForfeit()
+              || isSelfForfeitUpdate()
             );
         }
 
