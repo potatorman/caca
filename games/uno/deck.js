@@ -15,13 +15,13 @@ export function createUnoDeck() {
             cards.push(makeCard(color + "-" + number + "-2", color, "number", String(number)));
         }
 
-        for (const action of [
+        for (const [suffix, type] of [
             ["skip", "skip"],
             ["reverse", "reverse"],
             ["draw2", "draw2"]
         ]) {
-            cards.push(makeCard(color + "-" + action[0] + "-1", color, action[1], action[1]));
-            cards.push(makeCard(color + "-" + action[0] + "-2", color, action[1], action[1]));
+            cards.push(makeCard(color + "-" + suffix + "-1", color, type, type));
+            cards.push(makeCard(color + "-" + suffix + "-2", color, type, type));
         }
     }
 
@@ -34,12 +34,18 @@ export function createUnoDeck() {
 }
 
 function randomIndex(max) {
-    if (max <= 1) return 0;
+    if (!Number.isInteger(max) || max <= 1) return 0;
 
-    if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
-        const buffer = new Uint32Array(1);
-        globalThis.crypto.getRandomValues(buffer);
-        return buffer[0] % max;
+    if (globalThis.crypto?.getRandomValues) {
+        const range = 0x1_0000_0000;
+        const limit = Math.floor(range / max) * max;
+        const values = new Uint32Array(1);
+
+        do {
+            globalThis.crypto.getRandomValues(values);
+        } while (values[0] >= limit);
+
+        return values[0] % max;
     }
 
     return Math.floor(Math.random() * max);
@@ -47,11 +53,9 @@ function randomIndex(max) {
 
 export function shuffleDeck(cards) {
     const shuffled = [...cards];
-
     for (let index = shuffled.length - 1; index > 0; index -= 1) {
         const target = randomIndex(index + 1);
         [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
     }
-
     return shuffled;
 }
