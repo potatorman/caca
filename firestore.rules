@@ -1136,6 +1136,13 @@ service cloud.firestore {
           return getAfter(matchPath()).data;
         }
 
+        function removesOnlyCurrentUser(oldList, newList) {
+          return oldList.hasAll(newList)
+            && oldList.size() == newList.size() + 1
+            && oldList.hasAny([request.auth.uid])
+            && !newList.hasAny([request.auth.uid]);
+        }
+
         function isActiveMatchPlayer() {
           return isRoomMember(roomId)
             && activeSessionData().gameId == 'uno'
@@ -1149,7 +1156,7 @@ service cloud.firestore {
           return request.resource.data.get('forfeitedBy', null) == request.auth.uid
             && resource.data.activePlayerIds is list
             && request.resource.data.activePlayerIds is list
-            && onlyRemovesSelf(resource.data.activePlayerIds, request.resource.data.activePlayerIds)
+            && removesOnlyCurrentUser(resource.data.activePlayerIds, request.resource.data.activePlayerIds)
             && !request.resource.data.activePlayerIds.hasAny([request.auth.uid])
             && (
               (
@@ -1218,7 +1225,15 @@ service cloud.firestore {
           && request.resource.data.round == resource.data.round
           && request.resource.data.playerIds == resource.data.playerIds
           && request.resource.data.dealerId == resource.data.dealerId
-          && request.resource.data.createdAt == resource.data.createdAt;
+          && request.resource.data.createdAt == resource.data.createdAt
+          && (
+            !isSelfForfeitUpdate()
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'activePlayerIds', 'currentPlayerIndex', 'currentPlayerUid',
+              'drewCardId', 'status', 'winnerId', 'forfeitedBy',
+              'unoPendingUid', 'unoCalled', 'finishedAt', 'updatedAt', 'turnStartedAt'
+            ])
+          );
 
         allow delete: if false;
 
