@@ -2173,6 +2173,9 @@ async function leaveGameLobby() {
 
     const uid = currentUser.uid;
     const initialSession = gameSessionData;
+    const leaveButton = $("leaveGameSessionButton");
+    if (leaveButton) leaveButton.disabled = true;
+
     const initialMatchPlayers = Array.isArray(initialSession.matchPlayerIds)
         ? initialSession.matchPlayerIds
         : (["playing", "results"].includes(initialSession.status)
@@ -2191,12 +2194,10 @@ async function leaveGameLobby() {
             await ensureUnoMatch(db, activeRoomId, initialSession.round, uid);
         } catch (error) {
             setGameCenterStatus("Maç hazırlanamadığı için lobiden ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
+            if (leaveButton) leaveButton.disabled = false;
             return;
         }
     }
-
-    const leaveButton = $("leaveGameSessionButton");
-    if (leaveButton) leaveButton.disabled = true;
 
     try {
         const result = await runTransaction(db, async (transaction) => {
