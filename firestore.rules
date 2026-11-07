@@ -975,10 +975,11 @@ service cloud.firestore {
                 || isActiveRoomAdmin(roomId)
                 || (
                   resource.data.gameId == 'uno'
-                  && getAfter(
+                  && matchPlayers(resource.data).hasAny([request.auth.uid])
+                  && get(
                     /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
                   ).data.status == 'results'
-                  && getAfter(
+                  && get(
                     /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
                   ).data.winnerId == request.auth.uid
                 )
