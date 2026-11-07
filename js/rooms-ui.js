@@ -1597,7 +1597,17 @@ function renderGameCenter() {
     $("gameSpectatorsCount").textContent = String(spectators.length);
     renderGameMemberList("gameSpectatorsList", spectators, () => "İzliyor");
 
-    $("joinGameSessionButton").hidden = session.status !== "lobby" || isLobbyPlayer;
+    const nextRoundPlayers = Array.isArray(session.nextRoundPlayerIds)
+        ? session.nextRoundPlayerIds
+        : [];
+    const isQueuedForNextRound = nextRoundPlayers.includes(currentUser?.uid);
+    const canJoinLobby = session.status === "lobby" && !isLobbyPlayer;
+    const canQueueForNextRound = isResults &&
+        !isLobbyPlayer &&
+        !isSpectator &&
+        !isQueuedForNextRound;
+    $("joinGameSessionButton").hidden = !(canJoinLobby || canQueueForNextRound);
+    $("joinGameSessionButton").textContent = isResults ? "Lobiye gir" : "Lobiye katıl";
     $("readyGameSessionButton").hidden = !["lobby", "starting"].includes(session.status) || !isLobbyPlayer;
     $("leaveGameSessionButton").hidden = !(
         (["lobby", "starting", "results"].includes(session.status) && isLobbyPlayer) ||
@@ -1634,6 +1644,10 @@ function renderGameCenter() {
         setGameCenterStatus("Bu maçı izliyorsun. “İzleyicilikten ayrıl” seçeneği seni izleyici listesinden çıkarır.");
     } else if (isPlaying) {
         setGameCenterStatus("Lobide kalıyorsun. Buradaki “Lobiden ayrıl” seçeneği kalıcı üyeliğini sonlandırır.");
+    } else if (isResults && isQueuedForNextRound) {
+        setGameCenterStatus("Sonraki maç için lobiye katıldın. Sonuç ekranı kapanınca otomatik ekleneceksin.");
+    } else if (isResults && canQueueForNextRound) {
+        setGameCenterStatus("Maç sonuçlandı. Şimdi lobiye katılarak sonraki maçta yer alabilirsin.");
     } else if (isResults) {
         setGameCenterStatus("Sonuçlar 5 saniye gösterilecek. Ardından lobi otomatik sıfırlanacak.");
     } else if (isStarting && isLobbyPlayer) {
@@ -1697,7 +1711,10 @@ function syncGameSessionResultsReset(roomId, sessionData) {
                     round: round + 1,
                     playerIds: [...new Set([
                         ...(Array.isArray(latest.playerIds) ? latest.playerIds : []),
-                        ...(Array.isArray(latest.spectatorIds) ? latest.spectatorIds : [])
+                        ...(Array.isArray(latest.spectatorIds) ? latest.spectatorIds : []),
+                        ...(latest.gameId === "uno" && Array.isArray(latest.nextRoundPlayerIds)
+                            ? latest.nextRoundPlayerIds
+                            : [])
                     ])],
                     readyIds: [],
                     matchPlayerIds: [],
@@ -2133,16 +2150,50 @@ async function createGameSession() {
 }
 
 async function joinGameSession() {
-    if (!currentUser || !gameSessionData || gameSessionData.status !== "lobby") return;
-    const players = Array.isArray(gameSessionData.playerIds) ? gameSessionData.playerIds : [];
-    const { maxPlayers } = getGameLimits(gameSessionData.gameId);
-    if (!players.includes(currentUser.uid) && players.length >= maxPlayers) {
+    if (!currentUser || !gameSessionData || !["lobby", "results"].includes(gameSessionData.status)) return;
+
+    const uid = currentUser.uid;
+    const session = gameSessionData;
+    const players = Array.isArray(session.playerIds) ? session.playerIds : [];
+    const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
+    const queuedPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
+    const { maxPlayers } = getGameLimits(session.gameId);
+
+    if (session.status === "results") {
+        if (players.includes(uid) || spectators.includes(uid) || queuedPlayers.includes(uid)) {
+            return;
+        }
+
+        const occupiedSeats = players.length + spectators.length + queuedPlayers.length;
+        if (occupiedSeats >= maxPlayers) {
+            setGameCenterStatus(`Sonraki maçın lobisi dolu. En fazla ${maxPlayers} oyuncu katılabilir.`, true);
+            return;
+        }
+
+        const button = $("joinGameSessionButton");
+        if (button) button.disabled = true;
+        try {
+            await updateDoc(getGameSessionRef(), {
+                nextRoundPlayerIds: arrayUnion(uid),
+                updatedAt: serverTimestamp()
+            });
+            setGameCenterStatus("Sonraki maç için lobiye katıldın. Sonuçlar bitince otomatik ekleneceksin.");
+        } catch (error) {
+            setGameCenterStatus("Sonraki lobiye katılamadın: " + (error.message || "Bilinmeyen hata"), true);
+        } finally {
+            if (button) button.disabled = false;
+        }
+        return;
+    }
+
+    if (session.status !== "lobby") return;
+    if (!players.includes(uid) && players.length >= maxPlayers) {
         setGameCenterStatus(`Lobi dolu. Bu oyun en fazla ${maxPlayers} oyuncu alabilir.`, true);
         return;
     }
     try {
         await updateDoc(getGameSessionRef(), {
-            playerIds: arrayUnion(currentUser.uid),
+            playerIds: arrayUnion(uid),
             updatedAt: serverTimestamp()
         });
         setGameCenterStatus("Kalıcı lobiye katıldın. Hazır olduğunda hazır butonuna bas.");
