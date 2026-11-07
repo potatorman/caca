@@ -37,7 +37,7 @@ function playerLabel(playerId, members, profiles) {
     return member?.displayNickname || member?.username || profile?.nickname || profile?.username || "Oyuncu";
 }
 
-export async function openUnoGame({ db, roomId, round, uid, session, roomMembers = [], onLeave }) {
+export async function openUnoGame({ db, roomId, round, uid, session, roomMembers = [], onLeave, onReturnToLobby }) {
     const root = document.createElement("section");
     root.className = "uno-overlay";
     root.setAttribute("role", "dialog");
@@ -324,7 +324,23 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
     };
 
     action("close").addEventListener("click", close);
-    action("close-result").addEventListener("click", close);
+    action("close-result").addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        if (matchState?.status !== "results" || typeof onReturnToLobby !== "function") {
+            close();
+            return;
+        }
+
+        button.disabled = true;
+        try {
+            setStatus("Yeni lobi hazırlanıyor…");
+            await onReturnToLobby();
+            close();
+        } catch (error) {
+            setMessage("Lobiye dönülemedi: " + (error.message || "Bilinmeyen hata"), true);
+            button.disabled = false;
+        }
+    });
     action("leave").addEventListener("click", async (event) => {
         const button = event.currentTarget;
         if (!window.confirm("Maçı tamamen terk etmek istiyor musun? Oyun lobisinden de çıkarılacaksın. İki kişilik maçta kalan oyuncu kazanır.")) return;
