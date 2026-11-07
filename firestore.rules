@@ -1612,7 +1612,8 @@ service cloud.firestore {
             || request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'activePlayerIds', 'currentPlayerIndex', 'currentPlayerUid',
               'drewCardId', 'status', 'winnerId', 'forfeitedBy',
-              'unoPendingUid', 'unoCalled', 'finishedAt', 'updatedAt', 'turnStartedAt'
+              'unoPendingUid', 'unoCalled', 'finishedAt', 'updatedAt',
+              'turnNumber', 'turnStartedAt'
             ])
           );
 
