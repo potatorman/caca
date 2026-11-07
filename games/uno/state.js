@@ -666,6 +666,13 @@ export async function forfeitMatch(db, roomId, round, uid) {
             }
 
             const state = gameSnapshot.data();
+            if (
+                state.roomId !== roomId ||
+                Number(state.round) !== Number(round)
+            ) {
+                throw new Error("UNO maç kaydı bu oda veya turla eşleşmiyor.");
+            }
+
             const activePlayers = Array.isArray(state.activePlayerIds)
                 ? state.activePlayerIds
                 : state.playerIds;
@@ -793,7 +800,7 @@ export async function forfeitMatch(db, roomId, round, uid) {
                 !lobbyMatchPlayers.includes(uid) &&
                 lobbyMatchPlayers.length === activePlayers.length &&
                 lobbyMatchPlayers.every((playerId, index) => playerId === activePlayers[index]) &&
-                session.round === round &&
+                Number(session.round) === Number(round) &&
                 session.status === state.status
             ) {
                 return {
