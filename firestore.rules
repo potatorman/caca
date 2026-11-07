@@ -1256,6 +1256,7 @@ service cloud.firestore {
               && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
               && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
               && onlyRemovesSelf(spectators(resource.data), spectators(request.resource.data))
+              && onlyRemovesSelf(resultReturns(resource.data), resultReturns(request.resource.data))
               && (
                 !resource.data.playerIds.hasAny([request.auth.uid])
                 || !request.resource.data.playerIds.hasAny([request.auth.uid])
@@ -1264,7 +1265,7 @@ service cloud.firestore {
                 || !spectators(request.resource.data).hasAny([request.auth.uid])
               )
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'playerIds', 'readyIds', 'matchPlayerIds', 'spectatorIds', 'updatedAt'
+                'playerIds', 'readyIds', 'matchPlayerIds', 'spectatorIds', 'resultReturnIds', 'updatedAt'
               ])
             )
             // The current host leaves the room while a match or results are active.
@@ -1315,6 +1316,7 @@ service cloud.firestore {
               && resource.data.readyIds.hasAll(request.resource.data.readyIds)
               && matchPlayers(resource.data).hasAll(matchPlayers(request.resource.data))
               && spectators(resource.data).hasAll(spectators(request.resource.data))
+              && resultReturns(resource.data).hasAll(resultReturns(request.resource.data))
               && (
                 request.resource.data.hostId == resource.data.hostId
                 || (
@@ -1329,7 +1331,7 @@ service cloud.firestore {
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                 'hostId', 'status', 'countdownEndsAt',
                 'playerIds', 'readyIds', 'matchPlayerIds', 'spectatorIds',
-                'nextRoundPlayerIds', 'nextRoundReadyIds', 'updatedAt'
+                'nextRoundPlayerIds', 'nextRoundReadyIds', 'resultReturnIds', 'updatedAt'
               ])
               && (
                 resource.data.playerIds.size() > request.resource.data.playerIds.size()
