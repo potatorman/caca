@@ -913,7 +913,9 @@ export async function reconcileMatchPlayers(db, roomId, round, uid) {
         if (!allowedPlayers.includes(uid)) return false;
 
         const oldPlayers = uniqueIds(state.activePlayerIds);
-        const remainingPlayers = oldPlayers.filter((id) => allowedPlayers.includes(id));
+        // The persistent session roster is authoritative. A previous partial
+        // removal may have left either extra or missing IDs in the match document.
+        const remainingPlayers = [...allowedPlayers];
         if (
             !remainingPlayers.length ||
             (remainingPlayers.length === oldPlayers.length &&
