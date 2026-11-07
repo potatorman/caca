@@ -1281,8 +1281,10 @@ service cloud.firestore {
               && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
               && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
               && onlyRemovesSelf(spectators(resource.data), spectators(request.resource.data))
+              && onlyRemovesSelf(resultReturns(resource.data), resultReturns(request.resource.data))
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'hostId', 'playerIds', 'readyIds', 'matchPlayerIds', 'spectatorIds', 'updatedAt'
+                'hostId', 'playerIds', 'readyIds', 'matchPlayerIds', 'spectatorIds',
+                'resultReturnIds', 'updatedAt'
               ])
             )
             // A previous-round host may leave while a match or result screen is active.
@@ -1297,8 +1299,10 @@ service cloud.firestore {
               && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
               && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
               && onlyRemovesSelf(spectators(resource.data), spectators(request.resource.data))
+              && onlyRemovesSelf(resultReturns(resource.data), resultReturns(request.resource.data))
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'hostId', 'readyIds', 'matchPlayerIds', 'spectatorIds', 'updatedAt'
+                'hostId', 'readyIds', 'matchPlayerIds', 'spectatorIds',
+                'resultReturnIds', 'updatedAt'
               ])
             )
             // Room staff can remove a kicked player/spectator and hand host ownership to the next lobby member.
