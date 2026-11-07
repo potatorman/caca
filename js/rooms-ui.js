@@ -3,7 +3,6 @@ import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY, getGameDefinition } from "../games/registry.js";
 import {
-    ensureMatch as ensureUnoMatch,
     reconcileMatchPlayers as reconcileUnoMatchPlayers,
     forfeitMatch as forfeitUnoMatch,
     returnToLobby as returnUnoToLobby
@@ -2375,26 +2374,14 @@ async function toggleGameReady() {
 }
 
 async function leaveUnoMatchFromSession(roomId, session, uid) {
-    const matchPlayers = Array.isArray(session?.matchPlayerIds)
-        ? session.matchPlayerIds
-        : (session?.playerIds || []);
-
-    if (session?.gameId !== "uno" || session?.status !== "playing" || !matchPlayers.includes(uid)) {
-        throw new Error("Aktif UNO oyuncu kaydı bulunamadı.");
-    }
-    if (matchPlayers.length < 2) {
-        throw new Error("Maçta senden başka aktif oyuncu kalmadı; lobi sıfırlanmalı.");
+    if (session?.gameId !== "uno" || !Number.isInteger(Number(session.round))) {
+        throw new Error("UNO tur bilgisi bulunamadı.");
     }
 
-    // Create the public match record only when nobody has opened this round yet.
-    // A forfeit never depends on the leaver having a private hand document.
+    // forfeitMatch reads the latest session and match together. Do not pre-read
+    // the match or create the leaver's hand before attempting to quit.
     try {
-        const matchDocument = doc(db, "rooms", roomId, "unoMatches", String(session.round));
-        const matchSnapshot = await getDoc(matchDocument);
-        if (!matchSnapshot.exists()) {
-            await ensureUnoMatch(db, roomId, session.round, uid);
-        }
-        return await forfeitUnoMatch(db, roomId, session.round, uid);
+        return await forfeitUnoMatch(db, roomId, Number(session.round), uid);
     } catch (error) {
         const wrapped = new Error(error?.message || "UNO maçından çıkış başarısız.");
         wrapped.code = error?.code;
@@ -2566,34 +2553,29 @@ async function leaveGameLobby() {
 }
 
 async function leaveCurrentMatch() {
-    if (!currentUser || !activeRoomId) return false;
-
-    // Do not authorize a quit from a possibly stale onSnapshot cache.
-    const sessionSnapshot = await getDoc(getGameSessionRef(activeRoomId));
-    if (!sessionSnapshot.exists()) return false;
-
-    const latestSession = sessionSnapshot.data();
-    if (latestSession.status !== "playing") return false;
-
-    const matchPlayers = Array.isArray(latestSession.matchPlayerIds)
-        ? latestSession.matchPlayerIds
-        : (latestSession.playerIds || []);
-    if (!matchPlayers.includes(currentUser.uid)) return false;
-
-    if (latestSession.gameId === "uno") {
-        const result = await leaveUnoMatchFromSession(activeRoomId, latestSession, currentUser.uid);
-        if (result.finished && result.winner) {
-            const winner = activeRoomMembers.find((member) => member.id === result.winner);
-            setGameCenterStatus((winner?.displayNickname || winner?.username || "Rakibin") + " maçı terk ettiğin için kazandı.");
-        } else {
-            setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
-        }
-        return true;
+    if (!currentUser || !activeRoomId || gameSessionData?.gameId !== "uno") {
+        return false;
     }
 
-    const left = await leaveGameLobby();
-    if (!left) {
-        throw new Error("Maç terk edilemedi. Lobi çıkış mesajını kontrol et.");
+    // The transaction validates live membership and roster. The snapshot is
+    // used only to identify the round, not to authorize the quit.
+    const result = await leaveUnoMatchFromSession(
+        activeRoomId,
+        gameSessionData,
+        currentUser.uid
+    );
+    if (!result.left) return false;
+
+    if (result.finished && result.winner) {
+        const winner = activeRoomMembers.find((member) => member.id === result.winner);
+        setGameCenterStatus(
+            (winner?.displayNickname || winner?.username || "Rakibin") +
+            " maçı terk ettiğin için kazandı."
+        );
+    } else if (result.cancelledBeforeDeal) {
+        setGameCenterStatus("Maç başlamadan terk edildi. Kalan oyuncular lobiye döndü.");
+    } else {
+        setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
     }
     return true;
 }
