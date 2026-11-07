@@ -1374,34 +1374,19 @@ service cloud.firestore {
           return getAfter(matchPath()).data;
         }
 
-        // A participant may clean the active finished match. After the lobby
-        // advances, members of that lobby may also remove an older finished round.
+        // A finished UNO match can only be removed after the shared lobby has
+        // advanced. No participant can delete the result while others still need it.
         function canCleanCurrentUnoRound() {
           return isRoomMember(roomId)
             && activeSessionData().gameId == 'uno'
+            && activeSessionData().status in ['lobby', 'starting', 'playing', 'results']
+            && currentMatch().roomId == roomId
+            && roundId == string(currentMatch().round)
+            && currentMatch().status == 'results'
+            && currentMatch().round < activeSessionData().round
             && (
-              (
-                activeSessionData().status in ['playing', 'results']
-                && roundId == string(activeSessionData().round)
-                && (
-                  activeSessionData().playerIds.hasAny([request.auth.uid])
-                  || activeSessionData().get('matchPlayerIds', activeSessionData().playerIds)
-                    .hasAny([request.auth.uid])
-                  || activeSessionData().get('spectatorIds', []).hasAny([request.auth.uid])
-                  || activeSessionData().get('nextRoundPlayerIds', []).hasAny([request.auth.uid])
-                )
-              )
-              || (
-                activeSessionData().status in ['lobby', 'starting', 'playing', 'results']
-                && currentMatch().roomId == roomId
-                && roundId == string(currentMatch().round)
-                && currentMatch().status == 'results'
-                && currentMatch().round < activeSessionData().round
-                && (
-                  currentMatch().playerIds.hasAny([request.auth.uid])
-                  || activeSessionData().playerIds.hasAny([request.auth.uid])
-                )
-              )
+              currentMatch().playerIds.hasAny([request.auth.uid])
+              || activeSessionData().playerIds.hasAny([request.auth.uid])
             );
         }
 
@@ -1505,11 +1490,8 @@ service cloud.firestore {
           );
 
         allow delete: if canCleanCurrentUnoRound()
-          && (
-            resource.data.status == 'results'
-            || resource.data.round != activeSessionData().round
-            || resource.data.roomId != roomId
-          );
+          && resource.data.status == 'results'
+          && resource.data.round < activeSessionData().round;
 
         match /hands/{playerId} {
           allow get: if isRoomMember(roomId)
@@ -1547,12 +1529,7 @@ service cloud.firestore {
 
           allow delete: if canCleanCurrentUnoRound()
             && currentMatch().playerIds is list
-            && currentMatch().playerIds.hasAny([playerId])
-            && (
-              currentMatch().status == 'results'
-              || currentMatch().round != activeSessionData().round
-              || currentMatch().roomId != roomId
-            );
+            && currentMatch().playerIds.hasAny([playerId]);
         }
       }
 
