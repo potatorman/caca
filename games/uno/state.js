@@ -257,6 +257,25 @@ function collectDrawCards(state, count, discardPile) {
     };
 }
 
+function makeResultSessionPatch(session) {
+    const players = Array.isArray(session.playerIds) ? session.playerIds : [];
+    const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
+
+    return {
+        status: "results",
+        playerIds: [...new Set([...players, ...spectators])],
+        readyIds: [],
+        matchPlayerIds: Array.isArray(session.matchPlayerIds)
+            ? session.matchPlayerIds
+            : players,
+        spectatorIds: [],
+        nextRoundPlayerIds: [],
+        nextRoundReadyIds: [],
+        finishedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    };
+}
+
 function clearExpiredUno(state) {
     if (!state.unoPendingUid) return {};
     return { unoPendingUid: null, unoCalled: false };
