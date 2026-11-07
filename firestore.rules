@@ -798,7 +798,7 @@ service cloud.firestore {
         // but failed before synchronizing the lobby document.
         function canRecoverUnoForfeitSession() {
           return resource.data.gameId == 'uno'
-            && resource.data.status == 'playing'
+            && resource.data.status in ['playing', 'results']
             && resource.data.playerIds.hasAny([request.auth.uid])
             && matchPlayers(resource.data).hasAny([request.auth.uid])
             && exists(currentUnoMatchPath())
