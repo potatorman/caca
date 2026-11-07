@@ -261,7 +261,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         action("leave").disabled = (matchState.activePlayerIds?.length || 0) <= 1;
         action("leave").title = action("leave").disabled
             ? "Son oyuncusun; maç sonucu otomatik tamamlanacak."
-            : "Maçtan ayrıl";
+            : "Maçı terk et";
         action("uno").hidden = !(matchState.unoPendingUid === uid && !matchState.unoCalled && matchState.status === "playing");
         action("catch").hidden = !(
             matchState.activePlayerIds?.includes(uid) &&
