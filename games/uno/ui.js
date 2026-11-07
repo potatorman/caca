@@ -1,4 +1,3 @@
-import { getDoc, doc } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 import { setAvatarElement } from "../../js/avatars.js";
 import { isCardPlayable } from "./engine.js";
 import {
@@ -12,38 +11,41 @@ import {
     subscribeToMatch
 } from "./state.js";
 
-const COLOR_LABELS = {
+const COLORS = Object.freeze({
     red: "Kırmızı",
     yellow: "Sarı",
     green: "Yeşil",
     blue: "Mavi"
-};
-
-const CARD_LABELS = {
+});
+const CARD_NAMES = Object.freeze({
     skip: "PAS",
     reverse: "YÖN",
     draw2: "+2",
     wild: "RENK",
     wild4: "+4"
+});
+
+const labelCard = (card) => CARD_NAMES[card?.type] || String(card?.value ?? "");
+const memberOf = (id, members) => members.find((member) => member.id === id) || null;
+const labelPlayer = (id, members, myId) => {
+    const member = memberOf(id, members);
+    const name = member?.displayNickname || member?.username || "Oyuncu";
+    return id === myId ? name + " · Sen" : name;
+};
+const errorMessage = (error, fallback) => {
+    const message = error?.message || fallback;
+    return error?.code ? message + " (" + error.code + ")" : message;
 };
 
-function cardLabel(card) {
-    return CARD_LABELS[card.type] || card.value;
-}
-
-function playerLabel(playerId, members, profiles) {
-    const member = members.find((item) => item.id === playerId);
-    const profile = profiles[playerId];
-    return member?.displayNickname || member?.username || profile?.nickname || profile?.username || "Oyuncu";
-}
-
-export async function openUnoGame({ db, roomId, round, uid, session, roomMembers = [], onLeave, onReturnToLobby }) {
+export async function openUnoGame({
+    db, roomId, round, uid, session, roomMembers = [], onLeave, onReturnToLobby
+}) {
+    const members = Array.isArray(roomMembers) ? roomMembers : [];
     const root = document.createElement("section");
     root.className = "uno-overlay";
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-label", "UNO masası");
-
     root.innerHTML = `
         <div class="uno-shell">
             <header class="uno-header">
@@ -77,9 +79,7 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                         <div class="uno-hand-heading-actions">
                             <span data-role="hand-count">0 kart</span>
                             <button class="uno-secondary uno-hand-visibility" type="button"
-                                data-action="toggle-hand-visibility" aria-pressed="false">
-                                Kartları gizle
-                            </button>
+                                data-action="toggle-hand-visibility" aria-pressed="false">Kartları gizle</button>
                         </div>
                     </div>
                     <div class="uno-hand-viewport" data-role="hand-viewport">
@@ -118,120 +118,80 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                     <button class="uno-primary" type="button" data-action="close-result">Lobiye dön</button>
                 </div>
             </div>
-        </div>
-    `;
-
+        </div>`;
     document.body.appendChild(root);
 
-    const $ = (role) => root.querySelector('[data-role="' + role + '"]');
+    const role = (name) => root.querySelector('[data-role="' + name + '"]');
     const action = (name) => root.querySelector('[data-action="' + name + '"]');
-    const members = Array.isArray(roomMembers) ? roomMembers : [];
-    const profiles = {};
-    let matchState = null;
-    let handData = null;
-    let selectedWildCardId = null;
-    let unsubscribeMatch = null;
-    let timeoutTimer = null;
-    let timeoutAttemptedKey = null;
-    let handHidden = false;
-    let cardActionInProgress = false;
-    let profileRenderVersion = 0;
-    const profileLoads = new Map();
+    const isMatchPlayer = session?.status === "playing" &&
+        Array.isArray(session?.matchPlayerIds) &&
+        session.matchPlayerIds.includes(uid);
+
+    let state = null;
+    let hand = null;
+    let selectedWildCard = null;
+    let unsubscribe = null;
+    let timeoutInterval = null;
+    let timeoutKey = "";
+    let hiddenHand = false;
+    let busy = false;
     let closed = false;
 
-    $("hand-area").hidden = !(
-        session?.status === "playing" &&
-        Array.isArray(session?.matchPlayerIds) &&
-        session.matchPlayerIds.includes(uid)
-    );
-    action("leave").hidden = !(
-        session?.status === "playing" &&
-        Array.isArray(session?.matchPlayerIds) &&
-        session.matchPlayerIds.includes(uid)
-    );
+    role("hand-area").hidden = !isMatchPlayer;
+    action("leave").hidden = !isMatchPlayer;
 
-    const setMessage = (message, error = false) => {
-        const inResults = $("result") && !$("result").hidden;
-        const target = inResults ? $("result-message") : $("message");
-        target.textContent = message || "";
-        target.classList.toggle("is-error", Boolean(error));
-    };
+    function setStatus(message) {
+        role("status").textContent = message || "";
+    }
 
-    const setStatus = (message) => {
-        $("status").textContent = message || "";
-    };
+    function setMessage(message = "", isError = false) {
+        const target = role("result").hidden ? role("message") : role("result-message");
+        target.textContent = message;
+        target.classList.toggle("is-error", Boolean(isError));
+    }
 
-    const loadProfiles = async (playerIds) => {
-        await Promise.all(playerIds.map((playerId) => {
-            if (profiles[playerId]) return Promise.resolve();
-
-            const known = members.find((item) => item.id === playerId);
-            if (known) {
-                profiles[playerId] = {
-                    username: known.username,
-                    nickname: known.displayNickname || known.username,
-                    avatarId: known.avatarId,
-                    avatarData: known.avatarData
-                };
-                return Promise.resolve();
-            }
-
-            if (profileLoads.has(playerId)) return profileLoads.get(playerId);
-
-            const pending = getDoc(doc(db, "users", playerId))
-                .then((snapshot) => {
-                    if (snapshot.exists()) profiles[playerId] = snapshot.data();
-                    else profiles[playerId] = { username: "Oyuncu" };
-                })
-                .catch(() => {
-                    profiles[playerId] = { username: "Oyuncu" };
-                })
-                .finally(() => profileLoads.delete(playerId));
-
-            profileLoads.set(playerId, pending);
-            return pending;
-        }));
-    };
-
-    const renderPlayers = () => {
-        const container = $("players");
+    function renderPlayers() {
+        const container = role("players");
         container.replaceChildren();
-        if (!matchState) return;
+        if (!state) return;
 
-        matchState.playerIds.forEach((playerId) => {
-            const count = Number(matchState.handCounts?.[playerId]) || 0;
-            const isActive = matchState.activePlayerIds?.includes(playerId);
-            const isCurrent = matchState.currentPlayerUid === playerId;
-            const card = document.createElement("article");
-            card.className = "uno-player" + (isCurrent ? " is-current" : "") + (!isActive ? " is-left" : "");
+        const players = Array.isArray(state.playerIds) ? state.playerIds : state.activePlayerIds || [];
+        players.forEach((id) => {
+            const member = memberOf(id, members);
+            const active = state.activePlayerIds?.includes(id);
+            const current = state.currentPlayerUid === id;
+            const row = document.createElement("article");
+            row.className = "uno-player" +
+                (current ? " is-current" : "") +
+                (!active ? " is-left" : "");
 
             const avatar = document.createElement("span");
             avatar.className = "uno-avatar";
-            const profile = profiles[playerId] || {};
-            setAvatarElement(avatar, profile.avatarId, profile.avatarData);
+            setAvatarElement(avatar, member?.avatarId, member?.avatarData);
 
             const details = document.createElement("span");
             details.className = "uno-player-details";
             const name = document.createElement("strong");
-            name.textContent = playerLabel(playerId, members, profiles) + (playerId === uid ? " · Sen" : "");
-            const cards = document.createElement("small");
-            cards.textContent = isActive ? count + " kart" : "Maçtan ayrıldı";
-            details.append(name, cards);
+            name.textContent = labelPlayer(id, members, uid);
+            const count = document.createElement("small");
+            count.textContent = active
+                ? (Number(state.handCounts?.[id]) || 0) + " kart"
+                : "Maçtan ayrıldı";
+            details.append(name, count);
 
-            const marker = document.createElement("span");
-            marker.className = "uno-player-turn";
-            marker.textContent = isCurrent ? "SIRA" : "";
-
-            card.append(avatar, details, marker);
-            container.appendChild(card);
+            const turn = document.createElement("span");
+            turn.className = "uno-player-turn";
+            turn.textContent = current ? "SIRA" : "";
+            row.append(avatar, details, turn);
+            container.appendChild(row);
         });
-    };
+    }
 
-    const renderHand = () => {
-        const container = $("hand");
+    function renderHand() {
+        const container = role("hand");
         container.replaceChildren();
-        const cards = Array.isArray(handData?.cards) ? handData.cards : [];
-        $("hand-count").textContent = cards.length + " kart";
+        const cards = Array.isArray(hand?.cards) ? hand.cards : [];
+        role("hand-count").textContent = cards.length + " kart";
 
         cards.forEach((card, index) => {
             const button = document.createElement("button");
@@ -239,366 +199,323 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             button.className = "uno-card uno-card-" + (card.color || "wild");
             button.dataset.cardId = card.id;
             button.style.setProperty("--card-index", String(index));
-            const isMyTurn = matchState?.status === "playing" && matchState.currentPlayerUid === uid;
-            const playable = isMyTurn && isCardPlayable(
-                card,
-                matchState.topCard,
-                matchState.activeColor,
-                cards
-            ) && (!matchState.drewCardId || matchState.drewCardId === card.id);
-            button.disabled = !playable || handHidden || cardActionInProgress;
-            button.classList.toggle("is-playable", Boolean(playable));
+
+            const myTurn = state?.status === "playing" && state.currentPlayerUid === uid;
+            const playable = Boolean(
+                myTurn &&
+                isCardPlayable(card, state.topCard, state.activeColor, cards) &&
+                (!state.drewCardId || state.drewCardId === card.id)
+            );
+            button.disabled = !playable || hiddenHand || busy;
+            button.classList.toggle("is-playable", playable);
+
             const value = document.createElement("span");
             value.className = "uno-card-value";
-            value.textContent = cardLabel(card);
+            value.textContent = labelCard(card);
             const corner = document.createElement("small");
-            corner.textContent = cardLabel(card);
+            corner.textContent = labelCard(card);
             button.append(corner, value, corner.cloneNode(true));
-            button.addEventListener("click", () => {
-                if (!handHidden) void handlePlay(card);
-            });
+            button.addEventListener("click", () => void playFromHand(card));
             container.appendChild(button);
         });
 
-        container.inert = handHidden;
-        container.setAttribute("aria-hidden", String(handHidden));
-        $("hand-viewport").classList.toggle("is-hidden", handHidden);
-        $("hand-cover").hidden = !handHidden;
-        $("hand-cover").setAttribute("aria-hidden", String(!handHidden));
+        container.inert = hiddenHand;
+        container.setAttribute("aria-hidden", String(hiddenHand));
+        role("hand-viewport").classList.toggle("is-hidden", hiddenHand);
+        role("hand-cover").hidden = !hiddenHand;
+        role("hand-cover").setAttribute("aria-hidden", String(!hiddenHand));
 
-        const visibilityButton = action("toggle-hand-visibility");
-        visibilityButton.textContent = handHidden ? "Kartları göster" : "Kartları gizle";
-        visibilityButton.setAttribute("aria-pressed", String(handHidden));
-        visibilityButton.title = handHidden ? "Kart yüzlerini tekrar göster" : "Kart yüzlerini gizle";
-    };
+        action("toggle-hand-visibility").textContent =
+            hiddenHand ? "Kartları göster" : "Kartları gizle";
+        action("toggle-hand-visibility").setAttribute("aria-pressed", String(hiddenHand));
+        action("toggle-hand-visibility").title =
+            hiddenHand ? "Kart yüzlerini tekrar göster" : "Kart yüzlerini gizle";
+    }
 
-    const render = () => {
-        if (!matchState) return;
+    function renderResult() {
+        const winnerId = state?.winnerId;
+        role("winner").textContent = winnerId
+            ? labelPlayer(winnerId, members, uid) + " kazandı!"
+            : "Maç tamamlandı";
 
-        const stateForRender = matchState;
-        const renderVersion = ++profileRenderVersion;
+        const scores = role("result-scores");
+        scores.replaceChildren();
+        const players = Array.isArray(state.playerIds) ? state.playerIds : state.activePlayerIds || [];
+        players.forEach((id) => {
+            const row = document.createElement("div");
+            row.className = "uno-result-row";
+            const name = document.createElement("span");
+            name.textContent = labelPlayer(id, members, uid);
+            const count = document.createElement("strong");
+            count.textContent = (Number(state.handCounts?.[id]) || 0) + " kart";
+            row.append(name, count);
+            scores.appendChild(row);
+        });
+        role("result").hidden = false;
+    }
 
-        // Draw game state immediately; profile reads must not block the table or hand.
+    function render() {
+        if (!state) return;
         renderPlayers();
         renderHand();
 
-        const currentName = playerLabel(stateForRender.currentPlayerUid, members, profiles);
-        const isMyTurn = stateForRender.currentPlayerUid === uid && stateForRender.status === "playing";
-        $("turn").textContent = isMyTurn ? "SIRA SENDE" : "Sıra: " + currentName;
-        $("active-color").textContent = "Aktif renk: " + (COLOR_LABELS[stateForRender.activeColor] || "—");
-        $("active-color").className = "uno-active-color is-" + (stateForRender.activeColor || "none");
-        $("direction").textContent = "Yön: " + (stateForRender.direction === -1 ? "←" : "→");
-        $("draw-count").textContent = (stateForRender.drawPile || []).length;
-        $("discard").replaceChildren();
+        const playing = state.status === "playing";
+        const myTurn = playing && state.currentPlayerUid === uid;
+        role("turn").textContent = myTurn
+            ? "SIRA SENDE"
+            : "Sıra: " + labelPlayer(state.currentPlayerUid, members, uid);
+        role("active-color").textContent = "Aktif renk: " + (COLORS[state.activeColor] || "—");
+        role("active-color").className = "uno-active-color is-" + (state.activeColor || "none");
+        role("direction").textContent = "Yön: " + (state.direction === -1 ? "←" : "→");
+        role("draw-count").textContent = String(Array.isArray(state.drawPile) ? state.drawPile.length : 0);
 
-        if (stateForRender.topCard) {
+        const discard = role("discard");
+        discard.replaceChildren();
+        if (state.topCard) {
             const top = document.createElement("div");
-            top.className = "uno-card uno-card-top uno-card-" + (stateForRender.topCard.color || "wild");
-            const topValue = document.createElement("span");
-            topValue.className = "uno-card-value";
-            topValue.textContent = cardLabel(stateForRender.topCard);
-            top.appendChild(topValue);
-            $("discard").appendChild(top);
+            top.className = "uno-card uno-card-top uno-card-" + (state.topCard.color || "wild");
+            const value = document.createElement("span");
+            value.className = "uno-card-value";
+            value.textContent = labelCard(state.topCard);
+            top.appendChild(value);
+            discard.appendChild(top);
         }
 
-        action("draw").disabled = !isMyTurn || Boolean(stateForRender.drewCardId);
-        action("end-turn").hidden = !isMyTurn || !stateForRender.drewCardId;
-        action("leave").hidden = stateForRender.status !== "playing" || !stateForRender.activePlayerIds?.includes(uid);
-        action("leave").disabled = (stateForRender.activePlayerIds?.length || 0) <= 1;
-        action("leave").title = action("leave").disabled
-            ? "Son oyuncusun; maç sonucu otomatik tamamlanacak."
+        action("draw").disabled = !myTurn || Boolean(state.drewCardId) || busy;
+        action("end-turn").hidden = !myTurn || !state.drewCardId;
+        action("end-turn").disabled = busy;
+
+        const canLeave = playing && state.activePlayerIds?.includes(uid);
+        action("leave").hidden = !canLeave;
+        action("leave").disabled = busy || (state.activePlayerIds?.length || 0) <= 1;
+        action("leave").title = (state.activePlayerIds?.length || 0) <= 1
+            ? "Son aktif oyuncu; odadan ayrılma işlemi oyun lobisini sıfırlar."
             : "Maçı terk et";
-        action("uno").hidden = !(stateForRender.unoPendingUid === uid && !stateForRender.unoCalled && stateForRender.status === "playing");
-        action("catch").hidden = !(
-            stateForRender.activePlayerIds?.includes(uid) &&
-            stateForRender.unoPendingUid &&
-            !stateForRender.unoCalled &&
-            stateForRender.unoPendingUid !== uid
+
+        action("uno").hidden = !(
+            playing && state.unoPendingUid === uid && !state.unoCalled
         );
-        setStatus(stateForRender.status === "results" ? "Maç tamamlandı" : isMyTurn ? "Hamleni yap" : "Diğer oyuncunun hamlesi bekleniyor");
+        action("uno").disabled = busy;
+        action("catch").hidden = !(
+            playing &&
+            state.activePlayerIds?.includes(uid) &&
+            state.unoPendingUid &&
+            !state.unoCalled &&
+            state.unoPendingUid !== uid
+        );
+        action("catch").disabled = busy;
 
-        if (stateForRender.status === "results") {
-            renderResult();
+        setStatus(state.status === "results"
+            ? "Maç tamamlandı"
+            : myTurn ? "Hamleni yap" : "Diğer oyuncunun hamlesi bekleniyor");
+
+        if (state.status === "results") renderResult();
+        else role("result").hidden = true;
+    }
+
+    async function perform(task, successText = "") {
+        if (busy || closed) return null;
+        busy = true;
+        renderHand();
+        try {
+            const result = await task();
+            setMessage(successText);
+            return result;
+        } catch (error) {
+            setMessage(errorMessage(error, "İşlem tamamlanamadı."), true);
+            return null;
+        } finally {
+            busy = false;
+            if (!closed) render();
         }
+    }
 
-        void loadProfiles(stateForRender.playerIds || []).then(() => {
-            if (closed || renderVersion !== profileRenderVersion) return;
-            renderPlayers();
-            if (matchState?.status === "results") renderResult();
-            else if (matchState) {
-                const latestName = playerLabel(matchState.currentPlayerUid, members, profiles);
-                const latestMyTurn = matchState.currentPlayerUid === uid && matchState.status === "playing";
-                $("turn").textContent = latestMyTurn ? "SIRA SENDE" : "Sıra: " + latestName;
-            }
-        });
-    };
-
-    const renderResult = () => {
-        const winner = matchState.winnerId;
-        $("winner").textContent = winner
-            ? playerLabel(winner, members, profiles) + " kazandı!"
-            : "Maç tamamlandı";
-
-        const scores = $("result-scores");
-        scores.replaceChildren();
-        matchState.playerIds.forEach((playerId) => {
-            const row = document.createElement("div");
-            row.className = "uno-result-row";
-            const label = document.createElement("span");
-            label.textContent = playerLabel(playerId, members, profiles);
-            const count = document.createElement("strong");
-            count.textContent = (Number(matchState.handCounts?.[playerId]) || 0) + " kart";
-            row.append(label, count);
-            scores.appendChild(row);
-        });
-
-        $("result").hidden = false;
-    };
-
-    const formatPlayError = (error) => {
-        const message = error?.message || "Kart oynanamadı.";
-        return error?.code ? message + " (" + error.code + ")" : message;
-    };
-
-    const handlePlay = async (card) => {
+    async function playFromHand(card) {
         if (
-            cardActionInProgress ||
-            handHidden ||
-            !matchState ||
-            matchState.currentPlayerUid !== uid
+            busy || hiddenHand || state?.status !== "playing" ||
+            state.currentPlayerUid !== uid
         ) return;
 
         if (card.type === "wild" || card.type === "wild4") {
-            selectedWildCardId = card.id;
-            $("color-modal").hidden = false;
+            selectedWildCard = card.id;
+            role("color-modal").hidden = false;
             return;
         }
+        await perform(() => playCard(db, roomId, round, uid, card.id));
+    }
 
-        cardActionInProgress = true;
-        renderHand();
-        try {
-            setMessage("Kart oynanıyor…");
-            await playCard(db, roomId, round, uid, card.id);
-            setMessage("");
-        } catch (error) {
-            setMessage(formatPlayError(error), true);
-        } finally {
-            cardActionInProgress = false;
-            if (!closed && matchState?.status === "playing") renderHand();
-        }
-    };
-
-    const close = () => {
+    function close() {
         if (closed) return;
         closed = true;
-        if (unsubscribeMatch) unsubscribeMatch();
-        if (timeoutTimer) clearInterval(timeoutTimer);
+        unsubscribe?.();
+        if (timeoutInterval) clearInterval(timeoutInterval);
         root.remove();
-    };
+    }
 
-    const returnFromResults = async (button) => {
-        if (matchState?.status !== "results" || typeof onReturnToLobby !== "function") {
+    async function returnFromResults(button) {
+        if (state?.status !== "results" || typeof onReturnToLobby !== "function") {
             close();
             return;
         }
-
+        if (busy) return;
+        busy = true;
         button.disabled = true;
         try {
             setStatus("Lobiye dönüşün kaydediliyor…");
             const result = await onReturnToLobby();
-            if (result?.completed) {
-                setStatus("Tüm oyuncular döndü. Yeni lobi açıldı.");
-            } else {
-                setStatus(
-                    "Lobiye döndün. Diğer oyuncular bekleniyor (" +
+            setStatus(result?.completed
+                ? "Tüm oyuncular döndü. Yeni lobi açıldı."
+                : "Lobiye döndün. Diğer oyuncular bekleniyor (" +
                     (result?.returnedCount ?? 1) + "/" +
-                    (result?.requiredCount ?? "…") + ")."
-                );
-            }
+                    (result?.requiredCount ?? "…") + ").");
             close();
         } catch (error) {
-            const errorMessage = error?.message || "Bilinmeyen hata";
-            const errorCode = error?.code ? " (" + error.code + ")" : "";
-            setMessage("Lobiye dönülemedi: " + errorMessage + errorCode, true);
+            setMessage(errorMessage(error, "Lobiye dönülemedi."), true);
+            busy = false;
             button.disabled = false;
         }
-    };
+    }
 
     action("toggle-hand-visibility").addEventListener("click", () => {
-        handHidden = !handHidden;
+        hiddenHand = !hiddenHand;
         renderHand();
     });
-
     action("close").addEventListener("click", (event) => {
-        if (matchState?.status === "results") {
-            void returnFromResults(event.currentTarget);
-            return;
-        }
-        close();
+        if (state?.status === "results") void returnFromResults(event.currentTarget);
+        else close();
     });
     action("close-result").addEventListener("click", (event) => {
         void returnFromResults(event.currentTarget);
     });
+
     action("leave").addEventListener("click", async (event) => {
         const button = event.currentTarget;
-        if (!window.confirm("Maçı tamamen terk etmek istiyor musun? Oyun lobisinden de çıkarılacaksın. İki kişilik maçta kalan oyuncu kazanır.")) return;
+        if (busy || button.disabled) return;
+        if (!window.confirm(
+            "Maçı tamamen terk etmek istiyor musun? Oyun lobisinden de çıkarılacaksın. İki kişilik maçta kalan oyuncu kazanır."
+        )) return;
 
+        busy = true;
         button.disabled = true;
+        renderHand();
         try {
-            const left = await onLeave?.();
-            if (left === false) {
-                throw new Error("Maç terk edilemedi. Lobi çıkış mesajını kontrol et.");
-            }
+            const result = await onLeave?.();
+            if (result === false) throw new Error("Maçtan çıkış tamamlanmadı.");
             close();
         } catch (error) {
-            const code = error?.code ? " (" + error.code + ")" : "";
-            setMessage(
-                (error?.message || "Maçı terk edemedin.") + code,
-                true
-            );
-            button.disabled = false;
+            setMessage(errorMessage(error, "Maçı terk edemedin."), true);
+            busy = false;
+            if (!closed) render();
         }
     });
 
-    action("draw").addEventListener("click", async () => {
-        try {
-            setMessage("Kart çekiliyor…");
+    action("draw").addEventListener("click", () => {
+        void perform(async () => {
             const result = await drawOneCard(db, roomId, round, uid);
-            setMessage(result.empty
+            return result.empty
                 ? "Çekme destesi ve yeniden karıştırılabilecek kart kalmadı; sıra sonraki oyuncuya geçti."
                 : result.playable
                     ? "Çektiğin kartı oynayabilir veya sıranı bitirebilirsin."
-                    : "Çektiğin kart oynanamıyor; sıra sonraki oyuncuya geçti.");
-        } catch (error) {
-            setMessage(error.message || "Kart çekilemedi.", true);
-        }
+                    : "Çektiğin kart oynanamıyor; sıra sonraki oyuncuya geçti.";
+        }).then((message) => {
+            if (typeof message === "string") setMessage(message);
+        });
     });
-
-    action("end-turn").addEventListener("click", async () => {
-        try {
-            await endTurnAfterDraw(db, roomId, round, uid);
-            setMessage("");
-        } catch (error) {
-            setMessage(error.message || "Sıra bitirilemedi.", true);
-        }
+    action("end-turn").addEventListener("click", () => {
+        void perform(() => endTurnAfterDraw(db, roomId, round, uid));
     });
-
-    action("uno").addEventListener("click", async () => {
-        try {
-            await callUno(db, roomId, round, uid);
-            setMessage("UNO dedin!");
-        } catch (error) {
-            setMessage(error.message || "UNO çağrısı yapılamadı.", true);
-        }
+    action("uno").addEventListener("click", () => {
+        void perform(() => callUno(db, roomId, round, uid), "UNO dedin!");
     });
-
-    action("catch").addEventListener("click", async () => {
-        try {
+    action("catch").addEventListener("click", () => {
+        void perform(async () => {
             const result = await catchUno(db, roomId, round, uid);
-            setMessage(playerLabel(result.targetUid, members, profiles) + " UNO demedi: " + result.count + " kart çekti.");
-        } catch (error) {
-            setMessage(error.message || "UNO yakalanamadı.", true);
-        }
-    });
-
-    root.querySelectorAll("[data-color]").forEach((button) => {
-        button.addEventListener("click", async () => {
-            if (!selectedWildCardId || cardActionInProgress || handHidden) return;
-            const color = button.dataset.color;
-            $("color-modal").hidden = true;
-            cardActionInProgress = true;
-            renderHand();
-            try {
-                await playCard(db, roomId, round, uid, selectedWildCardId, color);
-                setMessage("Aktif renk " + COLOR_LABELS[color] + " oldu.");
-            } catch (error) {
-                setMessage(formatPlayError(error), true);
-            } finally {
-                selectedWildCardId = null;
-                cardActionInProgress = false;
-                if (!closed && matchState?.status === "playing") renderHand();
-            }
+            return labelPlayer(result.targetUid, members, uid) +
+                " UNO demedi: " + result.count + " kart çekti.";
+        }).then((message) => {
+            if (typeof message === "string") setMessage(message);
         });
     });
 
-    const startMatchSubscription = (watchHand) => {
-        if (closed || unsubscribeMatch) return;
+    root.querySelectorAll("[data-color]").forEach((button) => {
+        button.addEventListener("click", () => {
+            if (!selectedWildCard || busy || hiddenHand) return;
+            const cardId = selectedWildCard;
+            const color = button.dataset.color;
+            selectedWildCard = null;
+            role("color-modal").hidden = true;
+            void perform(
+                () => playCard(db, roomId, round, uid, cardId, color),
+                "Aktif renk " + COLORS[color] + " oldu."
+            );
+        });
+    });
 
-        unsubscribeMatch = subscribeToMatch(
-            db,
-            roomId,
-            round,
-            uid,
-            (state) => {
+    function subscribe(watchHand) {
+        if (closed || unsubscribe) return;
+        unsubscribe = subscribeToMatch(
+            db, roomId, round, uid,
+            (nextState) => {
                 if (closed) return;
-                matchState = state;
+                state = nextState;
                 if (!state) {
                     setStatus("Yeni tur hazırlanıyor…");
-                    $("players").replaceChildren();
-                    $("discard").replaceChildren();
-                    $("hand").replaceChildren();
-                    $("hand-count").textContent = "0 kart";
+                    role("players").replaceChildren();
+                    role("discard").replaceChildren();
+                    role("hand").replaceChildren();
+                    role("hand-count").textContent = "0 kart";
                     return;
                 }
                 render();
             },
-            (hand) => {
+            (nextHand) => {
                 if (closed) return;
-                handData = hand;
+                hand = nextHand;
                 renderHand();
             },
-            (error, source) => setMessage((source ? source + ": " : "") + (error.message || "UNO bağlantısı koptu."), true),
+            (error, source) => {
+                if (!closed) setMessage(
+                    (source ? source + ": " : "") + errorMessage(error, "UNO bağlantısı koptu."),
+                    true
+                );
+            },
             watchHand
         );
-    };
+    }
 
-    timeoutTimer = setInterval(() => {
-        if (closed || matchState?.status !== "playing" || !matchState.activePlayerIds?.includes(uid)) {
+    // Only the deterministic coordinator attempts a timed-out turn.
+    timeoutInterval = setInterval(() => {
+        if (
+            closed || busy || state?.status !== "playing" ||
+            state.activePlayerIds?.[0] !== uid
+        ) return;
+
+        const started = state.turnStartedAt?.toMillis?.();
+        const key = String(state.turnNumber) + ":" + state.currentPlayerUid;
+        if (!Number.isFinite(started) || Date.now() - started < 90_000 || timeoutKey === key) {
             return;
         }
 
-        const turnStartedAt = matchState.turnStartedAt?.toMillis?.();
-        const timeoutKey = String(matchState.turnNumber) + ":" + matchState.currentPlayerUid;
-        if (!Number.isFinite(turnStartedAt) || Date.now() - turnStartedAt < 90000) return;
-        if (timeoutAttemptedKey === timeoutKey) return;
-
-        timeoutAttemptedKey = timeoutKey;
-        skipTimedOutTurn(db, roomId, round, uid)
-            .then((skipped) => {
-                if (!skipped) timeoutAttemptedKey = null;
-            })
-            .catch((error) => {
-                timeoutAttemptedKey = null;
-                if (error.code !== "permission-denied") {
-                    setMessage(error.message || "Sıra zaman aşımı denetlenemedi.", true);
-                }
-            });
-    }, 5000);
-
-    const isMatchPlayer = session?.status === "playing" &&
-        Array.isArray(session?.matchPlayerIds) &&
-        session.matchPlayerIds.includes(uid);
+        timeoutKey = key;
+        skipTimedOutTurn(db, roomId, round, uid).then((skipped) => {
+            if (!skipped) timeoutKey = "";
+        }).catch((error) => {
+            timeoutKey = "";
+            if (!closed) setMessage(errorMessage(error, "Sıra zaman aşımı denetlenemedi."), true);
+        });
+    }, 3000);
 
     if (isMatchPlayer) {
         setStatus("Kartlar dağıtılıyor…");
-        ensureMatch(db, roomId, round, uid, { recoverStaleSession: true })
-            .then((result) => {
-                if (closed) return;
-
-                if (result?.sessionAdvanced) {
-                    setStatus("Eski maç kaydı temizlendi. Yeni tur başlatılıyor…");
-                    close();
-                    return;
-                }
-
-                // The private hand document must exist before its listener is attached.
-                startMatchSubscription(true);
+        ensureMatch(db, roomId, round, uid)
+            .then(() => {
+                if (!closed) subscribe(true);
             })
             .catch((error) => {
-                if (!closed) setMessage("Kart dağıtımı başarısız: " + (error.message || "Maç hazırlanamadı."), true);
+                if (!closed) setMessage(errorMessage(error, "Maç hazırlanamadı."), true);
             });
     } else {
-        startMatchSubscription(false);
+        subscribe(false);
         setMessage("İzleyici görünümü. Kart elleri yalnızca ilgili oyuncuya gösterilir.");
     }
 
