@@ -817,6 +817,22 @@ service cloud.firestore {
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['status', 'countdownEndsAt', 'readyIds', 'updatedAt'])
             )
+            // If readiness changed while a countdown-completion request was in flight,
+            // an expired countdown can safely return to the lobby instead of getting stuck.
+            || (
+              resource.data.status == 'starting'
+              && request.resource.data.status == 'lobby'
+              && request.time >= resource.data.countdownEndsAt
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && !request.resource.data.readyIds.hasAll(resource.data.playerIds)
+              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+              && spectators(request.resource.data) == spectators(resource.data)
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'countdownEndsAt', 'updatedAt'])
+            )
             // A player can leave while the countdown is running; the countdown is cancelled.
             || (
               resource.data.status == 'starting'
