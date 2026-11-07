@@ -441,7 +441,11 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
             }
             close();
         } catch (error) {
-            setMessage(error.message || "Maçı terk edemedin.", true);
+            const code = error?.code ? " (" + error.code + ")" : "";
+            setMessage(
+                (error?.message || "Maçı terk edemedin.") + code,
+                true
+            );
             button.disabled = false;
         }
     });
