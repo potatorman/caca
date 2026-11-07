@@ -622,8 +622,8 @@ service cloud.firestore {
           return /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round);
         }
 
-        // Repair only a broken session where the UNO document for this round
-        // already contains a result or belongs to a different round/room.
+        // Repair an orphaned UNO result by advancing to a clean round while
+        // keeping the current match roster active. This avoids a false lobby reset.
         function canRepairStaleUnoSession() {
           return resource.data.gameId == 'uno'
             && resource.data.status == 'playing'
@@ -634,28 +634,20 @@ service cloud.firestore {
               || get(staleUnoMatchPath()).data.round != resource.data.round
               || get(staleUnoMatchPath()).data.roomId != roomId
             )
-            && request.resource.data.status == 'lobby'
+            && request.resource.data.status == 'playing'
             && request.resource.data.hostId == resource.data.hostId
             && request.resource.data.round == resource.data.round + 1
-            && request.resource.data.playerIds.hasAll(resource.data.playerIds)
-            && request.resource.data.playerIds.hasAll(spectators(resource.data))
-            && request.resource.data.playerIds.hasAll(resource.data.nextRoundPlayerIds)
-            && request.resource.data.playerIds.size()
-              == resource.data.playerIds.size()
-                + spectators(resource.data).size()
-                + resource.data.nextRoundPlayerIds.size()
-            && request.resource.data.readyIds.size() == 0
-            && request.resource.data.matchPlayerIds.size() == 0
-            && request.resource.data.spectatorIds.size() == 0
-            && request.resource.data.nextRoundPlayerIds.size() == 0
-            && request.resource.data.nextRoundReadyIds.size() == 0
-            && request.resource.data.startedAt == null
+            && request.resource.data.playerIds == resource.data.playerIds
+            && request.resource.data.readyIds == resource.data.readyIds
+            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+            && spectators(request.resource.data) == spectators(resource.data)
+            && request.resource.data.nextRoundPlayerIds == resource.data.nextRoundPlayerIds
+            && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
+            && request.resource.data.startedAt is timestamp
             && request.resource.data.countdownEndsAt == null
             && request.resource.data.finishedAt == null
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status', 'round', 'playerIds', 'readyIds', 'matchPlayerIds',
-              'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
-              'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+              'round', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
             ]);
         }
 
