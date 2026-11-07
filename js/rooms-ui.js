@@ -3,6 +3,7 @@ import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY, getGameDefinition } from "../games/registry.js";
 import {
+    ensureMatch as ensureUnoMatch,
     reconcileMatchPlayers as reconcileUnoMatchPlayers,
     forfeitMatch as forfeitUnoMatch,
     returnToLobby as returnUnoToLobby
@@ -2378,9 +2379,14 @@ async function leaveUnoMatchFromSession(roomId, session, uid) {
         throw new Error("Maçta senden başka aktif oyuncu kalmadı; lobi sıfırlanmalı.");
     }
 
-    // Leaving does not need a private hand document. Work directly from the
-    // authoritative match roster so a missing/stale hand cannot block a forfeit.
+    // Create the public match record only when nobody has opened this round yet.
+    // A forfeit never depends on the leaver having a private hand document.
     try {
+        const matchDocument = doc(db, "rooms", roomId, "unoMatches", String(session.round));
+        const matchSnapshot = await getDoc(matchDocument);
+        if (!matchSnapshot.exists()) {
+            await ensureUnoMatch(db, roomId, session.round, uid);
+        }
         return await forfeitUnoMatch(db, roomId, session.round, uid);
     } catch (error) {
         const wrapped = new Error(error?.message || "UNO maçından çıkış başarısız.");
