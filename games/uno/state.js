@@ -358,7 +358,7 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
             throw new Error("Son kartı oynayabilmek için aktif UNO maç kaydı doğrulanamadı.");
         }
 
-        if (effect.drawCount > 0 && !isWinningPlay) {
+        if (effect.drawCount > 0) {
             const targetIndex = nextIndex(state, currentIndex, state.direction, effect.targetIndexOffset);
             targetUid = playerIds[targetIndex];
             targetHandDocument = handRef(db, roomId, round, targetUid);
@@ -374,7 +374,7 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
 
         // A winning card ends the round, so its effect must not block the win
         // by requiring an additional write to the next player's private hand.
-        if (targetHandDocument && drawnCards.length && !isWinningPlay) {
+        if (targetHandDocument && drawnCards.length) {
             transaction.update(targetHandDocument, {
                 cards: arrayUnion(...drawnCards),
                 updatedAt: serverTimestamp()
