@@ -1600,11 +1600,12 @@ function renderGameCenter() {
     $("readyGameSessionButton").hidden = !["lobby", "starting"].includes(session.status) || !isLobbyPlayer;
     $("leaveGameSessionButton").hidden = !(
         (["lobby", "starting", "results"].includes(session.status) && isLobbyPlayer) ||
-        (isPlaying && isMatchPlayer)
+        (isPlaying && (isLobbyPlayer || isMatchPlayer || isSpectator))
     );
-    $("leaveGameSessionButton").textContent = isPlaying && isMatchPlayer
-        ? "Maçtan ayrıl (lobide kal)"
-        : "Lobiden ayrıl";
+    $("leaveGameSessionButton").textContent =
+        isPlaying && isSpectator && !isLobbyPlayer
+            ? "İzleyicilikten ayrıl"
+            : "Lobiden ayrıl";
 
     const openMatchButton = $("openGameMatchButton");
     if (openMatchButton) {
@@ -1627,11 +1628,11 @@ function renderGameCenter() {
     }
 
     if (isPlaying && isMatchPlayer) {
-        setGameCenterStatus("Maçtasın. Maçtan ayrılsan bile kalıcı lobi üyeliğin korunur.");
+        setGameCenterStatus("Maçtasın. Oyun ekranındaki “Maçtan ayrıl” seçeneği lobide kalmanı sağlar; buradaki “Lobiden ayrıl” seçeneği seni kalıcı listeden çıkarır.");
     } else if (isPlaying && isSpectator) {
-        setGameCenterStatus("Bu maçı izliyorsun. Maç bitince otomatik lobi üyesi olacaksın.");
+        setGameCenterStatus("Bu maçı izliyorsun. “İzleyicilikten ayrıl” seçeneği seni izleyici listesinden çıkarır.");
     } else if (isPlaying) {
-        setGameCenterStatus("Lobide kalıyorsun. Maç sırasında gelen izleyiciler yalnızca buraya girdiklerinde görünür.");
+        setGameCenterStatus("Lobide kalıyorsun. Buradaki “Lobiden ayrıl” seçeneği kalıcı üyeliğini sonlandırır.");
     } else if (isResults) {
         setGameCenterStatus("Sonuçlar 5 saniye gösterilecek. Ardından lobi otomatik sıfırlanacak.");
     } else if (isStarting && isLobbyPlayer) {
@@ -2164,7 +2165,39 @@ async function toggleGameReady() {
 }
 
 async function leaveGameLobby() {
-    if (!currentUser || !gameSessionData || !["lobby", "starting", "results"].includes(gameSessionData.status)) return;
+    if (
+        !currentUser ||
+        !gameSessionData ||
+        !["lobby", "starting", "playing", "results"].includes(gameSessionData.status)
+    ) return;
+
+    const uid = currentUser.uid;
+    const initialSession = gameSessionData;
+    const initialMatchPlayers = Array.isArray(initialSession.matchPlayerIds)
+        ? initialSession.matchPlayerIds
+        : (["playing", "results"].includes(initialSession.status)
+            ? initialSession.playerIds || []
+            : []);
+
+    // Ensure UNO state exists before a non-final match player leaves, so the
+    // remaining clients can reconcile the frozen match roster.
+    if (
+        initialSession.status === "playing" &&
+        initialSession.gameId === "uno" &&
+        initialMatchPlayers.includes(uid) &&
+        initialMatchPlayers.length > 1
+    ) {
+        try {
+            await ensureUnoMatch(db, activeRoomId, initialSession.round, uid);
+        } catch (error) {
+            setGameCenterStatus("Maç hazırlanamadığı için lobiden ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
+            return;
+        }
+    }
+
+    const leaveButton = $("leaveGameSessionButton");
+    if (leaveButton) leaveButton.disabled = true;
+
     try {
         const result = await runTransaction(db, async (transaction) => {
             const ref = getGameSessionRef();
@@ -2172,16 +2205,57 @@ async function leaveGameLobby() {
             if (!snapshot.exists()) return { left: false };
 
             const latest = snapshot.data();
+            if (!["lobby", "starting", "playing", "results"].includes(latest.status)) {
+                return { left: false };
+            }
+
             const players = Array.isArray(latest.playerIds) ? latest.playerIds : [];
             const readyIds = Array.isArray(latest.readyIds) ? latest.readyIds : [];
-            if (!players.includes(currentUser.uid)) return { left: false };
+            const matchPlayers = Array.isArray(latest.matchPlayerIds)
+                ? latest.matchPlayerIds
+                : (["playing", "results"].includes(latest.status) ? players : []);
+            const spectators = Array.isArray(latest.spectatorIds) ? latest.spectatorIds : [];
+            const isPlayer = players.includes(uid);
+            const isMatchPlayer = matchPlayers.includes(uid);
+            const isSpectator = spectators.includes(uid);
 
-            const remainingPlayers = players.filter((id) => id !== currentUser.uid);
-            const remainingReady = readyIds.filter((id) => id !== currentUser.uid);
-            const isHost = latest.hostId === currentUser.uid;
+            if (!isPlayer && !isMatchPlayer && !isSpectator) return { left: false };
+
+            const remainingPlayers = players.filter((id) => id !== uid);
+            const remainingReady = readyIds.filter((id) => id !== uid);
+            const remainingMatchPlayers = matchPlayers.filter((id) => id !== uid);
+            const remainingSpectators = spectators.filter((id) => id !== uid);
+            const isHost = latest.hostId === uid;
+
             if (isHost && remainingPlayers.length === 0) {
                 transaction.delete(ref);
                 return { left: true, closed: true };
+            }
+
+            const isLastMatchPlayer = latest.status === "playing" &&
+                isMatchPlayer &&
+                matchPlayers.length === 1;
+
+            if (isLastMatchPlayer) {
+                // No active player remains. Reset the persistent lobby for a
+                // fresh match instead of trapping the final player in it.
+                const updates = {
+                    status: "lobby",
+                    round: (Number(latest.round) || 1) + 1,
+                    playerIds: remainingPlayers,
+                    readyIds: [],
+                    matchPlayerIds: [],
+                    spectatorIds: [],
+                    nextRoundPlayerIds: [],
+                    nextRoundReadyIds: [],
+                    startedAt: null,
+                    countdownEndsAt: null,
+                    finishedAt: null,
+                    updatedAt: serverTimestamp()
+                };
+                if (isHost) updates.hostId = remainingPlayers[0];
+                transaction.update(ref, updates);
+                return { left: true, reset: true, hostChanged: isHost };
             }
 
             const updates = {
@@ -2189,27 +2263,41 @@ async function leaveGameLobby() {
                 readyIds: remainingReady,
                 updatedAt: serverTimestamp()
             };
-            if (Array.isArray(latest.matchPlayerIds) && latest.matchPlayerIds.includes(currentUser.uid)) {
-                updates.matchPlayerIds = arrayRemove(currentUser.uid);
+            if (Array.isArray(latest.matchPlayerIds) && isMatchPlayer) {
+                updates.matchPlayerIds = remainingMatchPlayers;
+            }
+            if (Array.isArray(latest.spectatorIds) && isSpectator) {
+                updates.spectatorIds = remainingSpectators;
             }
             if (latest.status === "starting") {
                 updates.status = "lobby";
                 updates.countdownEndsAt = null;
             }
             if (isHost) updates.hostId = remainingPlayers[0];
+
             transaction.update(ref, updates);
             return { left: true, hostChanged: isHost };
         });
 
+        if (result.left) {
+            activeRoomGame?.close();
+            activeRoomGame = null;
+            activeRoomGameKey = "";
+        }
+
         if (result.closed) {
             setGameCenterStatus("Lobide başka oyuncu kalmadığı için lobi kapatıldı.");
+        } else if (result.reset) {
+            setGameCenterStatus("Son maç oyuncusu ayrıldı. Lobi yeni maç için sıfırlandı.");
         } else if (result.hostChanged) {
             setGameCenterStatus("Lobiden ayrıldın. Lobi sahipliği sıradaki üyeye devredildi.");
         } else if (result.left) {
-            setGameCenterStatus("Kalıcı lobiden ayrıldın.");
+            setGameCenterStatus("Oyun lobisinden ayrıldın.");
         }
     } catch (error) {
         setGameCenterStatus("Lobiden ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
+    } finally {
+        if (leaveButton) leaveButton.disabled = false;
     }
 }
 
@@ -2220,7 +2308,7 @@ async function leaveCurrentMatch() {
         : (gameSessionData.playerIds || []);
     if (!matchPlayers.includes(currentUser.uid)) return;
     if (gameSessionData.gameId === "uno" && matchPlayers.length <= 1) {
-        setGameCenterStatus("Son maç oyuncususun. Masayı kapatabilirsin; lobi üyeliğin korunur.", true);
+        await leaveGameLobby();
         return;
     }
     try {
@@ -2302,17 +2390,7 @@ $("openGameMatchButton")?.addEventListener("click", async () => {
 });
 $("joinGameSessionButton").addEventListener("click", joinGameSession);
 $("readyGameSessionButton").addEventListener("click", toggleGameReady);
-$("leaveGameSessionButton").addEventListener("click", () => {
-    const matchPlayers = Array.isArray(gameSessionData?.matchPlayerIds)
-        ? gameSessionData.matchPlayerIds
-        : (gameSessionData?.status === "playing" ? gameSessionData.playerIds || [] : []);
-    if (gameSessionData?.status === "playing" &&
-        matchPlayers.includes(currentUser?.uid)) {
-        leaveCurrentMatch();
-    } else {
-        leaveGameLobby();
-    }
-});
+$("leaveGameSessionButton").addEventListener("click", leaveGameLobby);
 $("finishGameRoundButton").addEventListener("click", finishGameMatch);
 $("closeGameSessionButton").addEventListener("click", closeGameSession);
 
