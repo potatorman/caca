@@ -275,24 +275,6 @@ function createNextTurnPatch(state, index, direction, extra = {}) {
     };
 }
 
-function makeResultSessionPatch(session) {
-    const players = Array.isArray(session.playerIds) ? session.playerIds : [];
-    const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
-    const persistentPlayers = [...new Set([...players, ...spectators])];
-
-    return {
-        status: "results",
-        playerIds: persistentPlayers,
-        readyIds: [],
-        matchPlayerIds: Array.isArray(session.matchPlayerIds) ? session.matchPlayerIds : [],
-        spectatorIds: [],
-        nextRoundPlayerIds: [],
-        nextRoundReadyIds: [],
-        finishedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-    };
-}
-
 export async function playCard(db, roomId, round, uid, cardId, selectedColor = null) {
     // First commit the actual card play and match result. The lobby result is
     // finalized in a second transaction after the winning match document exists.
@@ -414,57 +396,8 @@ export async function playCard(db, roomId, round, uid, cardId, selectedColor = n
         return { winner: isWinningPlay, card };
     });
 
-    if (result.winner) {
-        try {
-            await runTransaction(db, async (transaction) => {
-                const activeDocument = sessionRef(db, roomId);
-                const gameDocument = matchRef(db, roomId, round);
-                const activeSnapshot = await transaction.get(activeDocument);
-                const gameSnapshot = await transaction.get(gameDocument);
-
-                if (!activeSnapshot.exists() || !gameSnapshot.exists()) {
-                    throw new Error("Maç sonucu veya kalıcı lobi bulunamadı.");
-                }
-
-                const session = activeSnapshot.data();
-                const finishedMatch = gameSnapshot.data();
-
-                if (
-                    finishedMatch.status !== "results" ||
-                    finishedMatch.winnerId !== uid ||
-                    Number(finishedMatch.round) !== Number(round)
-                ) {
-                    throw new Error("Son kart kaydedildi ancak kazanan bilgisi doğrulanamadı.");
-                }
-
-                // Another client may already have completed this second phase.
-                if (
-                    session.status === "results" &&
-                    session.gameId === "uno" &&
-                    Number(session.round) === Number(round)
-                ) {
-                    return;
-                }
-
-                if (
-                    session.status !== "playing" ||
-                    session.gameId !== "uno" ||
-                    Number(session.round) !== Number(round) ||
-                    !session.matchPlayerIds?.includes(uid)
-                ) {
-                    throw new Error("Son kart kaydedildi ancak oyun lobisi sonuç durumuna geçirilemedi.");
-                }
-
-                transaction.update(activeDocument, makeResultSessionPatch(session));
-            });
-        } catch (error) {
-            throw new Error(
-                "Son kart oynandı ve kazanç kaydedildi; sonuç ekranı eşitlenirken hata oluştu: " +
-                (error.message || "Bilinmeyen hata")
-            );
-        }
-    }
-
+    // The match document is the authoritative result. The persistent lobby
+    // remains in "playing" until a player returns from the result screen.
     return result;
 }
 export async function drawOneCard(db, roomId, round, uid) {
