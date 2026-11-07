@@ -113,8 +113,9 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
                     <span class="uno-eyebrow">MAÇ SONUCU</span>
                     <h2 data-role="winner">Kazanan</h2>
                     <div data-role="result-scores"></div>
+                    <p class="uno-result-hint">Bu seçim yalnızca seni sonuç ekranından çıkarır. Yeni lobi, bütün aktif oyuncular döndüğünde açılır.</p>
                     <p class="uno-message uno-result-message" data-role="result-message" aria-live="assertive"></p>
-                    <button class="uno-primary" type="button" data-action="close-result">Yeni tur için lobiye dön</button>
+                    <button class="uno-primary" type="button" data-action="close-result">Lobiye dön</button>
                 </div>
             </div>
         </div>
@@ -403,8 +404,17 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
 
         button.disabled = true;
         try {
-            setStatus("Yeni lobi hazırlanıyor…");
-            await onReturnToLobby();
+            setStatus("Lobiye dönüşün kaydediliyor…");
+            const result = await onReturnToLobby();
+            if (result?.completed) {
+                setStatus("Tüm oyuncular döndü. Yeni lobi açıldı.");
+            } else {
+                setStatus(
+                    "Lobiye döndün. Diğer oyuncular bekleniyor (" +
+                    (result?.returnedCount ?? 1) + "/" +
+                    (result?.requiredCount ?? "…") + ")."
+                );
+            }
             close();
         } catch (error) {
             const errorMessage = error?.message || "Bilinmeyen hata";
