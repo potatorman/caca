@@ -1749,6 +1749,10 @@ async function returnUnoToLobbyFromResults(roomId, expectedRound) {
         };
     });
 
+    // If another player already completed the transition, do not race their
+    // cleanup batches; the lobby itself is already in the correct state.
+    if (transition.alreadyReturned) return transition;
+
     // Cleanup is deliberately after the lobby transition. Each small batch stays
     // below Firestore's aggregate security-rule document-access-call limit.
     const matchPath = doc(db, "rooms", roomId, "unoMatches", String(expectedRound));
