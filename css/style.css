@@ -4705,6 +4705,7 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 .uno-color-options button[data-color="blue"] { background: #347cdb; }
 .uno-result-card { max-height: 90%; overflow: auto; }
 .uno-result-card h2 { margin: 8px 0 18px; font-size: 25px; }
+.uno-result-hint { margin: 0 0 12px; color: #a8c6bc; font-size: 11px; line-height: 1.5; }
 .uno-result-card .uno-result-message {
     min-height: 0;
     margin: 12px 0 0;
