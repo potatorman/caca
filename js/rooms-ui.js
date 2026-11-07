@@ -2174,6 +2174,33 @@ async function toggleGameReady() {
     }
 }
 
+async function leaveUnoMatchFromSession(roomId, session, uid) {
+    const matchPlayers = Array.isArray(session?.matchPlayerIds)
+        ? session.matchPlayerIds
+        : (session?.playerIds || []);
+
+    if (session?.gameId !== "uno" || session?.status !== "playing" || !matchPlayers.includes(uid)) {
+        throw new Error("Aktif UNO oyuncu kaydı bulunamadı.");
+    }
+    if (matchPlayers.length < 2) {
+        throw new Error("Maçta senden başka aktif oyuncu kalmadı; lobi sıfırlanmalı.");
+    }
+
+    try {
+        // Ensure the shared match and this player's private hand exist before forfeiting.
+        await ensureUnoMatch(db, roomId, session.round, uid);
+    } catch (error) {
+        throw new Error("UNO maç verisi hazırlanamadı: " + (error?.message || "Bilinmeyen hata"));
+    }
+
+    try {
+        // The match roster and persistent lobby are removed in one transaction.
+        return await forfeitUnoMatch(db, roomId, session.round, uid);
+    } catch (error) {
+        throw new Error("UNO maç/lobi işlemi reddedildi: " + (error?.message || "Bilinmeyen hata"));
+    }
+}
+
 async function leaveGameLobby() {
     if (
         !currentUser ||
@@ -2201,12 +2228,7 @@ async function leaveGameLobby() {
         initialMatchPlayers.length > 1
     ) {
         try {
-            const result = await forfeitUnoMatch(
-                db,
-                activeRoomId,
-                initialSession.round,
-                uid
-            );
+            const result = await leaveUnoMatchFromSession(activeRoomId, initialSession, uid);
 
             activeRoomGame?.close();
             activeRoomGame = null;
@@ -2346,12 +2368,7 @@ async function leaveCurrentMatch() {
     if (!matchPlayers.includes(currentUser.uid)) return false;
 
     if (gameSessionData.gameId === "uno") {
-        const result = await forfeitUnoMatch(
-            db,
-            activeRoomId,
-            gameSessionData.round,
-            currentUser.uid
-        );
+        const result = await leaveUnoMatchFromSession(activeRoomId, gameSessionData, currentUser.uid);
         if (result.finished && result.winner) {
             const winner = activeRoomMembers.find((member) => member.id === result.winner);
             setGameCenterStatus((winner?.displayNickname || winner?.username || "Rakibin") + " maçı terk ettiğin için kazandı.");
@@ -4636,7 +4653,6 @@ async function deleteActiveRoom() {
 async function removeSelfFromActiveGame(roomId) {
     if (!currentUser || !roomId) return;
     try {
-        // Create the UNO deal before a room departure removes one of its players.
         const activeSessionRef = doc(db, "rooms", roomId, "gameSessions", "active");
         const activeSessionSnapshot = await getDoc(activeSessionRef);
         if (activeSessionSnapshot.exists()) {
@@ -4647,10 +4663,11 @@ async function removeSelfFromActiveGame(roomId) {
             if (
                 activeSession.gameId === "uno" &&
                 activeSession.status === "playing" &&
-                activeMatchPlayers.length >= 2 &&
-                activeMatchPlayers.includes(currentUser.uid)
+                activeMatchPlayers.includes(currentUser.uid) &&
+                activeMatchPlayers.length > 1
             ) {
-                await ensureUnoMatch(db, roomId, activeSession.round, currentUser.uid);
+                await leaveUnoMatchFromSession(roomId, activeSession, currentUser.uid);
+                return;
             }
         }
 
@@ -4690,6 +4707,31 @@ async function removeSelfFromActiveGame(roomId) {
                 transaction.delete(sessionRef);
                 return;
             }
+            const isFinalUnoPlayer = session.status === "playing"
+                && session.gameId === "uno"
+                && matchPlayers.length === 1
+                && matchPlayers.includes(uid);
+
+            if (isFinalUnoPlayer) {
+                const updates = {
+                    status: "lobby",
+                    round: (Number(session.round) || 1) + 1,
+                    playerIds: remainingPlayers,
+                    readyIds: [],
+                    matchPlayerIds: [],
+                    spectatorIds: [],
+                    nextRoundPlayerIds: [],
+                    nextRoundReadyIds: [],
+                    startedAt: null,
+                    countdownEndsAt: null,
+                    finishedAt: null,
+                    updatedAt: serverTimestamp()
+                };
+                if (isHost) updates.hostId = remainingPlayers[0];
+                transaction.update(sessionRef, updates);
+                return;
+            }
+
             const nextHostId = isHost ? remainingPlayers[0] : null;
             const nextPlayerIds = remainingPlayers;
 
