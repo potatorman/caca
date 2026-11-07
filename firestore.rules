@@ -974,7 +974,10 @@ service cloud.firestore {
               resource.data.status == 'results'
               && request.resource.data.status == 'lobby'
               && resource.data.finishedAt is timestamp
-              && request.time >= resource.data.finishedAt + duration.value(5, 's')
+              && (
+                resource.data.gameId == 'uno'
+                || request.time >= resource.data.finishedAt + duration.value(5, 's')
+              )
               && request.resource.data.playerIds.hasAll(resource.data.playerIds)
               && request.resource.data.playerIds.hasAll(spectators(resource.data))
               && (
