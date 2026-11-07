@@ -238,7 +238,7 @@ export class UnoRoom extends DurableObject {
             type: "state",
             state: publicState(match, uid)
         });
-        if (role === "player") {
+        if (role === "player" && match.status === "playing") {
             this.send(socket, {
                 type: "hand",
                 hand: { cards: match.hands[uid] || [] }
@@ -319,6 +319,11 @@ export class UnoRoom extends DurableObject {
             command = JSON.parse(raw);
         } catch {
             this.send(socket, { type: "error", error: "İstek verisi geçersiz." });
+            return;
+        }
+
+        if (!command || typeof command !== "object" || Array.isArray(command)) {
+            this.send(socket, { type: "error", error: "UNO komutu geçersiz." });
             return;
         }
 
@@ -441,16 +446,8 @@ export class UnoRoom extends DurableObject {
         match.handCounts[uid] = remainingHand.length;
         match.drewCardId = null;
 
-        if (remainingHand.length === 0) {
-            match.status = "results";
-            match.winnerId = uid;
-            match.unoPendingUid = null;
-            match.unoCalled = false;
-            match.finishedAt = Date.now();
-            return { winner: true, card };
-        }
-
-        const effect = getPlayEffect(card, match.activePlayerIds.length, match.direction);
+        const previousDirection = match.direction;
+        const effect = getPlayEffect(card, match.activePlayerIds.length, previousDirection);
         let direction = effect.direction;
         let next = nextPlayerIndex(
             match.currentPlayerIndex,
@@ -462,22 +459,36 @@ export class UnoRoom extends DurableObject {
         if (effect.drawCount) {
             const targetIndex = nextPlayerIndex(
                 match.currentPlayerIndex,
-                match.direction,
+                previousDirection,
                 match.activePlayerIds.length,
                 effect.targetIndexOffset
             );
             const targetUid = match.activePlayerIds[targetIndex];
-            const targetCards = match.hands[targetUid] || [];
+            const targetHand = match.hands[targetUid] || [];
             const drawnCards = takeCards(match, effect.drawCount);
-            match.hands[targetUid] = [...targetCards, ...drawnCards];
+            match.hands[targetUid] = [...targetHand, ...drawnCards];
             match.handCounts[targetUid] = match.hands[targetUid].length;
             next = nextPlayerIndex(
                 targetIndex,
-                match.direction,
+                previousDirection,
                 match.activePlayerIds.length,
                 1
             );
-            direction = match.direction;
+            direction = previousDirection;
+        }
+
+        // Match the existing CACA rules: a final +2/+4 still applies its penalty
+        // to the next player even though the card finishes the round.
+        if (remainingHand.length === 0) {
+            match.status = "results";
+            match.winnerId = uid;
+            match.currentPlayerIndex = match.activePlayerIds.indexOf(uid);
+            match.currentPlayerUid = uid;
+            match.direction = previousDirection;
+            match.unoPendingUid = null;
+            match.unoCalled = false;
+            match.finishedAt = Date.now();
+            return { winner: true, card };
         }
 
         match.currentPlayerIndex = next;
@@ -513,6 +524,10 @@ export class UnoRoom extends DurableObject {
         const playable = isCardPlayable(card, match.topCard, match.activeColor, hand);
         if (playable) {
             match.drewCardId = card.id;
+            match.unoPendingUid = null;
+            match.unoCalled = false;
+            match.turnNumber += 1;
+            match.turnStartedAt = Date.now();
         } else {
             const next = nextPlayerIndex(
                 match.currentPlayerIndex,
@@ -738,7 +753,7 @@ export class UnoRoom extends DurableObject {
         }
 
         const nextCurrent = nextRemaining(
-            match.playerIds,
+            match.activePlayerIds,
             nextRoster,
             match.currentPlayerUid,
             match.direction,
@@ -768,6 +783,10 @@ export class UnoRoom extends DurableObject {
             matchPlayerIds: nextRoster,
             resultReturnIds: [],
             finishedAt: winner ? firestoreTimestamp(new Date(changedAt)) : null,
+            ...(winner ? {
+                nextRoundPlayerIds: [],
+                nextRoundReadyIds: []
+            } : {}),
             updatedAt: timestampNow()
         };
         await patchFirestoreDocument(this.env, sessionPath, sessionPatch);
@@ -847,7 +866,10 @@ export class UnoRoom extends DurableObject {
         }
 
         const session = sessionDoc.data;
-        const players = [...match.activePlayerIds];
+        const players = getSessionPlayers(session);
+        if (!players.includes(uid)) {
+            throw new Error("Bu oyuncu sonuç ekranında aktif değil.");
+        }
         const returned = uniqueIds(match.returnedIds);
         if (!returned.includes(uid)) returned.push(uid);
         match.returnedIds = returned;
