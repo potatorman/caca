@@ -2022,6 +2022,10 @@ function listenToGameCenter(roomId) {
                     matchPlayers.includes(currentUser?.uid);
             if (canSeeCurrentGame) {
                 void openRoomGame(gameSessionData, { automatic: true });
+            } else if (activeRoomGame) {
+                activeRoomGame.close();
+                activeRoomGame = null;
+                activeRoomGameKey = "";
             }
         } else if (!gameSessionData || gameSessionData.status === "lobby") {
             activeRoomGame?.close();
