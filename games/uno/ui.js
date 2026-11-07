@@ -446,5 +446,5 @@ export async function openUnoGame({ db, roomId, round, uid, session, roomMembers
         setMessage("İzleyici görünümü. Kart elleri yalnızca ilgili oyuncuya gösterilir.");
     }
 
-    return { close };
+    return { close, isClosed: () => closed };
 }

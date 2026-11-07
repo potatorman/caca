@@ -597,7 +597,7 @@ $("nicknameForm").addEventListener("submit", async (event) => {
             currentUsername.trim().toLowerCase() !== nickname.trim().toLowerCase();
 
         $("welcomeUsername").textContent = nickname;
-        setAvatarElement($("userAvatar"), currentAvatarId);
+        setAvatarElement($("userAvatar"), currentAvatarId, currentAvatarData);
         $("accountUsername").textContent = usernameDiffers
             ? `(${currentUsername})`
             : "";
@@ -705,11 +705,12 @@ async function deleteOwnedRoom(roomId) {
         throw new Error("Odanın davet kodu bulunamadı: " + roomId);
     }
 
-    const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot] = await Promise.all([
+    const [membersSnapshot, bansSnapshot, messagesSnapshot, activePrankSnapshot, gameSessionSnapshot] = await Promise.all([
         getDocs(collection(db, "rooms", roomId, "members")),
         getDocs(collection(db, "rooms", roomId, "bans")),
         getDocs(collection(db, "rooms", roomId, "messages")),
-        getDoc(doc(db, "rooms", roomId, "pranks", "active"))
+        getDoc(doc(db, "rooms", roomId, "pranks", "active")),
+        getDoc(doc(db, "rooms", roomId, "gameSessions", "active"))
     ]);
 
     const referencesToDelete = [];
@@ -737,6 +738,9 @@ async function deleteOwnedRoom(roomId) {
     });
     if (activePrankSnapshot.exists()) {
         referencesToDelete.push(activePrankSnapshot.ref);
+    }
+    if (gameSessionSnapshot.exists()) {
+        referencesToDelete.push(gameSessionSnapshot.ref);
     }
 
     await commitDeleteChunks(referencesToDelete, 10);
