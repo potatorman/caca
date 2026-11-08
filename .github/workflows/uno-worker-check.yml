@@ -33,6 +33,7 @@ jobs:
             ../../games/uno/state.js \
             ../../games/uno/ui.js \
             ../../games/vampir-koylu/engine.js \
+            ../../games/vampir-koylu/bots.js \
             ../../games/vampir-koylu/index.js \
             ../../games/vampir-koylu/state.js \
             ../../games/vampir-koylu/ui.js \
