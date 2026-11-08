@@ -69,6 +69,59 @@ export function createBotRoster(count, round = 1) {
     });
 }
 
+export function createMatchRoster(humanPlayerIds, settings = {}, round = 1) {
+    if (!Array.isArray(humanPlayerIds)) {
+        throw new Error("Gerçek oyuncu listesi geçersiz.");
+    }
+
+    const humans = [...humanPlayerIds];
+    if (
+        humans.length === 0 ||
+        humans.length > 12 ||
+        humans.some((id) => typeof id !== "string" || !id) ||
+        new Set(humans).size !== humans.length
+    ) {
+        throw new Error("Vampir Köylü için 1–12 benzersiz gerçek oyuncu gerekli.");
+    }
+
+    const botFillEnabled = settings.botFillEnabled === true;
+    const targetPlayerCount = settings.targetPlayerCount === undefined
+        ? 5
+        : Number(settings.targetPlayerCount);
+
+    if (
+        !Number.isInteger(targetPlayerCount) ||
+        targetPlayerCount < 5 ||
+        targetPlayerCount > 12
+    ) {
+        throw new Error("Bot hedef oyuncu sayısı 5–12 arasında olmalı.");
+    }
+
+    let botCount = 0;
+    if (botFillEnabled) {
+        if (humans.length > targetPlayerCount) {
+            throw new Error("Gerçek oyuncu sayısı bot hedefinden fazla olamaz.");
+        }
+        botCount = targetPlayerCount - humans.length;
+    } else if (humans.length < 5) {
+        throw new Error("Botlar kapalı. En az 5 gerçek oyuncu gerekli.");
+    }
+
+    const botRoster = createBotRoster(botCount, round);
+    const botPlayerIds = botRoster.map((bot) => bot.id);
+    const botNames = Object.fromEntries(botRoster.map((bot) => [bot.id, bot.name]));
+    const playerIds = [...humans, ...botPlayerIds];
+
+    return {
+        humanPlayerIds: humans,
+        botRoster,
+        botPlayerIds,
+        botNames,
+        playerIds,
+        targetPlayerCount
+    };
+}
+
 export function chooseBotVampireTarget({
     botId,
     alivePlayerIds,
