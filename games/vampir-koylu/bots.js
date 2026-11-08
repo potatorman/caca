@@ -37,8 +37,8 @@ function normalizeText(value) {
         .replace(/[\u0300-\u036f]/g, "");
 }
 
-function scorePublicAccusations(candidateId, botNames, discussionMessages) {
-    const candidateName = botNames?.[candidateId];
+function scorePublicAccusations(candidateId, playerNames, discussionMessages) {
+    const candidateName = playerNames?.[candidateId];
     if (!candidateName) return 0;
 
     const needle = normalizeText(candidateName);
@@ -172,7 +172,7 @@ export function chooseBotVote({
     alivePlayerIds,
     vampireTeammateIds = [],
     vampireVotes = {},
-    botNames = {},
+    playerNames = {},
     discussionMessages = [],
     voteHistory = [],
     revealedRoles = {},
@@ -197,7 +197,7 @@ export function chooseBotVote({
     // Their decision never receives or reads the hidden role map.
     const scores = new Map(alive.map((id) => [
         id,
-        scorePublicAccusations(id, botNames, discussionMessages)
+        scorePublicAccusations(id, playerNames, discussionMessages)
     ]));
 
     for (const day of voteHistory || []) {
@@ -219,7 +219,7 @@ export function chooseBotVote({
 export function createBotDiscussionLine({
     role,
     botId,
-    botNames = {},
+    playerNames = {},
     playerIds = [],
     vampireTeammateIds = [],
     discussionMessages = [],
@@ -231,7 +231,7 @@ export function createBotDiscussionLine({
             !vampireTeammateIds.includes(id)
         );
         const target = pick(candidates, random);
-        const name = botNames[target] || "bir oyuncu";
+        const name = playerNames[target] || "bir oyuncu";
         return pick(VAMPIRE_LINES, random).replaceAll("{name}", name);
     }
 
