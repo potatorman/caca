@@ -20,7 +20,7 @@ const VAMPIRE_LINES = Object.freeze([
 ]);
 
 const DOCTOR_LINES = Object.freeze([
-    "Bu gece birini korumaya çalışacağım. Gündüz de acele karar vermeyelim.",
+    "Şu an kesin konuşmak zor. Önce birbirimizi dinleyelim.",
     "Kimin ne söylediğini takip ediyorum. Biraz daha bilgiye ihtiyacımız var.",
     "Herkes şüphelendiği kişiyi söylesin; tek bir iddiayla karar vermeyelim."
 ]);
@@ -70,6 +70,7 @@ export function createBotRoster(count, round = 1) {
 }
 
 export function chooseBotVampireTarget({
+    botId,
     alivePlayerIds,
     teammateIds = [],
     vampireTargets = {},
@@ -87,7 +88,9 @@ export function chooseBotVampireTarget({
 
     if (existingTargets.length) return existingTargets[0];
 
-    const candidates = (alivePlayerIds || []).filter((id) => !teammateSet.has(id));
+    const candidates = (alivePlayerIds || []).filter((id) =>
+        id !== botId && !teammateSet.has(id)
+    );
     return pick(candidates, random);
 }
 
