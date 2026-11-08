@@ -45,7 +45,7 @@ test("villagers win when the last vampire is eliminated", () => {
 });
 
 test("vampires win when their count reaches parity with the remaining village", () => {
-    assert.equal(getWinningTeam(["v1", "doctor", "villager"], {
+    assert.equal(getWinningTeam(["v1", "doctor"], {
         v1: "vampir",
         doctor: "doktor",
         villager: "koylu"
