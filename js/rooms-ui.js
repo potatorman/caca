@@ -1414,11 +1414,32 @@ function getGameLimits(gameId) {
     };
 }
 
-// The lobby can start only when its size fits the game and every member is ready.
+function getVampirLobbySettings(session) {
+    const settings = session?.gameSettings || {};
+    const targetPlayerCount = Number(settings.targetPlayerCount);
+    return {
+        botFillEnabled: settings.botFillEnabled === true,
+        targetPlayerCount: Number.isInteger(targetPlayerCount) &&
+            targetPlayerCount >= 5 && targetPlayerCount <= 12
+            ? targetPlayerCount
+            : 5
+    };
+}
+
+// Bots only exist inside the Durable Object. Firebase lobby and ready lists remain real-user-only.
 function isLobbyReadyToStart(session) {
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
     const ready = Array.isArray(session.readyIds) ? session.readyIds : [];
-    const { minPlayers, maxPlayers } = getGameLimits(session.gameId);
+    const { maxPlayers } = getGameLimits(session.gameId);
+    if (session.gameId === "vampir-koylu") {
+        const settings = getVampirLobbySettings(session);
+        const minRealPlayers = settings.botFillEnabled ? 1 : 5;
+        return players.length >= minRealPlayers &&
+            players.length <= settings.targetPlayerCount &&
+            players.length <= maxPlayers &&
+            players.every((id) => ready.includes(id));
+    }
+    const { minPlayers } = getGameLimits(session.gameId);
     return players.length >= minPlayers &&
         players.length <= maxPlayers &&
         players.every((id) => ready.includes(id));
@@ -1536,11 +1557,22 @@ function renderGameCenter() {
     emptyState.hidden = Boolean(session);
     content.hidden = !session;
     if (!session) {
+        $("gameLobbySettingsPanel").hidden = true;
+        $("gameLobbySettingsButton").hidden = true;
+        $("gameBotLobbyPreview").hidden = true;
         renderGameCatalog();
         return;
     }
 
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
+    const vampirSettings = session.gameId === "vampir-koylu"
+        ? getVampirLobbySettings(session)
+        : null;
+    const botFillEnabled = Boolean(vampirSettings?.botFillEnabled);
+    const targetPlayerCount = vampirSettings?.targetPlayerCount || 5;
+    const botSlotCount = botFillEnabled
+        ? Math.max(0, targetPlayerCount - players.length)
+        : 0;
     const readyIds = Array.isArray(session.readyIds) ? session.readyIds : [];
     const matchPlayers = Array.isArray(session.matchPlayerIds)
         ? session.matchPlayerIds
@@ -1588,8 +1620,20 @@ function renderGameCenter() {
                     : "Maç bitti. İzleyiciler otomatik olarak lobi üyelerine eklendi. Yeni maç için lobiye dön."
                 : `Kalıcı lobi · Maç ${session.round || 1}. En az ${minPlayers} oyuncu hazır olduğunda geri sayım başlayacak.`;
 
-    $("gamePlayersHeading").textContent = "Kalıcı lobi üyeleri";
-    $("gamePlayersCount").textContent = `${players.length}/${maxPlayers}`;
+    const botPreview = $("gameBotLobbyPreview");
+    const showBotPreview = session.gameId === "vampir-koylu" &&
+        ["lobby", "starting"].includes(session.status);
+    botPreview.hidden = !showBotPreview;
+    if (showBotPreview) {
+        botPreview.textContent = botFillEnabled
+            ? `Gerçek oyuncu: ${players.length} · Bot: ${botSlotCount} · Toplam hedef: ${targetPlayerCount}`
+            : `Botlar kapalı · Başlamak için en az 5 gerçek oyuncu gerekli.`;
+    }
+
+    $("gamePlayersHeading").textContent = "Lobi oyuncuları";
+    $("gamePlayersCount").textContent = botFillEnabled
+        ? `${players.length}+${botSlotCount}/${targetPlayerCount}`
+        : `${players.length}/${maxPlayers}`;
     renderGameMemberList("gamePlayersList", players, (userId) => {
         if (userId === session.hostId && isPlaying && matchPlayers.includes(userId)) {
             return "Lobi sahibi · Maçta";
@@ -1610,6 +1654,20 @@ function renderGameCenter() {
         }
         return readyIds.includes(userId) ? "Hazır" : "Hazır bekliyor";
     });
+    if (botFillEnabled && showBotPreview) {
+        const list = $("gamePlayersList");
+        for (let index = 0; index < botSlotCount; index += 1) {
+            const row = document.createElement("div");
+            row.className = "game-session-member game-session-bot-seat";
+            const name = document.createElement("span");
+            name.textContent = "Bot koltuğu " + (index + 1);
+            const state = document.createElement("span");
+            state.className = "game-session-member-state";
+            state.textContent = "Maçta eklenecek";
+            row.append(name, state);
+            list.appendChild(row);
+        }
+    }
 
     // Only users who actually enter the game center during a live match appear here.
     $("gameSpectatorsCount").textContent = String(spectators.length);
@@ -1651,6 +1709,18 @@ function renderGameCenter() {
         ["uno", "vampir-koylu"].includes(session.gameId);
     $("closeGameSessionButton").hidden = !canManage;
     $("closeGameSessionButton").textContent = "Lobiyi tamamen kapat";
+    $("gameLobbySettingsButton").hidden = !(
+        session.gameId === "vampir-koylu" &&
+        session.status === "lobby" &&
+        currentUser?.uid === session.hostId
+    );
+    if (
+        currentUser?.uid !== session.hostId ||
+        session.gameId !== "vampir-koylu" ||
+        session.status !== "lobby"
+    ) {
+        $("gameLobbySettingsPanel").hidden = true;
+    }
 
     if (!["playing", "results"].includes(session.status) && isLobbyPlayer) {
         $("readyGameSessionButton").textContent = readyIds.includes(currentUser?.uid)
@@ -2266,6 +2336,117 @@ $("gameCatalogGrid").addEventListener("click", (event) => {
     renderGameCatalog();
 });
 
+function updateGameBotSettingsPreview() {
+    const session = gameSessionData;
+    const enabled = $("gameBotFillToggle").checked;
+    const target = Number($("gameBotTargetCount").value);
+    const humanCount = Array.isArray(session?.playerIds) ? session.playerIds.length : 0;
+    const preview = $("gameBotSettingsPreview");
+    const saveButton = $("saveGameLobbySettingsButton");
+    const remaining = target - humanCount;
+
+    if (!Number.isInteger(target) || target < 5 || target > 12) {
+        preview.textContent = "Hedef oyuncu sayısı 5–12 arasında olmalı.";
+        saveButton.disabled = true;
+        return;
+    }
+    if (enabled && remaining < 0) {
+        preview.textContent = "Hedef sayı mevcut gerçek oyuncu sayısından düşük olamaz.";
+        saveButton.disabled = true;
+        return;
+    }
+
+    preview.textContent = enabled
+        ? `${humanCount} gerçek oyuncu + ${Math.max(0, remaining)} bot = ${target} toplam oyuncu.`
+        : `Botlar kapalı. Başlamak için en az 5 gerçek oyuncu gerekiyor. Şu an ${humanCount} gerçek oyuncu var.`;
+    saveButton.disabled = false;
+}
+
+function openGameLobbySettings() {
+    const session = gameSessionData;
+    if (
+        !currentUser ||
+        !session ||
+        session.gameId !== "vampir-koylu" ||
+        session.status !== "lobby" ||
+        session.hostId !== currentUser.uid
+    ) {
+        setGameCenterStatus("Lobi ayarlarını yalnızca lobi sahibi ve yalnızca lobi açıkken değiştirebilir.", true);
+        return;
+    }
+
+    const settings = getVampirLobbySettings(session);
+    $("gameBotFillToggle").checked = settings.botFillEnabled;
+    $("gameBotTargetCount").value = String(settings.targetPlayerCount);
+    $("gameBotSettingsStatus").textContent = "";
+    $("gameLobbySettingsPanel").hidden = false;
+    updateGameBotSettingsPreview();
+    $("closeGameLobbySettingsButton").focus();
+}
+
+function closeGameLobbySettings() {
+    $("gameLobbySettingsPanel").hidden = true;
+    $("gameLobbySettingsButton").focus();
+}
+
+async function saveGameLobbySettings() {
+    const session = gameSessionData;
+    if (!currentUser || !activeRoomId || !session) return;
+
+    const roomId = activeRoomId;
+    const uid = currentUser.uid;
+    const botFillEnabled = $("gameBotFillToggle").checked;
+    const targetPlayerCount = Number($("gameBotTargetCount").value);
+    const button = $("saveGameLobbySettingsButton");
+
+    if (
+        session.gameId !== "vampir-koylu" ||
+        session.status !== "lobby" ||
+        session.hostId !== uid
+    ) {
+        $("gameBotSettingsStatus").textContent = "Bu ayarları değiştirme yetkin yok veya maç başladı.";
+        return;
+    }
+    if (!Number.isInteger(targetPlayerCount) || targetPlayerCount < 5 || targetPlayerCount > 12) {
+        $("gameBotSettingsStatus").textContent = "Hedef oyuncu sayısı 5–12 arasında olmalı.";
+        return;
+    }
+
+    button.disabled = true;
+    $("gameBotSettingsStatus").textContent = "Ayarlar kaydediliyor…";
+    try {
+        await runTransaction(db, async (transaction) => {
+            const ref = getGameSessionRef(roomId);
+            const snapshot = await transaction.get(ref);
+            if (!snapshot.exists()) throw new Error("Oyun lobisi artık mevcut değil.");
+            const latest = snapshot.data();
+            if (
+                latest.gameId !== "vampir-koylu" ||
+                latest.status !== "lobby" ||
+                latest.hostId !== uid
+            ) {
+                throw new Error("Yalnızca lobi sahibi, maç başlamadan ayarları değiştirebilir.");
+            }
+            const playerCount = Array.isArray(latest.playerIds) ? latest.playerIds.length : 0;
+            if (botFillEnabled && playerCount > targetPlayerCount) {
+                throw new Error("Hedef oyuncu sayısı gerçek oyuncu sayısından düşük olamaz.");
+            }
+
+            transaction.update(ref, {
+                gameSettings: { botFillEnabled, targetPlayerCount },
+                updatedAt: serverTimestamp()
+            });
+        });
+        $("gameBotSettingsStatus").textContent = "Lobi ayarları kaydedildi.";
+        setGameCenterStatus("Vampir Köylü lobi ayarları güncellendi.");
+        $("gameLobbySettingsPanel").hidden = true;
+    } catch (error) {
+        $("gameBotSettingsStatus").textContent = error.message || "Ayarlar kaydedilemedi.";
+    } finally {
+        button.disabled = false;
+    }
+}
+
 async function createGameSession() {
     if (!currentUser || !activeRoomId) {
         setGameCenterStatus("Önce bir odaya girmen gerekiyor.", true);
@@ -2300,6 +2481,9 @@ async function createGameSession() {
             nextRoundPlayerIds: [],
             nextRoundReadyIds: [],
             resultReturnIds: [],
+            ...(selectedGame.id === "vampir-koylu"
+                ? { gameSettings: { botFillEnabled: false, targetPlayerCount: 5 } }
+                : {}),
             createdAt: serverTimestamp(),
             startedAt: null,
             countdownEndsAt: null,
@@ -2328,7 +2512,13 @@ async function joinGameSession() {
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
     const queuedPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
-    const { maxPlayers } = getGameLimits(session.gameId);
+    const baseLimits = getGameLimits(session.gameId);
+    const lobbySettings = session.gameId === "vampir-koylu"
+        ? getVampirLobbySettings(session)
+        : null;
+    const maxPlayers = lobbySettings?.botFillEnabled
+        ? lobbySettings.targetPlayerCount
+        : baseLimits.maxPlayers;
 
     if (session.status === "results") {
         if (players.includes(uid) || spectators.includes(uid) || queuedPlayers.includes(uid)) {
@@ -2717,6 +2907,14 @@ async function closeGameSession() {
 }
 
 $("createGameSessionButton").addEventListener("click", createGameSession);
+$("gameLobbySettingsButton").addEventListener("click", openGameLobbySettings);
+$("closeGameLobbySettingsButton").addEventListener("click", closeGameLobbySettings);
+$("saveGameLobbySettingsButton").addEventListener("click", saveGameLobbySettings);
+$("gameBotFillToggle").addEventListener("change", updateGameBotSettingsPreview);
+$("gameBotTargetCount").addEventListener("change", updateGameBotSettingsPreview);
+$("gameLobbySettingsPanel").addEventListener("click", (event) => {
+    if (event.target === $("gameLobbySettingsPanel")) closeGameLobbySettings();
+});
 $("openGameMatchButton")?.addEventListener("click", async () => {
     if (!currentUser || !activeRoomId || !gameSessionData ||
         !["playing", "results"].includes(gameSessionData.status)) return;
