@@ -1005,6 +1005,7 @@ export class VampirKoyluRoom extends DurableObject {
         });
 
         if (match.status === "playing") {
+            await this.runBotsForCurrentPhase(match);
             await this.maybeResolveCurrentPhase(match);
         }
         await this.saveMatch(match);
@@ -1078,6 +1079,7 @@ export class VampirKoyluRoom extends DurableObject {
                     : "Oda yönetimi oyuncu çıkardığı için vampirler kazandı!"
             );
         } else {
+            await this.runBotsForCurrentPhase(match);
             await this.maybeResolveCurrentPhase(match);
         }
 
