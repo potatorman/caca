@@ -19,7 +19,7 @@
     }
   ],
   "vars": {
-    "FIREBASE_PROJECT_ID": "caca-dfe6",
+    "FIREBASE_PROJECT_ID": "caca-dfe6c",
     "FIREBASE_WEB_API_KEY": "AIzaSyDJ6cu30qrIeq9yV_FZ7U8KXyUirEksdHY"
   },
   "observability": {

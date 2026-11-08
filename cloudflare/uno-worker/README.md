@@ -38,9 +38,9 @@ In the Worker **Settings → Variables & Secrets**, add these as encrypted secre
 
 - `UNO_TICKET_SECRET`: a random secret with at least 32 characters.
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: the full JSON key for a service account in Firebase
-  project `caca-dfe6`.
+  project `caca-dfe6c`.
 
-Create the service account in Google Cloud IAM for project `caca-dfe6` and grant it the
+Create the service account in Google Cloud IAM for project `caca-dfe6c` and grant it the
 **Cloud Datastore User** role. Do not put the JSON key in GitHub, the Worker source or browser
 code. The Worker uses this service account only for server-side Firestore reads and writes.
 Those IAM-authorized requests bypass Firestore Security Rules, so the Worker independently
