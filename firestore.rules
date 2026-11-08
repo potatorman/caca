@@ -569,6 +569,29 @@ service cloud.firestore {
             : [];
         }
 
+        function validVampirGameSettings(settings) {
+          return settings is map
+            && settings.keys().hasAll(['botFillEnabled', 'targetPlayerCount'])
+            && settings.keys().hasOnly(['botFillEnabled', 'targetPlayerCount'])
+            && settings.botFillEnabled is bool
+            && settings.targetPlayerCount is int
+            && settings.targetPlayerCount >= 5
+            && settings.targetPlayerCount <= 12;
+        }
+
+        function vampirBotFillEnabled(data) {
+          return data.keys().hasAny(['gameSettings'])
+            && data.gameSettings is map
+            && data.gameSettings.botFillEnabled == true;
+        }
+
+        function vampirTargetPlayerCount(data) {
+          return data.keys().hasAny(['gameSettings'])
+            && data.gameSettings is map
+            ? data.gameSettings.targetPlayerCount
+            : 5;
+        }
+
         function validGameSession(data) {
           return data.keys().hasAll([
               'gameId', 'gameName', 'status', 'round', 'hostId',
@@ -579,7 +602,7 @@ service cloud.firestore {
               'gameId', 'gameName', 'status', 'round', 'hostId',
               'playerIds', 'readyIds', 'nextRoundPlayerIds',
               'nextRoundReadyIds', 'matchPlayerIds', 'spectatorIds', 'resultReturnIds',
-              'createdAt', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+              'gameSettings', 'createdAt', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
             ])
             && data.gameId is string && data.gameId.size() >= 3 && data.gameId.size() <= 32
             && data.gameName is string && data.gameName.size() >= 2 && data.gameName.size() <= 40
@@ -628,6 +651,13 @@ service cloud.firestore {
             && (!data.keys().hasAny(['finishedAt']) || data.finishedAt == null || data.finishedAt is timestamp)
             && data.createdAt is timestamp
             && (data.startedAt == null || data.startedAt is timestamp)
+            && (
+              !data.keys().hasAny(['gameSettings'])
+              || (
+                data.gameId == 'vampir-koylu'
+                && validVampirGameSettings(data.gameSettings)
+              )
+            )
             && data.updatedAt is timestamp;
         }
 
@@ -930,6 +960,22 @@ service cloud.firestore {
             ||
             canRecoverUnoForfeitSession()
             ||
+            // Only the current Vampir Köylü lobby host can change bot settings,
+            // and only while the shared session is still in the lobby state.
+            (
+              resource.data.gameId == 'vampir-koylu'
+              && resource.data.status == 'lobby'
+              && request.resource.data.status == 'lobby'
+              && request.auth.uid == resource.data.hostId
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+              && spectators(request.resource.data) == spectators(resource.data)
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['gameSettings', 'updatedAt'])
+            )
+            ||
             // A room member joins the persistent lobby.
             (
               resource.data.status == 'lobby'
@@ -1058,7 +1104,24 @@ service cloud.firestore {
               && request.resource.data.playerIds == resource.data.playerIds
               && request.resource.data.readyIds == resource.data.readyIds
               && matchPlayers(request.resource.data) == matchPlayers(resource.data)
-              && request.resource.data.playerIds.size() >= 2
+              && (
+                (
+                  resource.data.gameId == 'vampir-koylu'
+                  && (
+                    vampirBotFillEnabled(resource.data)
+                    ? (
+                      request.resource.data.playerIds.size() >= 1
+                      && request.resource.data.playerIds.size() <= vampirTargetPlayerCount(resource.data)
+                    )
+                    : request.resource.data.playerIds.size() >= 5
+                  )
+                  && request.resource.data.playerIds.size() <= 12
+                )
+                || (
+                  resource.data.gameId != 'vampir-koylu'
+                  && request.resource.data.playerIds.size() >= 2
+                )
+              )
               && (resource.data.gameId != 'uno' || request.resource.data.playerIds.size() <= 10)
               && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
               && request.resource.data.countdownEndsAt is timestamp
