@@ -611,6 +611,10 @@ service cloud.firestore {
             && data.hostId is string
             && data.playerIds is list && data.playerIds.size() <= 20
             && data.playerIds.toSet().size() == data.playerIds.size()
+            && (
+              !vampirBotFillEnabled(data)
+              || data.playerIds.size() <= vampirTargetPlayerCount(data)
+            )
             && (data.gameId != 'uno' || data.playerIds.size() <= 10)
             && (data.gameId != 'vampir-koylu' || data.playerIds.size() <= 12)
             && data.readyIds is list && data.readyIds.size() <= 20
