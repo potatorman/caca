@@ -149,21 +149,12 @@ export function chooseBotVote({
 
     for (const day of voteHistory || []) {
         for (const [voterId, targetId] of Object.entries(day?.votes || {})) {
-            if (
-                voterId === botId &&
-                scores.has(targetId) &&
-                revealedRoles[targetId] &&
-                revealedRoles[targetId] !== "vampir"
-            ) {
-                scores.set(targetId, scores.get(targetId) + 1);
-            }
-            if (
-                scores.has(voterId) &&
-                revealedRoles[targetId] &&
-                revealedRoles[targetId] !== "vampir"
-            ) {
-                scores.set(voterId, scores.get(voterId) + 0.5);
-            }
+            if (!scores.has(voterId) || !revealedRoles[targetId]) continue;
+
+            // A player who voted for an eliminated Vampire looks less suspicious.
+            // Repeatedly voting for revealed Villagers/Doktors raises suspicion.
+            const adjustment = revealedRoles[targetId] === "vampir" ? -0.75 : 0.35;
+            scores.set(voterId, scores.get(voterId) + adjustment);
         }
     }
 
