@@ -100,15 +100,15 @@ test("villager bots use public discussion accusations rather than hidden role da
     const target = chooseBotVote({
         botId: "bot-villager",
         role: "koylu",
-        alivePlayerIds: ["bot-villager", "player-mert", "player-elif"],
-        botNames: { "player-mert": "Mert", "player-elif": "Elif" },
+        alivePlayerIds: ["bot-villager", "human-mert", "player-elif"],
+        playerNames: { "human-mert": "Mert", "player-elif": "Elif" },
         discussionMessages: [
             { text: "Mert çok şüpheli, vampir olabilir." },
             { text: "Bence Mert'in açıklaması tutarsız." }
         ],
         random: () => 0
     });
-    assert.equal(target, "player-mert");
+    assert.equal(target, "human-mert");
 });
 
 test("vampire bots follow a living vampire teammate's current vote", () => {
@@ -136,7 +136,7 @@ test("bot discussion lines are Turkish and do not expose the doctor's role", () 
     const vampireLine = createBotDiscussionLine({
         role: "vampir",
         botId: "bot-vampire",
-        botNames: { human: "Mert" },
+        playerNames: { human: "Mert" },
         playerIds: ["bot-vampire", "human"],
         random: () => 0
     });
@@ -149,4 +149,27 @@ test("bot discussion lines are Turkish and do not expose the doctor's role", () 
         random: () => 0
     });
     assert.ok(villagerLine.length > 10);
+});
+
+test("bot discussion and suspicion use human nicknames too", () => {
+    const target = chooseBotVote({
+        botId: "bot-villager",
+        role: "koylu",
+        alivePlayerIds: ["bot-villager", "human-ada", "human-bora"],
+        playerNames: { "human-ada": "Ada", "human-bora": "Bora" },
+        discussionMessages: [
+            { text: "Ada sürekli çelişkili konuşuyor, çok şüpheli." }
+        ],
+        random: () => 0
+    });
+    assert.equal(target, "human-ada");
+
+    const line = createBotDiscussionLine({
+        role: "vampir",
+        botId: "bot-vampire",
+        playerNames: { "human-ada": "Ada" },
+        playerIds: ["bot-vampire", "human-ada"],
+        random: () => 0
+    });
+    assert.match(line, /Ada/);
 });
