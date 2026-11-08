@@ -94,10 +94,26 @@ client shows a setup error and does not fall back to Firestore gameplay.
 
 ## Workers Builds connection used for the migration
 
-For this repository, set the Workers Builds production branch to `cloudflare-uno-migration` and
-its root directory to `/cloudflare/uno-worker`. Leave the build command empty and use
-`npx wrangler deploy` as the deploy command. The old cancelled build from `main` is unrelated;
-Workers Builds uses the currently saved settings on the next build.
+During migration testing, the Workers Builds production branch is
+`cloudflare-uno-migration`. Keep the root directory at `/cloudflare/uno-worker`, leave the
+build command empty and use `npx wrangler deploy` as the deploy command.
+
+After this migration PR is merged, change the Workers Builds production branch to `main`.
+That makes the Worker follow the same production branch as the live website.
+
+## Production deployment
+
+The workflow `.github/workflows/firebase-production.yml` runs only on pushes to `main`
+(including merges) or when manually dispatched from `main`. It first runs the UNO deck/rules
+tests and Wrangler dry-run validation, then deploys the website to the live Firebase Hosting
+channel and publishes the repository's Firestore rules. It does not deploy from migration
+branches or pull-request preview builds.
+
+The production deploy uses the GitHub Actions secret
+`FIREBASE_SERVICE_ACCOUNT_CACA_DFE6C`. The credential must have the Firebase Hosting and
+Firebase Rules permissions listed below. Firebase CLI deployment replaces the deployed
+Firestore rules with the contents of `firestore.rules`; keep any console-edited rules mirrored
+in that file before merging.
 
 ## Firebase Hosting preview for the migration PR
 
@@ -120,7 +136,10 @@ Create a separate Google Cloud service account in project `caca-dfe6c`, for exam
 
 - Firebase Hosting Admin (`roles/firebasehosting.admin`)
 - Firebase Authentication Admin (`roles/firebaseauth.admin`)
+- Firebase Rules Admin (`roles/firebaserules.admin`) — required for the production Firestore
+  rules deployment
 - Service Usage API Keys Viewer (`roles/serviceusage.apiKeysViewer`)
+- Service Usage Viewer (`roles/serviceusage.serviceUsageViewer`)
 
 Create a JSON key for this separate account, then add the complete JSON as a GitHub repository
 Actions secret named `FIREBASE_SERVICE_ACCOUNT_CACA_DFE6C` in
