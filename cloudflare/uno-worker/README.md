@@ -91,3 +91,10 @@ not needed on the user's PC to run the deployed website or host a game.
 Do not switch the live website to Cloudflare until the Worker is deployed, both secrets are set,
 and `UNO_WORKER_URL` points to the exact deployed address. Until configured, the new UNO
 client shows a setup error and does not fall back to Firestore gameplay.
+
+## Workers Builds connection used for the migration
+
+For this repository, set the Workers Builds production branch to `cloudflare-uno-migration` and
+its root directory to `/cloudflare/uno-worker`. Leave the build command empty and use
+`npx wrangler deploy` as the deploy command. The old cancelled build from `main` is unrelated;
+Workers Builds uses the currently saved settings on the next build.
