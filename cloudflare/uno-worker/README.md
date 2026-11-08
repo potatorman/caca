@@ -98,3 +98,37 @@ For this repository, set the Workers Builds production branch to `cloudflare-uno
 its root directory to `/cloudflare/uno-worker`. Leave the build command empty and use
 `npx wrangler deploy` as the deploy command. The old cancelled build from `main` is unrelated;
 Workers Builds uses the currently saved settings on the next build.
+
+## Firebase Hosting preview for the migration PR
+
+The repository's website files live at the repository root (`index.html`, `css/`, `js/`,
+and `games/`). The migration branch's `firebase.json` therefore uses `public: "."` and
+excludes the Worker source, Firestore rules and Markdown documentation from Hosting uploads.
+
+The workflow `.github/workflows/firebase-hosting-preview.yml` deploys pull requests targeting
+`main` to temporary Firebase Hosting preview channels. It does not deploy to the live channel.
+Preview links expire after seven days and the Firebase Hosting action comments the preview URL
+on the pull request.
+
+### Separate GitHub deployment credentials
+
+The Cloudflare Worker service account `caca-uno-worker` should keep only its Firestore data
+permissions. Do not reuse its JSON key for GitHub Hosting deployment.
+
+Create a separate Google Cloud service account in project `caca-dfe6c`, for example
+`caca-firebase-preview`, with these roles:
+
+- Firebase Hosting Admin (`roles/firebasehosting.admin`)
+- Firebase Authentication Admin (`roles/firebaseauth.admin`)
+- Service Usage API Keys Viewer (`roles/serviceusage.apiKeysViewer`)
+
+Create a JSON key for this separate account, then add the complete JSON as a GitHub repository
+Actions secret named `FIREBASE_SERVICE_ACCOUNT_CACA_DFE6C` in
+**Settings → Secrets and variables → Actions**. Never commit the key to the repository.
+
+The Firebase Hosting preview action requires this GitHub secret. Without it, its workflow
+fails with `Input required and not supplied: firebaseServiceAccount`.
+
+Firebase Hosting preview URLs are public, temporary URLs and use this project's real Firebase
+backend resources. Use test rooms and test matches while validating the migration.
+
