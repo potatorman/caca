@@ -220,7 +220,7 @@ export async function openVampirKoyluGame({
             const details = document.createElement("span");
             details.className = "vampir-player-details";
             const name = document.createElement("strong");
-            name.textContent = labelPlayer(id, members, uid);
+            name.textContent = labelPlayer(id, members, uid, state?.botNames);
             const meta = document.createElement("small");
             const revealedRole = state.revealedRoles?.[id];
             meta.textContent = isAlive
@@ -318,7 +318,7 @@ export async function openVampirKoyluGame({
             const selected = privateState.selectedTargetUid === id;
             const button = createTargetButton(
                 id,
-                labelPlayer(id, members, uid),
+                labelPlayer(id, members, uid, state?.botNames),
                 selected,
                 () => {
                     const requestType = phase === "voting" ? "vote" : "nightAction";
@@ -397,7 +397,7 @@ export async function openVampirKoyluGame({
             const row = document.createElement("div");
             row.className = "vampir-result-role";
             const name = document.createElement("span");
-            name.textContent = labelPlayer(id, members, uid);
+            name.textContent = labelPlayer(id, members, uid, state?.botNames);
             const roleLabel = document.createElement("strong");
             roleLabel.textContent = ROLE_LABELS[state?.revealedRoles?.[id]] || "—";
             row.append(name, roleLabel);
