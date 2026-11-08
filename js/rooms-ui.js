@@ -1618,7 +1618,9 @@ function renderGameCenter() {
                 ? ["uno", "vampir-koylu"].includes(session.gameId)
                     ? `Sonuç ekranı · ${resultReturnIds.length}/${matchPlayers.length} oyuncu lobiye döndü.`
                     : "Maç bitti. İzleyiciler otomatik olarak lobi üyelerine eklendi. Yeni maç için lobiye dön."
-                : `Kalıcı lobi · Maç ${session.round || 1}. En az ${minPlayers} oyuncu hazır olduğunda geri sayım başlayacak.`;
+                : botFillEnabled
+                    ? `Kalıcı lobi · ${players.length} gerçek oyuncu, ${botSlotCount} bot koltuğu. Tüm gerçek oyuncular hazır olunca ${targetPlayerCount} kişilik maç başlayacak.`
+                    : `Kalıcı lobi · Maç ${session.round || 1}. En az ${minPlayers} gerçek oyuncu hazır olduğunda geri sayım başlayacak.`;
 
     const botPreview = $("gameBotLobbyPreview");
     const showBotPreview = session.gameId === "vampir-koylu" &&
