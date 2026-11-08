@@ -6,7 +6,8 @@ import {
     chooseBotVote,
     chooseBotVampireTarget,
     createBotDiscussionLine,
-    createBotRoster
+    createBotRoster,
+    createMatchRoster
 } from "../../../games/vampir-koylu/bots.js";
 
 test("bot roster has stable round-scoped IDs and a unique display name per seat", () => {
@@ -17,6 +18,51 @@ test("bot roster has stable round-scoped IDs and a unique display name per seat"
     assert.ok(roster.every((bot) => bot.id.startsWith("bot-3-")));
     assert.deepEqual(createBotRoster(0, 1), []);
     assert.throws(() => createBotRoster(12, 1));
+});
+
+
+test("two real players plus a five-player target creates exactly three synthetic bot seats", () => {
+    const roster = createMatchRoster(
+        ["human-a", "human-b"],
+        { botFillEnabled: true, targetPlayerCount: 5 },
+        7
+    );
+
+    assert.equal(roster.humanPlayerIds.length, 2);
+    assert.equal(roster.botPlayerIds.length, 3);
+    assert.equal(roster.playerIds.length, 5);
+    assert.deepEqual(roster.playerIds.slice(0, 2), ["human-a", "human-b"]);
+    assert.equal(Object.keys(roster.botNames).length, 3);
+    assert.ok(roster.botPlayerIds.every((id) => id.startsWith("bot-7-")));
+});
+
+test("bot filling disabled preserves the five-real-player minimum", () => {
+    assert.throws(() => createMatchRoster(
+        ["human-a", "human-b", "human-c", "human-d"],
+        { botFillEnabled: false, targetPlayerCount: 5 }
+    ));
+
+    const roster = createMatchRoster(
+        ["a", "b", "c", "d", "e"],
+        { botFillEnabled: false, targetPlayerCount: 5 }
+    );
+    assert.equal(roster.botPlayerIds.length, 0);
+    assert.equal(roster.playerIds.length, 5);
+});
+
+test("bot roster rejects duplicate humans and targets smaller than the human roster", () => {
+    assert.throws(() => createMatchRoster(
+        ["human-a", "human-a"],
+        { botFillEnabled: true, targetPlayerCount: 5 }
+    ));
+    assert.throws(() => createMatchRoster(
+        ["a", "b", "c", "d", "e", "f"],
+        { botFillEnabled: true, targetPlayerCount: 5 }
+    ));
+    assert.throws(() => createMatchRoster(
+        ["human-a"],
+        { botFillEnabled: true, targetPlayerCount: 13 }
+    ));
 });
 
 test("vampire bots coordinate on an existing teammate target", () => {
