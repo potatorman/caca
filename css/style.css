@@ -5280,3 +5280,12 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .game-lobby-settings-actions { flex-direction: column; }
     .game-lobby-settings-actions button { width: 100%; }
 }
+
+.vampir-avatar.is-bot {
+    display: grid;
+    place-items: center;
+    color: #e3d9ff;
+    background: linear-gradient(145deg, #514779, #332d4b);
+    border: 1px solid rgba(189, 170, 255, .28);
+    font-size: 17px;
+}
