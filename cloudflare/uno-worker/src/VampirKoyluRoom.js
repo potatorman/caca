@@ -6,6 +6,13 @@ import {
     resolveVote
 } from "../../../games/vampir-koylu/engine.js";
 import {
+    chooseBotDoctorTarget,
+    chooseBotVote,
+    chooseBotVampireTarget,
+    createBotDiscussionLine,
+    createBotRoster
+} from "../../../games/vampir-koylu/bots.js";
+import {
     deleteFirestoreDocument,
     firestoreTimestamp,
     getFirestoreDocument,
@@ -56,6 +63,7 @@ function getPublicState(match) {
         dayNumber: match.dayNumber,
         playerIds: match.playerIds,
         alivePlayerIds: match.activePlayerIds,
+        botNames: match.botNames || {},
         revealedRoles,
         phaseEndsAt: match.phaseEndsAt,
         publicMessage: match.publicMessage,
@@ -184,9 +192,36 @@ export class VampirKoyluRoom extends DurableObject {
             throw new Error("Vampir Köylü maçı başlatılmaya hazır değil.");
         }
 
-        const players = getSessionPlayers(session);
+        const humanPlayers = getSessionPlayers(session);
+        const settings = session.gameSettings || {};
+        const botFillEnabled = settings.botFillEnabled === true;
+        const targetPlayerCount = Number(settings.targetPlayerCount) || MIN_PLAYERS;
+
+        if (!humanPlayers.length || humanPlayers.length > MAX_PLAYERS) {
+            throw new Error("Vampir Köylü için 1–12 gerçek oyuncu gerekli.");
+        }
+
+        let botCount = 0;
+        if (botFillEnabled) {
+            if (
+                !Number.isInteger(targetPlayerCount) ||
+                targetPlayerCount < MIN_PLAYERS ||
+                targetPlayerCount > MAX_PLAYERS ||
+                humanPlayers.length > targetPlayerCount
+            ) {
+                throw new Error("Bot hedef oyuncu sayısı geçersiz veya gerçek oyuncu sayısından düşük.");
+            }
+            botCount = targetPlayerCount - humanPlayers.length;
+        } else if (humanPlayers.length < MIN_PLAYERS) {
+            throw new Error("Botlar kapalı. Vampir Köylü en az 5 gerçek oyuncu ile oynanır.");
+        }
+
+        const botRoster = createBotRoster(botCount, round);
+        const botPlayerIds = botRoster.map((bot) => bot.id);
+        const botNames = Object.fromEntries(botRoster.map((bot) => [bot.id, bot.name]));
+        const players = [...humanPlayers, ...botPlayerIds];
         if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) {
-            throw new Error("Vampir Köylü 5–12 aktif oyuncu ile oynanır.");
+            throw new Error("Vampir Köylü toplam 5–12 oyuncu ile oynanır.");
         }
 
         const now = Date.now();
@@ -197,6 +232,13 @@ export class VampirKoyluRoom extends DurableObject {
             phase: "night",
             dayNumber: 1,
             playerIds: [...players],
+            humanPlayerIds: [...humanPlayers],
+            botPlayerIds,
+            botNames,
+            botLastMessageDay: {},
+            botLastMessageAt: 0,
+            lastDoctorTargets: [],
+            voteHistory: [],
             activePlayerIds: [...players],
             roles: assignRoles(players, secureRandom),
             revealedRoles: {},
@@ -216,6 +258,8 @@ export class VampirKoyluRoom extends DurableObject {
             createdAt: now
         };
 
+        await this.runBotNightActions(match);
+        await this.maybeResolveCurrentPhase(match);
         await this.ctx.storage.put("match", match);
         await this.schedulePhaseAlarm(match);
         return match;
@@ -360,12 +404,14 @@ export class VampirKoyluRoom extends DurableObject {
                 result = this.castVote(match, uid, command.targetUid);
             } else if (command.type === "sendMessage") {
                 result = this.sendDiscussionMessage(match, uid, command.text);
+                await this.runBotDiscussion(match, true);
             } else if (command.type === "ping") {
                 result = { pong: true };
             } else {
                 throw new Error("Bilinmeyen Vampir Köylü hamlesi.");
             }
 
+            await this.runBotsForCurrentPhase(match);
             await this.maybeResolveCurrentPhase(match);
             await this.saveMatch(match);
             if (match.status === "results") {
@@ -394,6 +440,129 @@ export class VampirKoyluRoom extends DurableObject {
         ) {
             throw new Error("Bu oyunda artık hayatta değilsin.");
         }
+    }
+
+    getLivingBotIds(match) {
+        const botIds = new Set(match.botPlayerIds || []);
+        return match.activePlayerIds.filter((id) => botIds.has(id));
+    }
+
+    async runBotNightActions(match) {
+        if (match.status !== "playing" || match.phase !== "night") return;
+
+        const aliveBots = this.getLivingBotIds(match);
+        const aliveVampires = match.activePlayerIds.filter((id) => match.roles[id] === "vampir");
+
+        for (const botId of aliveBots) {
+            const role = match.roles[botId];
+            if (role === "vampir" && !match.nightActions.vampireTargets[botId]) {
+                const teammates = aliveVampires.filter((id) => id !== botId);
+                const targetUid = chooseBotVampireTarget({
+                    alivePlayerIds: match.activePlayerIds,
+                    teammateIds: teammates,
+                    vampireTargets: match.nightActions.vampireTargets,
+                    random: secureRandom
+                });
+                if (targetUid) match.nightActions.vampireTargets[botId] = targetUid;
+            } else if (role === "doktor" && !match.nightActions.doctorTarget) {
+                const targetUid = chooseBotDoctorTarget({
+                    botId,
+                    alivePlayerIds: match.activePlayerIds,
+                    previousVictims: match.lastDoctorTargets || [],
+                    random: secureRandom
+                });
+                if (targetUid) match.nightActions.doctorTarget = targetUid;
+            }
+        }
+    }
+
+    async runBotVotes(match) {
+        if (match.status !== "playing" || match.phase !== "voting") return;
+
+        const aliveBots = this.getLivingBotIds(match);
+        const aliveVampires = match.activePlayerIds.filter((id) => match.roles[id] === "vampir");
+        for (const botId of aliveBots) {
+            if (match.votes[botId]) continue;
+
+            const role = match.roles[botId];
+            const teammateIds = role === "vampir"
+                ? aliveVampires.filter((id) => id !== botId)
+                : [];
+            const targetUid = chooseBotVote({
+                botId,
+                role,
+                alivePlayerIds: match.activePlayerIds,
+                vampireTeammateIds: teammateIds,
+                vampireVotes: match.votes,
+                botNames: match.botNames || {},
+                discussionMessages: match.discussionMessages || [],
+                voteHistory: match.voteHistory || [],
+                revealedRoles: match.revealedRoles || {},
+                random: secureRandom
+            });
+            if (targetUid) match.votes[botId] = targetUid;
+        }
+    }
+
+    async runBotDiscussion(match, replyToHuman = false) {
+        if (match.status !== "playing" || match.phase !== "day") return;
+        const aliveBots = this.getLivingBotIds(match);
+        if (!aliveBots.length) return;
+
+        if (!match.botLastMessageDay) match.botLastMessageDay = {};
+        const eligible = aliveBots.filter((id) => match.botLastMessageDay[id] !== match.dayNumber);
+        if (!eligible.length) {
+            const lastAt = Number(match.botLastMessageAt) || 0;
+            if (!replyToHuman || Date.now() - lastAt < 6500) return;
+        }
+
+        let speakers;
+        if (replyToHuman) {
+            const available = eligible.length ? eligible : aliveBots;
+            speakers = [available[Math.floor(secureRandom() * available.length)]];
+        } else {
+            const count = Math.min(2, Math.max(1, Math.ceil(eligible.length / 3)));
+            const shuffled = [...eligible];
+            for (let index = shuffled.length - 1; index > 0; index -= 1) {
+                const next = Math.floor(secureRandom() * (index + 1));
+                [shuffled[index], shuffled[next]] = [shuffled[next], shuffled[index]];
+            }
+            speakers = shuffled.slice(0, count);
+        }
+
+        if (!Array.isArray(match.discussionMessages)) match.discussionMessages = [];
+        for (const botId of speakers) {
+            const role = match.roles[botId];
+            const vampireTeammateIds = role === "vampir"
+                ? match.activePlayerIds.filter((id) => id !== botId && match.roles[id] === "vampir")
+                : [];
+            const text = createBotDiscussionLine({
+                role,
+                botId,
+                botNames: match.botNames || {},
+                playerIds: match.activePlayerIds,
+                vampireTeammateIds,
+                discussionMessages: match.discussionMessages,
+                random: secureRandom
+            });
+            if (!text) continue;
+
+            match.discussionMessages.push({
+                id: crypto.randomUUID(),
+                uid: botId,
+                text,
+                dayNumber: match.dayNumber,
+                createdAt: Date.now()
+            });
+            match.botLastMessageDay[botId] = match.dayNumber;
+            match.botLastMessageAt = Date.now();
+        }
+        match.discussionMessages = match.discussionMessages.slice(-80);
+    }
+
+    async runBotsForCurrentPhase(match) {
+        if (match.phase === "night") await this.runBotNightActions(match);
+        else if (match.phase === "voting") await this.runBotVotes(match);
     }
 
     chooseNightTarget(match, uid, targetUid) {
@@ -492,6 +661,7 @@ export class VampirKoyluRoom extends DurableObject {
         if (!match.discussionLastMessageAt) match.discussionLastMessageAt = {};
         match.votes = {};
         match.nightActions = { vampireTargets: {}, doctorTarget: null };
+        await this.runBotDiscussion(match);
     }
 
     async beginNight(match, publicMessage = "Gece oldu. Vampirler ve doktor gizli seçimlerini yapıyor.") {
@@ -500,6 +670,8 @@ export class VampirKoyluRoom extends DurableObject {
         match.nightActions = { vampireTargets: {}, doctorTarget: null };
         match.votes = {};
         match.publicMessage = publicMessage;
+        await this.runBotNightActions(match);
+        await this.maybeResolveCurrentPhase(match);
     }
 
     async startVotingPhase(match) {
@@ -518,6 +690,8 @@ export class VampirKoyluRoom extends DurableObject {
         match.phaseEndsAt = Date.now() + VOTING_MS;
         match.votes = {};
         match.publicMessage = "Tartışma bitti. Şimdi köyden gönderilecek kişiyi oylayın.";
+        await this.runBotVotes(match);
+        await this.maybeResolveCurrentPhase(match);
     }
 
     async resolveNightPhase(match) {
@@ -529,6 +703,12 @@ export class VampirKoyluRoom extends DurableObject {
             match.activePlayerIds,
             match.roles
         );
+        if (match.nightActions.doctorTarget) {
+            match.lastDoctorTargets = [
+                ...(match.lastDoctorTargets || []),
+                match.nightActions.doctorTarget
+            ].slice(-3);
+        }
 
         let message;
         if (outcome.victimUid) {
@@ -561,6 +741,12 @@ export class VampirKoyluRoom extends DurableObject {
         if (match.status !== "playing" || match.phase !== "voting") return;
 
         const outcome = resolveVote(match.votes, match.activePlayerIds);
+        if (!Array.isArray(match.voteHistory)) match.voteHistory = [];
+        match.voteHistory.push({
+            dayNumber: match.dayNumber,
+            votes: { ...match.votes }
+        });
+        match.voteHistory = match.voteHistory.slice(-8);
         let message;
         if (outcome.targetUid) {
             match.activePlayerIds = match.activePlayerIds.filter((id) => id !== outcome.targetUid);
@@ -724,6 +910,7 @@ export class VampirKoyluRoom extends DurableObject {
             : session.hostId;
 
         match.playerIds = match.playerIds.filter((id) => id !== uid);
+        match.humanPlayerIds = (match.humanPlayerIds || []).filter((id) => id !== uid);
         match.activePlayerIds = match.activePlayerIds.filter((id) => id !== uid);
         delete match.nightActions.vampireTargets[uid];
         if (match.votes) delete match.votes[uid];
@@ -859,7 +1046,8 @@ export class VampirKoyluRoom extends DurableObject {
 
         const allowed = getSessionPlayers(sessionDoc.data);
         if (!allowed.includes(uid)) return { reconciled: false };
-        const nextRoster = match.playerIds.filter((id) => allowed.includes(id));
+        const botIds = new Set(match.botPlayerIds || []);
+        const nextRoster = match.playerIds.filter((id) => botIds.has(id) || allowed.includes(id));
         if (
             nextRoster.length === match.playerIds.length &&
             nextRoster.every((id, index) => id === match.playerIds[index])
@@ -867,9 +1055,10 @@ export class VampirKoyluRoom extends DurableObject {
             return { reconciled: false };
         }
 
-        const removed = match.playerIds.filter((id) => !allowed.includes(id));
+        const removed = match.playerIds.filter((id) => !botIds.has(id) && !allowed.includes(id));
+        match.humanPlayerIds = (match.humanPlayerIds || []).filter((id) => allowed.includes(id));
         match.playerIds = nextRoster;
-        match.activePlayerIds = match.activePlayerIds.filter((id) => allowed.includes(id));
+        match.activePlayerIds = match.activePlayerIds.filter((id) => botIds.has(id) || allowed.includes(id));
         for (const removedUid of removed) {
             delete match.nightActions.vampireTargets[removedUid];
             delete match.votes[removedUid];
