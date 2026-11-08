@@ -104,7 +104,7 @@ export async function openUnoGame({
                     <span class="uno-eyebrow">MAÇ SONUCU</span>
                     <h2 data-role="winner">Kazanan</h2>
                     <div data-role="result-scores"></div>
-                    <p class="uno-result-hint">Bu seçim yalnızca seni sonuç ekranından çıkarır. Yeni lobi, bütün aktif oyuncular döndüğünde açılır.</p>
+                    <p class="uno-result-hint">Bu ekran 5 saniye sonra otomatik kapanır ve lobiye dönersin. Daha erken dönmek için aşağıdaki butona bas.</p>
                     <p class="uno-message uno-result-message" data-role="result-message" aria-live="assertive"></p>
                     <button class="uno-primary" type="button" data-action="close-result">Lobiye dön</button>
                 </div>
@@ -125,6 +125,8 @@ export async function openUnoGame({
     let hiddenHand = false;
     let busy = false;
     let closed = false;
+    let resultAutoCloseTimer = null;
+    let resultAutoCloseScheduled = false;
 
     role("hand-area").hidden = !isMatchPlayer;
     action("close").setAttribute("aria-label", isMatchPlayer ? "Maçı terk et" : "Oyunu kapat");
@@ -307,8 +309,20 @@ export async function openUnoGame({
             ? "Maç tamamlandı"
             : myTurn ? "Hamleni yap" : "Diğer oyuncunun hamlesi bekleniyor");
 
-        if (state.status === "results") renderResult();
-        else role("result").hidden = true;
+        if (state.status === "results") {
+            renderResult();
+            if (!resultAutoCloseScheduled) {
+                resultAutoCloseScheduled = true;
+                resultAutoCloseTimer = setTimeout(autoReturnFromResults, 5000);
+            }
+        } else {
+            if (resultAutoCloseTimer !== null) {
+                clearTimeout(resultAutoCloseTimer);
+                resultAutoCloseTimer = null;
+            }
+            resultAutoCloseScheduled = false;
+            role("result").hidden = true;
+        }
     }
 
     async function perform(task, successText = "") {
@@ -345,8 +359,22 @@ export async function openUnoGame({
     function close() {
         if (closed) return;
         closed = true;
+        if (resultAutoCloseTimer !== null) {
+            clearTimeout(resultAutoCloseTimer);
+            resultAutoCloseTimer = null;
+        }
         connection?.close();
         root.remove();
+    }
+
+    function autoReturnFromResults() {
+        resultAutoCloseTimer = null;
+        if (closed || state?.status !== "results") return;
+        if (busy) {
+            resultAutoCloseTimer = setTimeout(autoReturnFromResults, 250);
+            return;
+        }
+        void returnFromResults(action("close-result"));
     }
 
     async function returnFromResults(button) {
