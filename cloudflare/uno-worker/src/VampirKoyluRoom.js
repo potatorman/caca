@@ -458,6 +458,7 @@ export class VampirKoyluRoom extends DurableObject {
             if (role === "vampir" && !match.nightActions.vampireTargets[botId]) {
                 const teammates = aliveVampires.filter((id) => id !== botId);
                 const targetUid = chooseBotVampireTarget({
+                    botId,
                     alivePlayerIds: match.activePlayerIds,
                     teammateIds: teammates,
                     vampireTargets: match.nightActions.vampireTargets,
