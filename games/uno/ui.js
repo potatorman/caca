@@ -46,8 +46,8 @@ export async function openUnoGame({
                     <p class="uno-header-status" data-role="status">Masa hazırlanıyor…</p>
                 </div>
                 <div class="uno-header-actions">
-                    <button type="button" class="uno-secondary" data-action="leave">Maçı terk et</button>
-                    <button type="button" class="uno-close" data-action="close" aria-label="Oyunu kapat">×</button>
+                    <button type="button" class="uno-close" data-action="close"
+                        aria-label="Maçı terk et" title="Maçı terk et">×</button>
                 </div>
             </header>
             <div class="uno-board">
@@ -127,7 +127,8 @@ export async function openUnoGame({
     let closed = false;
 
     role("hand-area").hidden = !isMatchPlayer;
-    action("leave").hidden = !isMatchPlayer;
+    action("close").setAttribute("aria-label", isMatchPlayer ? "Maçı terk et" : "Oyunu kapat");
+    action("close").title = isMatchPlayer ? "Maçı terk et" : "Oyunu kapat";
 
     function setStatus(message) {
         role("status").textContent = message || "";
@@ -279,11 +280,15 @@ export async function openUnoGame({
         action("end-turn").disabled = busy;
 
         const canLeave = playing && state.activePlayerIds?.includes(uid);
-        action("leave").hidden = !canLeave;
-        action("leave").disabled = busy || (state.activePlayerIds?.length || 0) <= 1;
-        action("leave").title = (state.activePlayerIds?.length || 0) <= 1
-            ? "Son aktif oyuncu; odadan ayrılma işlemi oyun lobisini sıfırlar."
-            : "Maçı terk et";
+        const closeButton = action("close");
+        closeButton.disabled = busy;
+        closeButton.setAttribute(
+            "aria-label",
+            state.status === "results" ? "Lobiye dön" : canLeave ? "Maçı terk et" : "Oyunu kapat"
+        );
+        closeButton.title = state.status === "results"
+            ? "Lobiye dön"
+            : canLeave ? "Maçı terk et" : "Oyunu kapat";
 
         action("uno").hidden = !(
             playing && state.unoPendingUid === uid && !state.unoCalled
@@ -372,17 +377,25 @@ export async function openUnoGame({
         hiddenHand = !hiddenHand;
         renderHand();
     });
-    action("close").addEventListener("click", (event) => {
-        if (state?.status === "results") void returnFromResults(event.currentTarget);
-        else close();
-    });
-    action("close-result").addEventListener("click", (event) => {
-        void returnFromResults(event.currentTarget);
-    });
-
-    action("leave").addEventListener("click", async (event) => {
+    action("close").addEventListener("click", async (event) => {
         const button = event.currentTarget;
-        if (busy || button.disabled) return;
+        if (busy || closed) return;
+
+        if (state?.status === "results") {
+            await returnFromResults(button);
+            return;
+        }
+
+        // Use the × button as the single exit action. A current match player
+        // forfeits the match; spectators can simply close their table view.
+        const activeMatchPlayer = state?.status === "playing"
+            ? Boolean(state.activePlayerIds?.includes(uid))
+            : isMatchPlayer;
+        if (!activeMatchPlayer) {
+            close();
+            return;
+        }
+
         if (!window.confirm(
             "Maçı tamamen terk etmek istiyor musun? Oyun lobisinden de çıkarılacaksın. İki kişilik maçta kalan oyuncu kazanır."
         )) return;
@@ -391,14 +404,23 @@ export async function openUnoGame({
         button.disabled = true;
         renderHand();
         try {
-            const result = await onLeave?.();
+            if (typeof onLeave !== "function") {
+                throw new Error("Maçtan çıkış işlemi kullanılamıyor.");
+            }
+            const result = await onLeave();
             if (result === false) throw new Error("Maçtan çıkış tamamlanmadı.");
             close();
         } catch (error) {
             setMessage(errorMessage(error, "Maçı terk edemedin."), true);
             busy = false;
-            if (!closed) render();
+            if (!closed) {
+                button.disabled = false;
+                render();
+            }
         }
+    });
+    action("close-result").addEventListener("click", (event) => {
+        void returnFromResults(event.currentTarget);
     });
 
     action("draw").addEventListener("click", () => {
