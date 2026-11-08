@@ -197,6 +197,22 @@ export class VampirKoyluRoom extends DurableObject {
         const botPlayerIds = roster.botPlayerIds;
         const botNames = roster.botNames;
         const players = roster.playerIds;
+        const humanNameEntries = await Promise.all(humanPlayers.map(async (uid) => {
+            try {
+                const profile = await getFirestoreDocument(this.env, "users/" + uid);
+                const data = profile?.data || {};
+                const name = String(data.nickname || data.username || "Oyuncu")
+                    .trim()
+                    .slice(0, 24);
+                return [uid, name || "Oyuncu"];
+            } catch {
+                return [uid, "Oyuncu"];
+            }
+        }));
+        const playerNames = Object.fromEntries([
+            ...humanNameEntries,
+            ...Object.entries(botNames)
+        ]);
         if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) {
             throw new Error("Vampir Köylü toplam 5–12 oyuncu ile oynanır.");
         }
@@ -212,6 +228,7 @@ export class VampirKoyluRoom extends DurableObject {
             humanPlayerIds: [...humanPlayers],
             botPlayerIds,
             botNames,
+            playerNames,
             botLastMessageDay: {},
             botLastMessageAt: 0,
             lastDoctorTargets: [],
@@ -484,7 +501,7 @@ export class VampirKoyluRoom extends DurableObject {
                 alivePlayerIds: match.activePlayerIds,
                 vampireTeammateIds: teammateIds,
                 vampireVotes: match.votes,
-                botNames: match.botNames || {},
+                playerNames: match.playerNames || match.botNames || {},
                 discussionMessages: match.discussionMessages || [],
                 voteHistory: match.voteHistory || [],
                 revealedRoles: match.revealedRoles || {},
@@ -529,7 +546,7 @@ export class VampirKoyluRoom extends DurableObject {
             const text = createBotDiscussionLine({
                 role,
                 botId,
-                botNames: match.botNames || {},
+                playerNames: match.playerNames || match.botNames || {},
                 playerIds: match.activePlayerIds,
                 vampireTeammateIds,
                 discussionMessages: match.discussionMessages,
