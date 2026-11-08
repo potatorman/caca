@@ -5136,3 +5136,147 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .vampir-chat-messages { max-height: 160px; }
     .vampir-chat-form .vampir-primary { min-width: 70px; }
 }
+
+
+/* Host-only Vampir Köylü lobby settings and synthetic bot seats */
+.game-bot-lobby-preview {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    color: #d9d5fb;
+    background: rgba(111, 100, 205, .12);
+    border: 1px solid rgba(151, 139, 245, .22);
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.game-session-bot-seat {
+    border: 1px dashed rgba(167, 155, 223, .32);
+    background: rgba(91, 79, 153, .08);
+}
+.game-session-bot-seat .game-session-member-state {
+    color: #b7abd9;
+}
+.game-lobby-settings-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(7, 8, 15, .76);
+    backdrop-filter: blur(8px);
+}
+.game-lobby-settings-panel[hidden] {
+    display: none !important;
+}
+.game-lobby-settings-card {
+    width: min(100%, 440px);
+    padding: 22px;
+    color: #f1edf6;
+    background: linear-gradient(155deg, #242333, #171722);
+    border: 1px solid rgba(184, 168, 235, .2);
+    border-radius: 17px;
+    box-shadow: 0 24px 90px rgba(0, 0, 0, .48);
+}
+.game-lobby-settings-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.game-lobby-settings-heading .small-label {
+    color: #b4a4ee;
+}
+.game-lobby-settings-heading h4 {
+    margin: 5px 0 6px;
+    color: #fff;
+    font-size: 20px;
+}
+.game-lobby-settings-heading p {
+    margin: 0;
+    color: #aaa5b8;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.game-bot-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px;
+    background: rgba(255, 255, 255, .045);
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 12px;
+    cursor: pointer;
+}
+.game-bot-toggle > span {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.game-bot-toggle strong {
+    color: #f0eafa;
+    font-size: 13px;
+}
+.game-bot-toggle small {
+    color: #a7a1b3;
+    font-size: 11px;
+    line-height: 1.45;
+}
+.game-bot-toggle input {
+    width: 19px;
+    height: 19px;
+    accent-color: #9c8bea;
+    flex: 0 0 auto;
+}
+.game-bot-target-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 15px;
+    color: #d9d4e2;
+    font-size: 12px;
+    font-weight: 650;
+}
+.game-bot-target-field select {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    color: #f6f1fa;
+    background: #171621;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 9px;
+    font: inherit;
+}
+.game-bot-settings-preview {
+    margin: 14px 0 0;
+    padding: 11px 12px;
+    color: #d1c9ec;
+    background: rgba(151, 132, 226, .1);
+    border: 1px solid rgba(151, 132, 226, .2);
+    border-radius: 9px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.game-bot-settings-status {
+    min-height: 18px;
+    margin: 9px 0 0;
+    color: #aee0bd;
+    font-size: 11px;
+}
+.game-lobby-settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-top: 15px;
+}
+.game-lobby-settings-actions button {
+    flex: 1 1 140px;
+}
+@media (max-width: 520px) {
+    .game-lobby-settings-card { padding: 17px; }
+    .game-lobby-settings-actions { flex-direction: column; }
+    .game-lobby-settings-actions button { width: 100%; }
+}
