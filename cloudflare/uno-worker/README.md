@@ -185,3 +185,12 @@ The production branch remains `main`. To test a feature branch before merging:
 5. Use the Preview URL posted to the pull request for the Worker build. For Firebase preview testing, point the feature branch's `games/uno/worker-config.js` to that Preview Worker URL; restore the production URL before merging.
 
 Preview Worker game sessions use the same Firebase project, so test only with test rooms and test accounts. Durable Object state is isolated per Preview.
+
+
+## Vampir Köylü bot lobileri
+
+The Vampir Köylü lobby stores only real Firebase user IDs. Its optional `gameSettings` map contains the host-controlled `botFillEnabled` toggle and `targetPlayerCount` (5–12).
+
+When bot filling is enabled, the Worker creates the missing seats inside `VampirKoyluRoom` after the real-player match roster is frozen. Synthetic bot IDs and roles exist only in Durable Object storage; they are not Firebase accounts, room members, lobby-ready entries or result-return acknowledgements.
+
+Bot actions are performed by the Durable Object during night and voting phases. Bots use role-specific deterministic decision helpers from `games/vampir-koylu/bots.js`; no external AI service or API key is used. Real Vampire teammates get the first opportunity to submit a hidden choice so a Vampire bot can coordinate without exposing its action.
