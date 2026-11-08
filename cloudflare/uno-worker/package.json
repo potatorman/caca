@@ -1,0 +1,13 @@
+{
+  "name": "caca-uno-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.102.0"
+  }
+}

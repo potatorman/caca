@@ -4858,7 +4858,7 @@ async function removeSelfFromActiveGame(roomId) {
                 activeSession.gameId === "uno" &&
                 activeSession.status === "playing" &&
                 activeMatchPlayers.includes(currentUser.uid) &&
-                activeMatchPlayers.length > 1
+                activeMatchPlayers.length >= 1
             ) {
                 await leaveUnoMatchFromSession(roomId, activeSession, currentUser.uid);
                 return;

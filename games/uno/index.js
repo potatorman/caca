@@ -1,7 +1,6 @@
 import { openUnoGame } from "./ui.js";
 
 export {
-    ensureMatch,
     reconcileMatchPlayers,
     forfeitMatch,
     returnToLobby

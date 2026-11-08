@@ -1,15 +1,6 @@
 import { setAvatarElement } from "../../js/avatars.js";
 import { isCardPlayable } from "./engine.js";
-import {
-    callUno,
-    catchUno,
-    drawOneCard,
-    endTurnAfterDraw,
-    ensureMatch,
-    playCard,
-    skipTimedOutTurn,
-    subscribeToMatch
-} from "./state.js";
+import { connectToMatch } from "./state.js";
 
 const COLORS = Object.freeze({
     red: "Kırmızı",
@@ -55,8 +46,8 @@ export async function openUnoGame({
                     <p class="uno-header-status" data-role="status">Masa hazırlanıyor…</p>
                 </div>
                 <div class="uno-header-actions">
-                    <button type="button" class="uno-secondary" data-action="leave">Maçı terk et</button>
-                    <button type="button" class="uno-close" data-action="close" aria-label="Oyunu kapat">×</button>
+                    <button type="button" class="uno-close" data-action="close"
+                        aria-label="Maçı terk et" title="Maçı terk et">×</button>
                 </div>
             </header>
             <div class="uno-board">
@@ -113,7 +104,7 @@ export async function openUnoGame({
                     <span class="uno-eyebrow">MAÇ SONUCU</span>
                     <h2 data-role="winner">Kazanan</h2>
                     <div data-role="result-scores"></div>
-                    <p class="uno-result-hint">Bu seçim yalnızca seni sonuç ekranından çıkarır. Yeni lobi, bütün aktif oyuncular döndüğünde açılır.</p>
+                    <p class="uno-result-hint">Bu ekran 5 saniye sonra otomatik kapanır ve lobiye dönersin. Daha erken dönmek için aşağıdaki butona bas.</p>
                     <p class="uno-message uno-result-message" data-role="result-message" aria-live="assertive"></p>
                     <button class="uno-primary" type="button" data-action="close-result">Lobiye dön</button>
                 </div>
@@ -130,15 +121,16 @@ export async function openUnoGame({
     let state = null;
     let hand = null;
     let selectedWildCard = null;
-    let unsubscribe = null;
-    let timeoutInterval = null;
-    let timeoutKey = "";
+    let connection = null;
     let hiddenHand = false;
     let busy = false;
     let closed = false;
+    let resultAutoCloseTimer = null;
+    let resultAutoCloseScheduled = false;
 
     role("hand-area").hidden = !isMatchPlayer;
-    action("leave").hidden = !isMatchPlayer;
+    action("close").setAttribute("aria-label", isMatchPlayer ? "Maçı terk et" : "Oyunu kapat");
+    action("close").title = isMatchPlayer ? "Maçı terk et" : "Oyunu kapat";
 
     function setStatus(message) {
         role("status").textContent = message || "";
@@ -267,7 +259,11 @@ export async function openUnoGame({
         role("active-color").textContent = "Aktif renk: " + (COLORS[state.activeColor] || "—");
         role("active-color").className = "uno-active-color is-" + (state.activeColor || "none");
         role("direction").textContent = "Yön: " + (state.direction === -1 ? "←" : "→");
-        role("draw-count").textContent = String(Array.isArray(state.drawPile) ? state.drawPile.length : 0);
+        role("draw-count").textContent = String(
+            Number.isFinite(state.drawCount)
+                ? state.drawCount
+                : Array.isArray(state.drawPile) ? state.drawPile.length : 0
+        );
 
         const discard = role("discard");
         discard.replaceChildren();
@@ -286,11 +282,15 @@ export async function openUnoGame({
         action("end-turn").disabled = busy;
 
         const canLeave = playing && state.activePlayerIds?.includes(uid);
-        action("leave").hidden = !canLeave;
-        action("leave").disabled = busy || (state.activePlayerIds?.length || 0) <= 1;
-        action("leave").title = (state.activePlayerIds?.length || 0) <= 1
-            ? "Son aktif oyuncu; odadan ayrılma işlemi oyun lobisini sıfırlar."
-            : "Maçı terk et";
+        const closeButton = action("close");
+        closeButton.disabled = busy;
+        closeButton.setAttribute(
+            "aria-label",
+            state.status === "results" ? "Lobiye dön" : canLeave ? "Maçı terk et" : "Oyunu kapat"
+        );
+        closeButton.title = state.status === "results"
+            ? "Lobiye dön"
+            : canLeave ? "Maçı terk et" : "Oyunu kapat";
 
         action("uno").hidden = !(
             playing && state.unoPendingUid === uid && !state.unoCalled
@@ -309,8 +309,20 @@ export async function openUnoGame({
             ? "Maç tamamlandı"
             : myTurn ? "Hamleni yap" : "Diğer oyuncunun hamlesi bekleniyor");
 
-        if (state.status === "results") renderResult();
-        else role("result").hidden = true;
+        if (state.status === "results") {
+            renderResult();
+            if (!resultAutoCloseScheduled) {
+                resultAutoCloseScheduled = true;
+                resultAutoCloseTimer = setTimeout(autoReturnFromResults, 5000);
+            }
+        } else {
+            if (resultAutoCloseTimer !== null) {
+                clearTimeout(resultAutoCloseTimer);
+                resultAutoCloseTimer = null;
+            }
+            resultAutoCloseScheduled = false;
+            role("result").hidden = true;
+        }
     }
 
     async function perform(task, successText = "") {
@@ -341,15 +353,28 @@ export async function openUnoGame({
             role("color-modal").hidden = false;
             return;
         }
-        await perform(() => playCard(db, roomId, round, uid, card.id));
+        await perform(() => connection.request("playCard", { cardId: card.id }));
     }
 
     function close() {
         if (closed) return;
         closed = true;
-        unsubscribe?.();
-        if (timeoutInterval) clearInterval(timeoutInterval);
+        if (resultAutoCloseTimer !== null) {
+            clearTimeout(resultAutoCloseTimer);
+            resultAutoCloseTimer = null;
+        }
+        connection?.close();
         root.remove();
+    }
+
+    function autoReturnFromResults() {
+        resultAutoCloseTimer = null;
+        if (closed || state?.status !== "results") return;
+        if (busy) {
+            resultAutoCloseTimer = setTimeout(autoReturnFromResults, 250);
+            return;
+        }
+        void returnFromResults(action("close-result"));
     }
 
     async function returnFromResults(button) {
@@ -380,17 +405,25 @@ export async function openUnoGame({
         hiddenHand = !hiddenHand;
         renderHand();
     });
-    action("close").addEventListener("click", (event) => {
-        if (state?.status === "results") void returnFromResults(event.currentTarget);
-        else close();
-    });
-    action("close-result").addEventListener("click", (event) => {
-        void returnFromResults(event.currentTarget);
-    });
-
-    action("leave").addEventListener("click", async (event) => {
+    action("close").addEventListener("click", async (event) => {
         const button = event.currentTarget;
-        if (busy || button.disabled) return;
+        if (busy || closed) return;
+
+        if (state?.status === "results") {
+            await returnFromResults(button);
+            return;
+        }
+
+        // Use the × button as the single exit action. A current match player
+        // forfeits the match; spectators can simply close their table view.
+        const activeMatchPlayer = state?.status === "playing"
+            ? Boolean(state.activePlayerIds?.includes(uid))
+            : isMatchPlayer;
+        if (!activeMatchPlayer) {
+            close();
+            return;
+        }
+
         if (!window.confirm(
             "Maçı tamamen terk etmek istiyor musun? Oyun lobisinden de çıkarılacaksın. İki kişilik maçta kalan oyuncu kazanır."
         )) return;
@@ -399,19 +432,28 @@ export async function openUnoGame({
         button.disabled = true;
         renderHand();
         try {
-            const result = await onLeave?.();
+            if (typeof onLeave !== "function") {
+                throw new Error("Maçtan çıkış işlemi kullanılamıyor.");
+            }
+            const result = await onLeave();
             if (result === false) throw new Error("Maçtan çıkış tamamlanmadı.");
             close();
         } catch (error) {
             setMessage(errorMessage(error, "Maçı terk edemedin."), true);
             busy = false;
-            if (!closed) render();
+            if (!closed) {
+                button.disabled = false;
+                render();
+            }
         }
+    });
+    action("close-result").addEventListener("click", (event) => {
+        void returnFromResults(event.currentTarget);
     });
 
     action("draw").addEventListener("click", () => {
         void perform(async () => {
-            const result = await drawOneCard(db, roomId, round, uid);
+            const result = await connection.request("drawCard");
             return result.empty
                 ? "Çekme destesi ve yeniden karıştırılabilecek kart kalmadı; sıra sonraki oyuncuya geçti."
                 : result.playable
@@ -422,14 +464,14 @@ export async function openUnoGame({
         });
     });
     action("end-turn").addEventListener("click", () => {
-        void perform(() => endTurnAfterDraw(db, roomId, round, uid));
+        void perform(() => connection.request("endTurn"));
     });
     action("uno").addEventListener("click", () => {
-        void perform(() => callUno(db, roomId, round, uid), "UNO dedin!");
+        void perform(() => connection.request("callUno"), "UNO dedin!");
     });
     action("catch").addEventListener("click", () => {
         void perform(async () => {
-            const result = await catchUno(db, roomId, round, uid);
+            const result = await connection.request("catchUno");
             return labelPlayer(result.targetUid, members, uid) +
                 " UNO demedi: " + result.count + " kart çekti.";
         }).then((message) => {
@@ -445,77 +487,53 @@ export async function openUnoGame({
             selectedWildCard = null;
             role("color-modal").hidden = true;
             void perform(
-                () => playCard(db, roomId, round, uid, cardId, color),
+                () => connection.request("playCard", { cardId, selectedColor: color }),
                 "Aktif renk " + COLORS[color] + " oldu."
             );
         });
     });
 
-    function subscribe(watchHand) {
-        if (closed || unsubscribe) return;
-        unsubscribe = subscribeToMatch(
-            db, roomId, round, uid,
-            (nextState) => {
-                if (closed) return;
-                state = nextState;
-                if (!state) {
-                    setStatus("Yeni tur hazırlanıyor…");
-                    role("players").replaceChildren();
-                    role("discard").replaceChildren();
-                    role("hand").replaceChildren();
-                    role("hand-count").textContent = "0 kart";
-                    return;
-                }
-                render();
-            },
-            (nextHand) => {
-                if (closed) return;
-                hand = nextHand;
-                renderHand();
-            },
-            (error, source) => {
-                if (!closed) setMessage(
-                    (source ? source + ": " : "") + errorMessage(error, "UNO bağlantısı koptu."),
+    setStatus("Cloudflare UNO sunucusuna bağlanılıyor…");
+    connectToMatch(db, roomId, round, uid, {
+        onState(nextState) {
+            if (closed) return;
+            state = nextState;
+            if (!state) {
+                setStatus("Maç hazırlanıyor…");
+                return;
+            }
+            render();
+        },
+        onHand(nextHand) {
+            if (closed) return;
+            hand = nextHand;
+            renderHand();
+        },
+        onConnectionState(connected, message) {
+            if (closed) return;
+            if (!connected) {
+                setStatus(message || "UNO sunucusuna bağlanılıyor…");
+            } else if (!state) {
+                setStatus("UNO sunucusuna bağlandı. Maç verisi bekleniyor…");
+            }
+        },
+        onError(error, source) {
+            if (!closed) {
+                setMessage(
+                    (source ? source + ": " : "") +
+                    errorMessage(error, "UNO bağlantısı kurulamadı."),
                     true
                 );
-            },
-            watchHand
-        );
-    }
-
-    // Only the deterministic coordinator attempts a timed-out turn.
-    timeoutInterval = setInterval(() => {
-        if (
-            closed || busy || state?.status !== "playing" ||
-            state.activePlayerIds?.[0] !== uid
-        ) return;
-
-        const started = state.turnStartedAt?.toMillis?.();
-        const key = String(state.turnNumber) + ":" + state.currentPlayerUid;
-        if (!Number.isFinite(started) || Date.now() - started < 90_000 || timeoutKey === key) {
-            return;
+            }
         }
+    }).then((nextConnection) => {
+        if (closed) nextConnection.close();
+        else connection = nextConnection;
+    }).catch((error) => {
+        if (!closed) setMessage(errorMessage(error, "UNO sunucusuna bağlanılamadı."), true);
+    });
 
-        timeoutKey = key;
-        skipTimedOutTurn(db, roomId, round, uid).then((skipped) => {
-            if (!skipped) timeoutKey = "";
-        }).catch((error) => {
-            timeoutKey = "";
-            if (!closed) setMessage(errorMessage(error, "Sıra zaman aşımı denetlenemedi."), true);
-        });
-    }, 3000);
-
-    if (isMatchPlayer) {
-        setStatus("Kartlar dağıtılıyor…");
-        ensureMatch(db, roomId, round, uid)
-            .then(() => {
-                if (!closed) subscribe(true);
-            })
-            .catch((error) => {
-                if (!closed) setMessage(errorMessage(error, "Maç hazırlanamadı."), true);
-            });
-    } else {
-        subscribe(false);
+    if (!isMatchPlayer) {
         setMessage("İzleyici görünümü. Kart elleri yalnızca ilgili oyuncuya gösterilir.");
     }
 

@@ -1394,6 +1394,13 @@ service cloud.firestore {
           );
       }
 
+      // Cloudflare writes completed UNO results through its trusted service account.
+      // Room members may read a result, but browser clients cannot create or alter it.
+      match /unoResults/{roundId} {
+        allow get: if isRoomMember(roomId);
+        allow list, create, update, delete: if false;
+      }
+
       // UNO matches are isolated from the persistent gameSessions/active document.
       // Public match state contains counts and the top card; hands and draw cards
       // live in separate private subcollections.
