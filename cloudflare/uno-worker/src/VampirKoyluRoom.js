@@ -10,7 +10,7 @@ import {
     chooseBotVote,
     chooseBotVampireTarget,
     createBotDiscussionLine,
-    createBotRoster
+    createMatchRoster
 } from "../../../games/vampir-koylu/bots.js";
 import {
     deleteFirestoreDocument,
@@ -193,33 +193,10 @@ export class VampirKoyluRoom extends DurableObject {
         }
 
         const humanPlayers = getSessionPlayers(session);
-        const settings = session.gameSettings || {};
-        const botFillEnabled = settings.botFillEnabled === true;
-        const targetPlayerCount = Number(settings.targetPlayerCount) || MIN_PLAYERS;
-
-        if (!humanPlayers.length || humanPlayers.length > MAX_PLAYERS) {
-            throw new Error("Vampir Köylü için 1–12 gerçek oyuncu gerekli.");
-        }
-
-        let botCount = 0;
-        if (botFillEnabled) {
-            if (
-                !Number.isInteger(targetPlayerCount) ||
-                targetPlayerCount < MIN_PLAYERS ||
-                targetPlayerCount > MAX_PLAYERS ||
-                humanPlayers.length > targetPlayerCount
-            ) {
-                throw new Error("Bot hedef oyuncu sayısı geçersiz veya gerçek oyuncu sayısından düşük.");
-            }
-            botCount = targetPlayerCount - humanPlayers.length;
-        } else if (humanPlayers.length < MIN_PLAYERS) {
-            throw new Error("Botlar kapalı. Vampir Köylü en az 5 gerçek oyuncu ile oynanır.");
-        }
-
-        const botRoster = createBotRoster(botCount, round);
-        const botPlayerIds = botRoster.map((bot) => bot.id);
-        const botNames = Object.fromEntries(botRoster.map((bot) => [bot.id, bot.name]));
-        const players = [...humanPlayers, ...botPlayerIds];
+        const roster = createMatchRoster(humanPlayers, session.gameSettings || {}, round);
+        const botPlayerIds = roster.botPlayerIds;
+        const botNames = roster.botNames;
+        const players = roster.playerIds;
         if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) {
             throw new Error("Vampir Köylü toplam 5–12 oyuncu ile oynanır.");
         }
