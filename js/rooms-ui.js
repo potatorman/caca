@@ -1435,7 +1435,7 @@ function isLobbyReadyToStart(session) {
         const settings = getVampirLobbySettings(session);
         const minRealPlayers = settings.botFillEnabled ? 1 : 5;
         return players.length >= minRealPlayers &&
-            players.length <= settings.targetPlayerCount &&
+            (!settings.botFillEnabled || players.length <= settings.targetPlayerCount) &&
             players.length <= maxPlayers &&
             players.every((id) => ready.includes(id));
     }
@@ -2909,6 +2909,7 @@ async function closeGameSession() {
 $("createGameSessionButton").addEventListener("click", createGameSession);
 $("gameLobbySettingsButton").addEventListener("click", openGameLobbySettings);
 $("closeGameLobbySettingsButton").addEventListener("click", closeGameLobbySettings);
+$("cancelGameLobbySettingsButton").addEventListener("click", closeGameLobbySettings);
 $("saveGameLobbySettingsButton").addEventListener("click", saveGameLobbySettings);
 $("gameBotFillToggle").addEventListener("change", updateGameBotSettingsPreview);
 $("gameBotTargetCount").addEventListener("change", updateGameBotSettingsPreview);
