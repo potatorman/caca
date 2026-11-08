@@ -172,3 +172,16 @@ or when the match ends.
 
 The separate Durable Object class is added by Wrangler migration `v2`; do not remove the
 existing `UnoRoom` class or its `v1` migration.
+
+
+## Cloudflare Preview Builds for pull requests
+
+The production branch remains `main`. To test a feature branch before merging:
+
+1. In **Workers & Pages → caca-uno → Settings → Builds → Branch control**, enable **Preview Builds**.
+2. Keep the production branch set to `main` and the production deploy command set to `npx wrangler deploy`.
+3. In **Settings → Variables & Secrets**, select **Previews Base** and add the encrypted secrets `UNO_TICKET_SECRET` and `FIREBASE_SERVICE_ACCOUNT_JSON` using the same values as Production. Never put either secret in the repository.
+4. The Wrangler `previews` block already defines the preview Firebase project variables and both Durable Object bindings. Cloudflare creates isolated Durable Object namespaces for each Preview.
+5. Use the Preview URL posted to the pull request for the Worker build. For Firebase preview testing, point the feature branch's `games/uno/worker-config.js` to that Preview Worker URL; restore the production URL before merging.
+
+Preview Worker game sessions use the same Firebase project, so test only with test rooms and test accounts. Durable Object state is isolated per Preview.
