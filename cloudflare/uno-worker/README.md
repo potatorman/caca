@@ -174,19 +174,40 @@ The separate Durable Object class is added by Wrangler migration `v2`; do not re
 existing `UnoRoom` class or its `v1` migration.
 
 
-## Cloudflare Preview Builds for pull requests
+## Cloudflare Worker Previews for pull requests
 
-The production branch remains `main`. To test a feature branch before merging:
+The production Worker remains on its currently configured production branch. **Do not change the production branch or production deploy command just to test this feature.**
 
-1. In **Workers & Pages → caca-uno → Settings → Builds → Branch control**, enable **Preview Builds**.
-2. Keep the production branch set to `main` and the production deploy command set to `npx wrangler deploy`.
-3. In **Settings → Variables & Secrets**, select **Previews Base** and add the encrypted secrets `UNO_TICKET_SECRET` and `FIREBASE_SERVICE_ACCOUNT_JSON` using the same values as Production. Never put either secret in the repository.
-4. The Wrangler `previews` block already defines the preview Firebase project variables and both Durable Object bindings. Cloudflare creates isolated Durable Object namespaces for each Preview.
-5. Use the Preview URL posted to the pull request for the Worker build. For Firebase preview testing, point the feature branch's `games/uno/worker-config.js` to that Preview Worker URL; restore the production URL before merging.
+The current repository uses Wrangler `4.135.0+` and has a `previews` section in `wrangler.jsonc` for preview Firebase variables and Durable Object bindings.
 
-Preview Worker game sessions use the same Firebase project, so test only with test rooms and test accounts. Durable Object state is isolated per Preview.
+### Enable previews on the existing Worker
 
+1. Open **Workers & Pages → caca-uno → Settings → Build → Branch control**.
+2. Enable **Preview Builds** (or **Builds for non-production branches**, depending on the dashboard label).
+3. If this existing Worker shows a **Set up Worker Previews** banner under **Settings → Builds**, select **Set up**, review the switch, and then select **Switch to Worker Previews**. This is a one-time change to the preview workflow; it does not change the production branch.
+4. Confirm the Preview command is `npx wrangler preview`. Production should continue using its existing production deploy command.
+5. Under **Settings → Variables & Secrets → Previews Base**, add the encrypted secrets `UNO_TICKET_SECRET` and `FIREBASE_SERVICE_ACCOUNT_JSON` with the same values used by the Worker. Never put either secret in the repository.
 
+Newer Workers use `npx wrangler preview` for non-production branches. Existing Workers connected to Builds may need the one-time Worker Previews setup before this model is active. Cloudflare creates isolated Durable Object namespaces for each Preview when the Wrangler `previews` binding is configured.
+
+### Build and obtain the feature Worker URL
+
+Pushes to `feature/vampir-koylu` should trigger a preview build after Preview Builds are enabled. When it succeeds, open the Worker’s **Deployments → Previews** section and copy the exact Preview URL for `feature/vampir-koylu`.
+
+Do not guess the Preview URL. The feature branch's `games/uno/worker-config.js` still points to the production Worker until that exact URL is entered. Update that file on `feature/vampir-koylu` only, then the Firebase Hosting preview can use the feature Worker without changing production.
+
+### Firebase Rules are a separate deployment
+
+The Firebase Hosting preview workflow deploys only the website to a temporary Hosting channel; it does **not** deploy `firestore.rules`. The preview website currently uses the existing `caca-dfe6c` Firebase backend.
+
+The bot lobby settings require the updated rules in `firestore.rules`. Before testing settings, either:
+- point the preview at a separate test Firebase project and deploy the branch's rules there; or
+- intentionally deploy only the updated Firestore Rules to the shared `caca-dfe6c` project after reviewing them.
+
+Do not merge this feature or deploy the new rules to the shared project merely to get a preview working. Production remains unchanged until the migration is deliberately approved.
+
+Preview Worker sessions use the Firebase project configured in the `previews` block, so use test rooms and test accounts. Durable Object storage is isolated between Previews.
+  
 ## Vampir Köylü bot lobileri
 
 The Vampir Köylü lobby stores only real Firebase user IDs. Its optional `gameSettings` map contains the host-controlled `botFillEnabled` toggle and `targetPlayerCount` (5–12).
