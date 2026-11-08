@@ -14,7 +14,9 @@ const ROLE_DESCRIPTIONS = Object.freeze({
 });
 
 const memberOf = (id, members) => members.find((member) => member.id === id) || null;
-const labelPlayer = (id, members, myId) => {
+const labelPlayer = (id, members, myId, botNames = {}) => {
+    const botName = botNames?.[id];
+    if (botName) return botName + " · Bot";
     const member = memberOf(id, members);
     const name = member?.displayNickname || member?.username || "Oyuncu";
     return id === myId ? name + " · Sen" : name;
@@ -23,7 +25,7 @@ const labelPlayer = (id, members, myId) => {
 function localizeMessage(message, state, members, uid) {
     let result = String(message || "");
     for (const id of state?.playerIds || []) {
-        result = result.split(id).join(labelPlayer(id, members, uid));
+        result = result.split(id).join(labelPlayer(id, members, uid, state?.botNames));
     }
     return result;
 }
@@ -184,7 +186,7 @@ export async function openVampirKoyluGame({
             const names = document.createElement("span");
             const teammates = privateState?.vampireTeammates || [];
             names.textContent = teammates.length
-                ? teammates.map((id) => labelPlayer(id, members, uid)).join(", ")
+                ? teammates.map((id) => labelPlayer(id, members, uid, state?.botNames)).join(", ")
                 : "Tek vampirsin.";
             team.append(title, names);
         }
@@ -208,7 +210,12 @@ export async function openVampirKoyluGame({
 
             const avatar = document.createElement("span");
             avatar.className = "vampir-avatar";
-            setAvatarElement(avatar, member?.avatarId, member?.avatarData);
+            if (state.botNames?.[id]) {
+                avatar.classList.add("is-bot");
+                avatar.textContent = "🤖";
+            } else {
+                setAvatarElement(avatar, member?.avatarId, member?.avatarData);
+            }
 
             const details = document.createElement("span");
             details.className = "vampir-player-details";
@@ -340,7 +347,7 @@ export async function openVampirKoyluGame({
             const heading = document.createElement("div");
             heading.className = "vampir-chat-message-heading";
             const name = document.createElement("strong");
-            name.textContent = labelPlayer(item.uid, members, uid);
+            name.textContent = labelPlayer(item.uid, members, uid, state?.botNames);
             const day = document.createElement("span");
             day.textContent = item.dayNumber ? item.dayNumber + ". gün" : "";
             heading.append(name, day);
