@@ -589,6 +589,7 @@ service cloud.firestore {
             && data.playerIds is list && data.playerIds.size() <= 20
             && data.playerIds.toSet().size() == data.playerIds.size()
             && (data.gameId != 'uno' || data.playerIds.size() <= 10)
+            && (data.gameId != 'vampir-koylu' || data.playerIds.size() <= 12)
             && data.readyIds is list && data.readyIds.size() <= 20
             && data.readyIds.hasOnly(data.playerIds)
             && data.nextRoundPlayerIds is list && data.nextRoundPlayerIds.size() <= 20
@@ -598,7 +599,7 @@ service cloud.firestore {
               !data.keys().hasAny(['resultReturnIds'])
               || (
                 data.resultReturnIds is list
-                && data.resultReturnIds.size() <= 10
+                && data.resultReturnIds.size() <= 12
                 && data.resultReturnIds.toSet().size() == data.resultReturnIds.size()
                 && data.resultReturnIds.hasOnly(
                   data.keys().hasAny(['matchPlayerIds']) ? data.matchPlayerIds : data.playerIds
@@ -612,6 +613,7 @@ service cloud.firestore {
                 && data.matchPlayerIds.size() <= 20
                 && data.matchPlayerIds.hasOnly(data.playerIds)
                 && (data.gameId != 'uno' || data.matchPlayerIds.size() <= 10)
+                && (data.gameId != 'vampir-koylu' || data.matchPlayerIds.size() <= 12)
               )
             )
             && (

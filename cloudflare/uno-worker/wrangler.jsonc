@@ -9,13 +9,25 @@
       {
         "name": "UNO_ROOMS",
         "class_name": "UnoRoom"
+      },
+      {
+        "name": "VAMPIR_KOYLU_ROOMS",
+        "class_name": "VampirKoyluRoom"
       }
     ]
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["UnoRoom"]
+      "new_sqlite_classes": [
+        "UnoRoom"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "VampirKoyluRoom"
+      ]
     }
   ],
   "vars": {

@@ -1,15 +1,14 @@
 # CACA
 
-CACA is a browser-based chat and room game project.
+CACA is a Turkish-first browser chat and room game project.
 
-## UNO backend
+## Games
 
-UNO's live match state and gameplay are hosted on Cloudflare Workers + Durable Objects.
-Firebase continues to handle authentication, profiles, room membership, invitations, chat
-and the persistent room game lobby.
+- **UNO** — real-time multiplayer card game.
+- **Vampir Köylü** — 5–12 player social deduction game with Vampir, Doktor and Köylü roles.
+
+The shared room lobby, account system, profiles, invitations and chat are handled by Firebase.
+Live game sessions are hosted by Cloudflare Workers and SQLite-backed Durable Objects.
 
 Deployment and secret setup instructions are in
 [`cloudflare/uno-worker/README.md`](cloudflare/uno-worker/README.md).
-
-The Cloudflare backend is isolated from the main website hosting. The website connects to it
-through the URL configured in `games/uno/worker-config.js`.
