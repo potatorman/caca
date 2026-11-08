@@ -447,15 +447,23 @@ export class VampirKoyluRoom extends DurableObject {
         return match.activePlayerIds.filter((id) => botIds.has(id));
     }
 
-    async runBotNightActions(match) {
+    async runBotNightActions(match, force = false) {
         if (match.status !== "playing" || match.phase !== "night") return;
 
         const aliveBots = this.getLivingBotIds(match);
+        const botIds = new Set(match.botPlayerIds || []);
         const aliveVampires = match.activePlayerIds.filter((id) => match.roles[id] === "vampir");
+        const humanVampires = aliveVampires.filter((id) => !botIds.has(id));
+        const humanVampireStillChoosing = humanVampires.some((id) =>
+            !match.nightActions.vampireTargets[id]
+        );
 
         for (const botId of aliveBots) {
             const role = match.roles[botId];
             if (role === "vampir" && !match.nightActions.vampireTargets[botId]) {
+                // Let a real vampire choose first so the bot can coordinate with
+                // that choice instead of making an invisible random selection.
+                if (humanVampireStillChoosing && !force) continue;
                 const teammates = aliveVampires.filter((id) => id !== botId);
                 const targetUid = chooseBotVampireTarget({
                     botId,
@@ -477,15 +485,19 @@ export class VampirKoyluRoom extends DurableObject {
         }
     }
 
-    async runBotVotes(match) {
+    async runBotVotes(match, force = false) {
         if (match.status !== "playing" || match.phase !== "voting") return;
 
         const aliveBots = this.getLivingBotIds(match);
+        const botIds = new Set(match.botPlayerIds || []);
         const aliveVampires = match.activePlayerIds.filter((id) => match.roles[id] === "vampir");
+        const humanVampires = aliveVampires.filter((id) => !botIds.has(id));
+        const humanVampireStillVoting = humanVampires.some((id) => !match.votes[id]);
         for (const botId of aliveBots) {
             if (match.votes[botId]) continue;
 
             const role = match.roles[botId];
+            if (role === "vampir" && humanVampireStillVoting && !force) continue;
             const teammateIds = role === "vampir"
                 ? aliveVampires.filter((id) => id !== botId)
                 : [];
@@ -561,9 +573,9 @@ export class VampirKoyluRoom extends DurableObject {
         match.discussionMessages = match.discussionMessages.slice(-80);
     }
 
-    async runBotsForCurrentPhase(match) {
-        if (match.phase === "night") await this.runBotNightActions(match);
-        else if (match.phase === "voting") await this.runBotVotes(match);
+    async runBotsForCurrentPhase(match, force = false) {
+        if (match.phase === "night") await this.runBotNightActions(match, force);
+        else if (match.phase === "voting") await this.runBotVotes(match, force);
     }
 
     chooseNightTarget(match, uid, targetUid) {
@@ -1192,11 +1204,19 @@ export class VampirKoyluRoom extends DurableObject {
             }
 
             if (match.phase === "night") {
-                await this.resolveNightPhase(match);
+                await this.runBotNightActions(match, true);
+                await this.maybeResolveCurrentPhase(match);
+                if (match.status === "playing" && match.phase === "night") {
+                    await this.resolveNightPhase(match);
+                }
             } else if (match.phase === "day") {
                 await this.startVotingPhase(match);
             } else if (match.phase === "voting") {
-                await this.resolveVotingPhase(match);
+                await this.runBotVotes(match, true);
+                await this.maybeResolveCurrentPhase(match);
+                if (match.status === "playing" && match.phase === "voting") {
+                    await this.resolveVotingPhase(match);
+                }
             }
 
             await this.saveMatch(match);
