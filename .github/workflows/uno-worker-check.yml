@@ -25,5 +25,21 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Test UNO deck and rules engine
         run: npm test
+      - name: Syntax-check browser game modules
+        run: |
+          set -euo pipefail
+          for file in \
+            ../../games/registry.js \
+            ../../games/uno/state.js \
+            ../../games/uno/ui.js \
+            ../../games/vampir-koylu/engine.js \
+            ../../games/vampir-koylu/bots.js \
+            ../../games/vampir-koylu/index.js \
+            ../../games/vampir-koylu/state.js \
+            ../../games/vampir-koylu/ui.js \
+            ../../js/rooms-ui.js
+          do
+            node --input-type=module --check < "$file"
+          done
       - name: Validate Worker bundle and Durable Object configuration
         run: npx wrangler deploy --dry-run
