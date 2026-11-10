@@ -4752,3 +4752,540 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 .uno-active-color.is-green::before { background: #35bc73; }
 .uno-active-color.is-blue::before { background: #438ce8; }
 .uno-hand .uno-card.is-playable { box-shadow: 0 0 0 2px rgba(132, 241, 183, .58), 2px 4px 0 rgba(0,0,0,.34), 0 8px 20px rgba(35, 219, 129, .16); }
+
+
+/* Vampir Köylü */
+.vampir-overlay {
+    position: fixed;
+    z-index: 1200;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(4, 7, 13, .88);
+    backdrop-filter: blur(10px);
+}
+.vampir-shell {
+    position: relative;
+    display: flex;
+    width: min(1080px, 100%);
+    max-height: min(94dvh, 900px);
+    min-height: min(660px, 88dvh);
+    flex-direction: column;
+    gap: 18px;
+    overflow: hidden;
+    padding: 24px;
+    color: #f2eeee;
+    background:
+        radial-gradient(circle at 82% 8%, rgba(112, 35, 47, .24), transparent 34%),
+        linear-gradient(145deg, #14151d, #0c1018 72%);
+    border: 1px solid rgba(173, 95, 105, .42);
+    border-radius: 24px;
+    box-shadow: 0 28px 100px rgba(0,0,0,.65);
+}
+.vampir-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+.vampir-eyebrow {
+    color: #d58a91;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .17em;
+}
+.vampir-header h2 {
+    margin: 4px 0 2px;
+    color: #fff5f5;
+    font-size: clamp(24px, 4vw, 34px);
+    letter-spacing: -.04em;
+}
+.vampir-status {
+    margin: 0;
+    color: #a8aab8;
+    font-size: 11px;
+}
+.vampir-close {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    place-items: center;
+    color: #f5dfe1;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px;
+    font-size: 25px;
+    cursor: pointer;
+}
+.vampir-close:hover:not(:disabled) { background: rgba(190, 62, 78, .22); }
+.vampir-layout {
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: minmax(240px, .8fr) minmax(0, 1.5fr);
+    gap: 16px;
+}
+.vampir-sidebar, .vampir-main {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 13px;
+}
+.vampir-role-card, .vampir-player-panel, .vampir-phase-card,
+.vampir-action-card, .vampir-chat-note {
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.095);
+    border-radius: 16px;
+}
+.vampir-role-card {
+    padding: 16px;
+    background:
+        radial-gradient(circle at 100% 0, rgba(112, 49, 61, .32), transparent 65%),
+        rgba(255,255,255,.045);
+    border-color: rgba(181, 91, 106, .35);
+}
+.vampir-role-card.is-vampire { border-color: rgba(220, 75, 91, .62); }
+.vampir-role-card.is-doctor { border-color: rgba(84, 170, 150, .55); }
+.vampir-role-card.is-villager { border-color: rgba(124, 145, 181, .45); }
+.vampir-section-label {
+    color: #b5a4ac;
+    font-size: 8px;
+    font-weight: 950;
+    letter-spacing: .14em;
+}
+.vampir-role-card > strong {
+    display: block;
+    margin-top: 8px;
+    color: #fff4f4;
+    font-size: 23px;
+}
+.vampir-role-card > p {
+    margin: 7px 0 0;
+    color: #b8b4c0;
+    font-size: 10px;
+    line-height: 1.65;
+}
+.vampir-team {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 13px;
+    padding: 10px;
+    background: rgba(190, 49, 67, .12);
+    border: 1px solid rgba(220, 75, 91, .24);
+    border-radius: 10px;
+}
+.vampir-team[hidden] { display: none !important; }
+.vampir-team strong { color: #f29ca5; font-size: 9px; }
+.vampir-team span { color: #f0cbd0; font-size: 10px; }
+.vampir-player-panel { display: flex; min-height: 0; flex: 1; flex-direction: column; padding: 14px; }
+.vampir-panel-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+    color: #f0e9ec;
+    font-size: 11px;
+}
+.vampir-panel-heading span { color: #9cabb1; font-size: 9px; }
+.vampir-player-list { display: flex; min-height: 0; flex-direction: column; gap: 6px; overflow: auto; }
+.vampir-player {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 7px 8px;
+    background: rgba(255,255,255,.035);
+    border: 1px solid transparent;
+    border-radius: 10px;
+}
+.vampir-player.is-you { border-color: rgba(222, 136, 147, .4); }
+.vampir-player.is-dead { opacity: .53; }
+.vampir-avatar {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    place-items: center;
+    overflow: hidden;
+    background: #30232a;
+    border-radius: 50%;
+    font-size: 16px;
+}
+.vampir-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.vampir-player-details { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.vampir-player-details strong {
+    overflow: hidden;
+    color: #eee8ec;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.vampir-player-details small { color: #a6a0ad; font-size: 8px; }
+.vampir-player-marker { color: #78c49b; font-size: 10px; }
+.vampir-player.is-dead .vampir-player-marker { color: #b86b75; }
+.vampir-main { overflow: auto; padding-right: 2px; }
+.vampir-phase-card {
+    padding: 20px;
+    background:
+        radial-gradient(circle at 90% 0, rgba(144, 49, 61, .22), transparent 55%),
+        rgba(255,255,255,.045);
+}
+.vampir-phase-topline { display: flex; align-items: center; gap: 9px; }
+.vampir-phase-badge {
+    padding: 6px 9px;
+    color: #f3c8cd;
+    background: rgba(147, 45, 60, .25);
+    border: 1px solid rgba(197, 87, 101, .35);
+    border-radius: 999px;
+    font-size: 8px;
+    font-weight: 950;
+    letter-spacing: .1em;
+}
+.vampir-phase-badge.is-day { color: #ffdda2; background: rgba(155, 108, 39, .18); border-color: rgba(208, 157, 78, .3); }
+.vampir-phase-badge.is-voting { color: #d5c4ff; background: rgba(111, 82, 158, .2); border-color: rgba(156, 126, 204, .3); }
+.vampir-day-count { color: #9e9baa; font-size: 9px; }
+.vampir-timer {
+    margin-left: auto;
+    color: #fff0f1;
+    font-size: 12px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+}
+.vampir-phase-title {
+    margin: 18px 0 7px;
+    color: #fff5f6;
+    font-size: clamp(21px, 3vw, 29px);
+    letter-spacing: -.03em;
+}
+.vampir-public-message {
+    min-height: 34px;
+    margin: 0;
+    color: #c3bdc8;
+    font-size: 11px;
+    line-height: 1.7;
+}
+.vampir-action-card { padding: 17px; }
+.vampir-action-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.vampir-action-state { color: #dba0a8; font-size: 9px; font-weight: 850; }
+.vampir-targets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.vampir-target-button {
+    min-height: 40px;
+    padding: 9px 12px;
+    color: #f5e9ec;
+    background: rgba(255,255,255,.065);
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, transform .15s ease;
+}
+.vampir-target-button:hover:not(:disabled) { background: rgba(165, 55, 70, .22); border-color: rgba(220, 105, 117, .55); transform: translateY(-1px); }
+.vampir-target-button.is-selected { color: #fff; background: rgba(151, 48, 63, .34); border-color: #cc737f; }
+.vampir-target-button:disabled { opacity: .52; cursor: not-allowed; }
+.vampir-no-targets { margin: 0; color: #aaa4b1; font-size: 10px; }
+.vampir-hint { margin: 12px 0 0; color: #a39daa; font-size: 9px; line-height: 1.65; }
+.vampir-chat-note { display: flex; align-items: flex-start; gap: 11px; padding: 13px; }
+.vampir-chat-note > span { color: #d68f98; font-size: 18px; }
+.vampir-chat-note strong { color: #e8dfe4; font-size: 10px; }
+.vampir-chat-note p { margin: 4px 0 0; color: #a7a0ad; font-size: 9px; line-height: 1.6; }
+.vampir-message { min-height: 16px; margin: 0; color: #b3d9c0; font-size: 10px; }
+.vampir-message.is-error { color: #ff9ba5; }
+.vampir-result-modal {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(4, 6, 10, .88);
+    backdrop-filter: blur(8px);
+}
+.vampir-result-modal[hidden] { display: none !important; }
+.vampir-result-card {
+    width: min(440px, 100%);
+    max-height: 90%;
+    overflow: auto;
+    padding: 24px;
+    text-align: center;
+    background: linear-gradient(145deg, #251820, #12141d);
+    border: 1px solid rgba(197, 100, 113, .42);
+    border-radius: 20px;
+    box-shadow: 0 22px 70px rgba(0,0,0,.55);
+}
+.vampir-result-card h2 { margin: 9px 0; color: #fff4f5; font-size: 27px; }
+.vampir-result-card > p { color: #b9aeb8; font-size: 10px; line-height: 1.6; }
+.vampir-result-roles { display: flex; flex-direction: column; gap: 5px; margin-top: 14px; }
+.vampir-result-role { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; color: #e6dce2; background: rgba(255,255,255,.045); border-radius: 8px; font-size: 10px; text-align: left; }
+.vampir-result-role strong { color: #e6a2ab; }
+.vampir-result-hint { margin: 14px 0 5px !important; }
+.vampir-primary {
+    width: 100%;
+    min-height: 42px;
+    margin-top: 12px;
+    color: white;
+    background: linear-gradient(135deg, #983b4e, #64283a);
+    border: 1px solid #c86e7b;
+    border-radius: 11px;
+    font-size: 11px;
+    font-weight: 900;
+    cursor: pointer;
+}
+.vampir-primary:hover:not(:disabled) { filter: brightness(1.13); }
+.vampir-primary:disabled { opacity: .5; cursor: wait; }
+
+@media (max-width: 760px) {
+    .vampir-overlay { padding: 0; align-items: stretch; }
+    .vampir-shell { width: 100%; min-height: 100dvh; max-height: 100dvh; padding: 14px 11px max(12px, env(safe-area-inset-bottom)); border-radius: 0; border-left: 0; border-right: 0; }
+    .vampir-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+    .vampir-sidebar { gap: 9px; }
+    .vampir-role-card { padding: 11px 13px; }
+    .vampir-role-card > strong { margin-top: 4px; font-size: 19px; }
+    .vampir-role-card > p { margin-top: 4px; font-size: 9px; }
+    .vampir-team { margin-top: 7px; padding: 7px; }
+    .vampir-player-panel { max-height: 132px; padding: 9px; }
+    .vampir-player-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .vampir-player { padding: 5px; gap: 6px; }
+    .vampir-avatar { width: 26px; height: 26px; flex-basis: 26px; }
+    .vampir-main { gap: 9px; }
+    .vampir-phase-card { padding: 14px; }
+    .vampir-phase-title { margin-top: 11px; }
+    .vampir-targets { gap: 6px; }
+    .vampir-target-button { flex: 1 1 42%; }
+}
+
+
+.vampir-chat-card {
+    display: flex;
+    min-height: 190px;
+    flex: 1;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.095);
+    border-radius: 16px;
+}
+.vampir-chat-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.vampir-chat-heading > div { display: flex; flex-direction: column; gap: 4px; }
+.vampir-chat-heading strong { color: #ece4e8; font-size: 11px; }
+.vampir-chat-heading > span { color: #9c94a1; font-size: 9px; }
+.vampir-chat-messages {
+    display: flex;
+    min-height: 95px;
+    max-height: 230px;
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+    overflow: auto;
+    padding: 8px;
+    background: rgba(0,0,0,.16);
+    border: 1px solid rgba(255,255,255,.05);
+    border-radius: 10px;
+}
+.vampir-chat-message { display: flex; flex-direction: column; gap: 3px; max-width: 94%; align-self: flex-start; }
+.vampir-chat-message.is-you { align-self: flex-end; }
+.vampir-chat-message-heading { display: flex; align-items: center; gap: 8px; }
+.vampir-chat-message-heading strong { color: #d9959f; font-size: 9px; }
+.vampir-chat-message.is-you .vampir-chat-message-heading strong { color: #a8d8be; }
+.vampir-chat-message-heading span { color: #827b88; font-size: 8px; }
+.vampir-chat-message > p {
+    max-width: 100%;
+    margin: 0;
+    padding: 7px 9px;
+    color: #e7dfe4;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.055);
+    border-radius: 10px;
+    font-size: 10px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+.vampir-chat-message.is-you > p { background: rgba(59, 119, 89, .2); border-color: rgba(100, 180, 136, .22); }
+.vampir-chat-empty { margin: auto; color: #8e8794; font-size: 9px; }
+.vampir-chat-form { display: flex; align-items: stretch; gap: 7px; }
+.vampir-chat-form input {
+    min-width: 0;
+    min-height: 39px;
+    flex: 1;
+    padding: 9px 11px;
+    color: #f2e9ee;
+    background: rgba(0,0,0,.19);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 10px;
+}
+.vampir-chat-form input:focus { outline: 2px solid rgba(211, 122, 136, .35); border-color: #a95d6b; }
+.vampir-chat-form input:disabled { opacity: .5; }
+.vampir-chat-form .vampir-primary { width: auto; min-width: 78px; min-height: 39px; margin: 0; padding: 8px 12px; }
+@media (max-width: 760px) {
+    .vampir-chat-card { min-height: 160px; padding: 10px; }
+    .vampir-chat-messages { max-height: 160px; }
+    .vampir-chat-form .vampir-primary { min-width: 70px; }
+}
+
+
+/* Host-only Vampir Köylü lobby settings and synthetic bot seats */
+.game-bot-lobby-preview {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    color: #d9d5fb;
+    background: rgba(111, 100, 205, .12);
+    border: 1px solid rgba(151, 139, 245, .22);
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.game-session-bot-seat {
+    border: 1px dashed rgba(167, 155, 223, .32);
+    background: rgba(91, 79, 153, .08);
+}
+.game-session-bot-seat .game-session-member-state {
+    color: #b7abd9;
+}
+.game-lobby-settings-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(7, 8, 15, .76);
+    backdrop-filter: blur(8px);
+}
+.game-lobby-settings-panel[hidden] {
+    display: none !important;
+}
+.game-lobby-settings-card {
+    width: min(100%, 440px);
+    padding: 22px;
+    color: #f1edf6;
+    background: linear-gradient(155deg, #242333, #171722);
+    border: 1px solid rgba(184, 168, 235, .2);
+    border-radius: 17px;
+    box-shadow: 0 24px 90px rgba(0, 0, 0, .48);
+}
+.game-lobby-settings-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.game-lobby-settings-heading .small-label {
+    color: #b4a4ee;
+}
+.game-lobby-settings-heading h4 {
+    margin: 5px 0 6px;
+    color: #fff;
+    font-size: 20px;
+}
+.game-lobby-settings-heading p {
+    margin: 0;
+    color: #aaa5b8;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.game-bot-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px;
+    background: rgba(255, 255, 255, .045);
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 12px;
+    cursor: pointer;
+}
+.game-bot-toggle > span {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.game-bot-toggle strong {
+    color: #f0eafa;
+    font-size: 13px;
+}
+.game-bot-toggle small {
+    color: #a7a1b3;
+    font-size: 11px;
+    line-height: 1.45;
+}
+.game-bot-toggle input {
+    width: 19px;
+    height: 19px;
+    accent-color: #9c8bea;
+    flex: 0 0 auto;
+}
+.game-bot-target-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 15px;
+    color: #d9d4e2;
+    font-size: 12px;
+    font-weight: 650;
+}
+.game-bot-target-field select {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    color: #f6f1fa;
+    background: #171621;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 9px;
+    font: inherit;
+}
+.game-bot-settings-preview {
+    margin: 14px 0 0;
+    padding: 11px 12px;
+    color: #d1c9ec;
+    background: rgba(151, 132, 226, .1);
+    border: 1px solid rgba(151, 132, 226, .2);
+    border-radius: 9px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.game-bot-settings-status {
+    min-height: 18px;
+    margin: 9px 0 0;
+    color: #aee0bd;
+    font-size: 11px;
+}
+.game-lobby-settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-top: 15px;
+}
+.game-lobby-settings-actions button {
+    flex: 1 1 140px;
+}
+@media (max-width: 520px) {
+    .game-lobby-settings-card { padding: 17px; }
+    .game-lobby-settings-actions { flex-direction: column; }
+    .game-lobby-settings-actions button { width: 100%; }
+}
+
+.vampir-avatar.is-bot {
+    display: grid;
+    place-items: center;
+    color: #e3d9ff;
+    background: linear-gradient(145deg, #514779, #332d4b);
+    border: 1px solid rgba(189, 170, 255, .28);
+    font-size: 17px;
+}

@@ -1,19 +1,20 @@
-# CACA UNO Cloudflare Worker
+# CACA Cloudflare Games Worker
 
-This Worker hosts live UNO matches. The existing CACA website, Firebase Authentication,
+This Worker hosts live UNO and Vampir Köylü matches. The existing CACA website, Firebase Authentication,
 room lobby, profiles, invitations and chat remain on Firebase.
 
 ## What moves to Cloudflare
 
 - UNO deck, card hands and draw pile
-- Turn order, card validation and all card effects
-- UNO calls, penalties, quitting and roster repair
+- UNO turn order, card validation, card effects and penalties
+- Vampir Köylü hidden roles, night actions, doctor saves, discussion, voting and win checks
 - Live state delivery over WebSockets
-- Result acknowledgements and the transition back to the Firebase lobby
+- Match exits, roster repair, result acknowledgements and return-to-lobby coordination
 
 Firebase continues to own accounts and persistent room membership. Cloudflare stores the
-active match in one SQLite-backed Durable Object per room and round. It writes the completed
-result to `rooms/{roomId}/unoResults/{round}` and updates `gameSessions/active` when needed.
+active match in one SQLite-backed Durable Object per room and round. UNO results are recorded
+in `rooms/{roomId}/unoResults/{round}`. Vampir Köylü keeps its hidden role map and private actions
+inside its Durable Object. Both games update `gameSessions/active` when needed.
 The legacy `unoMatches` documents are not used by the new client and are not automatically
 deleted.
 
@@ -22,7 +23,7 @@ deleted.
 1. Create a free Cloudflare account and enable a `workers.dev` subdomain.
 2. Open **Workers & Pages → Create application → Connect to Git**.
 3. Connect `potatorman/caca`, select the `cloudflare/uno-worker` root directory, and select
-   the `cloudflare-uno-migration` branch while testing.
+   the `main` branch for production (use a feature branch only for an isolated preview deployment).
 4. Keep the Worker name as `caca-uno`; it must match `wrangler.jsonc`.
 5. Leave **Build command** empty. Set **Deploy command** to `npm run deploy`.
 6. Let Workers Builds install the dependency from this folder's `package.json`.
@@ -62,11 +63,8 @@ Commit and deploy that website change using the existing Firebase Hosting proces
 
 ## Health check
 
-Open `https://YOUR-WORKER-URL/health`. The Worker should answer:
-
-```json
-{"ok":true,"service":"caca-uno","version":1}
-```
+Open `https://YOUR-WORKER-URL/health`. The Worker should answer with `ok: true` and service
+`caca-uno` (version 2 or later).
 
 ## Runtime behavior
 
@@ -151,3 +149,69 @@ fails with `Input required and not supplied: firebaseServiceAccount`.
 Firebase Hosting preview URLs are public, temporary URLs and use this project's real Firebase
 backend resources. Use test rooms and test matches while validating the migration.
 
+
+
+## Vampir Köylü
+
+Vampir Köylü is available to 5–12 players. It uses only three roles:
+
+- **Vampir:** one vampire with 5–7 players; two vampires with 8–12 players.
+- **Doktor:** one doctor who secretly protects one living player per night (including themself).
+- **Köylü:** all remaining players; they discuss and vote during the day.
+
+The game runs night (25 seconds), day discussion (45 seconds) and voting (20 seconds). All active
+players must submit night actions/votes for the phase to resolve early; otherwise the Durable
+Object alarm resolves the phase when its timer expires. If multiple vampires choose different
+targets, the unique highest target is attacked; a tie means nobody is attacked. A doctor save
+prevents that night's elimination.
+
+Discussion chat is part of the game overlay. Only living players can send messages, only during
+the day. The Worker enforces the phase, membership, message length and rate limit. Private role
+data is delivered only to the individual player; roles are revealed when players are eliminated
+or when the match ends.
+
+The separate Durable Object class is added by Wrangler migration `v2`; do not remove the
+existing `UnoRoom` class or its `v1` migration.
+
+
+## Cloudflare Worker Previews for pull requests
+
+The production Worker remains on its currently configured production branch. **Do not change the production branch or production deploy command just to test this feature.**
+
+The current repository uses Wrangler `4.135.0+` and has a `previews` section in `wrangler.jsonc` for preview Firebase variables and Durable Object bindings.
+
+### Enable previews on the existing Worker
+
+1. Open **Workers & Pages → caca-uno → Settings → Build → Branch control**.
+2. Enable **Preview Builds** (or **Builds for non-production branches**, depending on the dashboard label).
+3. If this existing Worker shows a **Set up Worker Previews** banner under **Settings → Builds**, select **Set up**, review the switch, and then select **Switch to Worker Previews**. This is a one-time change to the preview workflow; it does not change the production branch.
+4. Confirm the Preview command is `npx wrangler preview`. Production should continue using its existing production deploy command.
+5. Under **Settings → Variables & Secrets → Previews Base**, add the encrypted secrets `CACA_TICKET_SECRET` and `FIREBASE_SERVICE_ACCOUNT_JSON` with the same values used by the Worker. Never put either secret in the repository.
+
+Newer Workers use `npx wrangler preview` for non-production branches. Existing Workers connected to Builds may need the one-time Worker Previews setup before this model is active. Cloudflare creates isolated Durable Object namespaces for each Preview when the Wrangler `previews` binding is configured.
+
+### Build and obtain the feature Worker URL
+
+Pushes to `feature/vampir-koylu` should trigger a preview build after Preview Builds are enabled. When it succeeds, open the Worker’s **Deployments → Previews** section and copy the exact Preview URL for `feature/vampir-koylu`.
+
+Do not guess the Preview URL. The feature branch's `games/uno/worker-config.js` still points to the production Worker until that exact URL is entered. Update that file on `feature/vampir-koylu` only, then the Firebase Hosting preview can use the feature Worker without changing production.
+
+### Firebase Rules are a separate deployment
+
+The Firebase Hosting preview workflow deploys only the website to a temporary Hosting channel; it does **not** deploy `firestore.rules`. The preview website currently uses the existing `caca-dfe6c` Firebase backend.
+
+The bot lobby settings require the updated rules in `firestore.rules`. Before testing settings, either:
+- point the preview at a separate test Firebase project and deploy the branch's rules there; or
+- intentionally deploy only the updated Firestore Rules to the shared `caca-dfe6c` project after reviewing them.
+
+Do not merge this feature or deploy the new rules to the shared project merely to get a preview working. Production remains unchanged until the migration is deliberately approved.
+
+Preview Worker sessions use the Firebase project configured in the `previews` block, so use test rooms and test accounts. Durable Object storage is isolated between Previews.
+  
+## Vampir Köylü bot lobileri
+
+The Vampir Köylü lobby stores only real Firebase user IDs. Its optional `gameSettings` map contains the host-controlled `botFillEnabled` toggle and `targetPlayerCount` (5–12).
+
+When bot filling is enabled, the Worker creates the missing seats inside `VampirKoyluRoom` after the real-player match roster is frozen. Synthetic bot IDs and roles exist only in Durable Object storage; they are not Firebase accounts, room members, lobby-ready entries or result-return acknowledgements.
+
+Bot actions are performed by the Durable Object during night and voting phases. Bots use role-specific deterministic decision helpers from `games/vampir-koylu/bots.js`; no external AI service or API key is used. Real Vampire teammates get the first opportunity to submit a hidden choice so a Vampire bot can coordinate without exposing its action.

@@ -479,6 +479,7 @@
                                                 <strong id="gameSessionHost">—</strong>
                                             </div>
                                             <p id="gameSessionSummary" class="game-session-summary"></p>
+                                            <p id="gameBotLobbyPreview" class="game-bot-lobby-preview" hidden></p>
                                             <div class="game-session-columns">
                                                 <section class="game-session-list-section">
                                                     <div class="game-session-list-heading">
@@ -498,12 +499,51 @@
                                             <div class="game-session-actions">
                                                 <button id="joinGameSessionButton" class="primary-button" type="button" hidden>Lobiye katıl</button>
                                                 <button id="readyGameSessionButton" class="primary-button" type="button" hidden>Hazırım</button>
+                                                <button id="gameLobbySettingsButton" class="secondary-button" type="button" hidden>Lobi Ayarları</button>
                                                 <button id="openGameMatchButton" class="primary-button" type="button" hidden>UNO masasına gir</button>
                                                 <button id="leaveGameSessionButton" class="secondary-button" type="button" hidden>Lobiden ayrıl</button>
                                                 <button id="finishGameRoundButton" class="secondary-button" type="button" hidden>Maçı bitir · Sonuçları göster</button>
                                                 <button id="closeGameSessionButton" class="danger-button" type="button" hidden>Lobiyi tamamen kapat</button>
                                             </div>
                                             <p class="game-engine-note">Lobi kalıcıdır. Maçtan ayrılan oyuncu lobide kalır; maç sırasında oyun merkezine gelen izleyiciler maç bitince otomatik lobiye eklenir.</p>
+                                        </section>
+                                        <section id="gameLobbySettingsPanel" class="game-lobby-settings-panel" role="dialog" aria-modal="true" aria-labelledby="gameLobbySettingsTitle" hidden>
+                                            <div class="game-lobby-settings-card">
+                                                <div class="game-lobby-settings-heading">
+                                                    <div>
+                                                        <span class="small-label">VAMPİR KÖYLÜ</span>
+                                                        <h4 id="gameLobbySettingsTitle">Lobi Ayarları</h4>
+                                                        <p>Bu ayarları yalnızca lobi sahibi değiştirebilir.</p>
+                                                    </div>
+                                                    <button id="closeGameLobbySettingsButton" class="icon-button" type="button" aria-label="Lobi ayarlarını kapat">×</button>
+                                                </div>
+                                                <label class="game-bot-toggle">
+                                                    <span>
+                                                        <strong>Botlarla oyna</strong>
+                                                        <small>Boş oyuncu yerleri maç başlayınca botlarla doldurulur.</small>
+                                                    </span>
+                                                    <input id="gameBotFillToggle" type="checkbox">
+                                                </label>
+                                                <label class="game-bot-target-field" for="gameBotTargetCount">
+                                                    <span>Hedef toplam oyuncu sayısı</span>
+                                                    <select id="gameBotTargetCount">
+                                                        <option value="5">5 oyuncu</option>
+                                                        <option value="6">6 oyuncu</option>
+                                                        <option value="7">7 oyuncu</option>
+                                                        <option value="8">8 oyuncu</option>
+                                                        <option value="9">9 oyuncu</option>
+                                                        <option value="10">10 oyuncu</option>
+                                                        <option value="11">11 oyuncu</option>
+                                                        <option value="12">12 oyuncu</option>
+                                                    </select>
+                                                </label>
+                                                <p id="gameBotSettingsPreview" class="game-bot-settings-preview" aria-live="polite"></p>
+                                                <p id="gameBotSettingsStatus" class="game-bot-settings-status" role="status" aria-live="polite"></p>
+                                                <div class="game-lobby-settings-actions">
+                                                    <button id="saveGameLobbySettingsButton" class="primary-button" type="button">Ayarları kaydet</button>
+                                                    <button id="cancelGameLobbySettingsButton" class="secondary-button" type="button">Vazgeç</button>
+                                                </div>
+                                            </div>
                                         </section>
                                     </div>
                                 </section>
