@@ -4,8 +4,9 @@ import {
 } from "./firebase.js";
 import { signTicket, verifyTicket } from "./ticket.js";
 import { UnoRoom } from "./UnoRoom.js";
+import { VampirKoyluRoom } from "./VampirKoyluRoom.js";
 
-export { UnoRoom };
+export { UnoRoom, VampirKoyluRoom };
 
 const jsonHeaders = {
     "Content-Type": "application/json; charset=utf-8",
@@ -47,7 +48,7 @@ function sessionPlayers(session) {
         : (["playing", "results"].includes(session.status) ? session.playerIds || [] : []);
 }
 
-async function authorizeRoomUser(env, uid, roomId, round) {
+async function authorizeRoomUser(env, uid, roomId, round, gameId = "uno") {
     const [sessionDoc, memberDoc] = await Promise.all([
         getFirestoreDocument(env, "rooms/" + roomId + "/gameSessions/active"),
         getFirestoreDocument(env, "rooms/" + roomId + "/members/" + uid)
@@ -57,11 +58,11 @@ async function authorizeRoomUser(env, uid, roomId, round) {
 
     const session = sessionDoc.data;
     if (
-        session.gameId !== "uno" ||
+        session.gameId !== gameId ||
         Number(session.round) !== Number(round) ||
         !["playing", "results"].includes(session.status)
     ) {
-        throw new Error("Bu UNO turu artık aktif değil.");
+        throw new Error("Bu oyun turu artık aktif değil.");
     }
 
     const players = sessionPlayers(session);
@@ -75,9 +76,59 @@ async function authorizeRoomUser(env, uid, roomId, round) {
     };
 }
 
-function getRoomStub(env, roomId, round) {
-    const id = env.UNO_ROOMS.idFromName(roomId + ":" + String(round));
-    return env.UNO_ROOMS.get(id);
+function getRoomStub(env, gameId, roomId, round) {
+    const binding = gameId === "vampir-koylu" ? env.VAMPIR_KOYLU_ROOMS : env.UNO_ROOMS;
+    if (!binding) throw new Error("Bu oyun için Durable Object bağlantısı bulunamadı.");
+    const id = binding.idFromName(roomId + ":" + String(round));
+    return binding.get(id);
+}
+
+async function issueTicket(request, env, url, origin, gameId) {
+    const user = await authenticateFirebaseToken(getBearerToken(request), env);
+    const body = await readJson(request);
+    validateRoomRound(body.roomId, body.round);
+    const access = await authorizeRoomUser(env, user.uid, body.roomId, body.round, gameId);
+    const ticket = await signTicket({
+        uid: user.uid,
+        roomId: body.roomId,
+        round: Number(body.round),
+        role: access.role,
+        gameId,
+        exp: Math.floor(Date.now() / 1000) + 120
+    }, env.CACA_TICKET_SECRET);
+
+    return json({
+        ticket,
+        webSocketUrl: "wss://" + url.host + "/ws?ticket=" + encodeURIComponent(ticket)
+    }, 200, origin);
+}
+
+async function sendHttpAction(request, env, origin, gameId) {
+    const user = await authenticateFirebaseToken(getBearerToken(request), env);
+    const body = await readJson(request);
+    validateRoomRound(body.roomId, body.round);
+    if (!["quit", "returnToLobby", "reconcile"].includes(body.action)) {
+        return json({ error: "Desteklenmeyen oyun işlemi." }, 400, origin);
+    }
+    const access = await authorizeRoomUser(env, user.uid, body.roomId, body.round, gameId);
+    if (access.role !== "player") {
+        return json({ error: "Bu işlem yalnızca maç oyuncularına açık." }, 403, origin);
+    }
+
+    const stub = getRoomStub(env, gameId, body.roomId, body.round);
+    const response = await stub.fetch("https://" + gameId + "-room.internal/action", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CACA-UID": user.uid,
+            "X-CACA-ROLE": access.role,
+            "X-CACA-ROOM-ID": body.roomId,
+            "X-CACA-ROUND": String(body.round)
+        },
+        body: JSON.stringify({ action: body.action })
+    });
+    const payload = await response.json().catch(() => ({}));
+    return json(payload, response.status, origin);
 }
 
 async function readJson(request) {
@@ -108,55 +159,20 @@ export default {
 
         try {
             if (url.pathname === "/health" && request.method === "GET") {
-                return json({ ok: true, service: "caca-uno", version: 1 }, 200, origin);
+                return json({ ok: true, service: "caca-uno", version: 2 }, 200, origin);
             }
 
             if (url.pathname === "/api/uno/ticket" && request.method === "POST") {
-                const user = await authenticateFirebaseToken(getBearerToken(request), env);
-                const body = await readJson(request);
-                validateRoomRound(body.roomId, body.round);
-                const access = await authorizeRoomUser(env, user.uid, body.roomId, body.round);
-                const ticket = await signTicket({
-                    uid: user.uid,
-                    roomId: body.roomId,
-                    round: Number(body.round),
-                    role: access.role,
-                    exp: Math.floor(Date.now() / 1000) + 120
-                }, env.CACA_TICKET_SECRET);
-
-                return json({
-                    ticket,
-                    webSocketUrl: "wss://" + url.host + "/ws?ticket=" + encodeURIComponent(ticket)
-                }, 200, origin);
+                return await issueTicket(request, env, url, origin, "uno");
             }
-
+            if (url.pathname === "/api/vampir-koylu/ticket" && request.method === "POST") {
+                return await issueTicket(request, env, url, origin, "vampir-koylu");
+            }
             if (url.pathname === "/api/uno/action" && request.method === "POST") {
-                const user = await authenticateFirebaseToken(getBearerToken(request), env);
-                const body = await readJson(request);
-                validateRoomRound(body.roomId, body.round);
-                if (!["quit", "returnToLobby", "reconcile"].includes(body.action)) {
-                    return json({ error: "Desteklenmeyen UNO işlemi." }, 400, origin);
-                }
-
-                const access = await authorizeRoomUser(env, user.uid, body.roomId, body.round);
-                if (access.role !== "player") {
-                    return json({ error: "Bu işlem yalnızca maç oyuncularına açık." }, 403, origin);
-                }
-
-                const stub = getRoomStub(env, body.roomId, body.round);
-                const response = await stub.fetch("https://uno-room.internal/action", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CACA-UID": user.uid,
-                        "X-CACA-ROLE": access.role,
-                        "X-CACA-ROOM-ID": body.roomId,
-                        "X-CACA-ROUND": String(body.round)
-                    },
-                    body: JSON.stringify({ action: body.action })
-                });
-                const payload = await response.json().catch(() => ({}));
-                return json(payload, response.status, origin);
+                return await sendHttpAction(request, env, origin, "uno");
+            }
+            if (url.pathname === "/api/vampir-koylu/action" && request.method === "POST") {
+                return await sendHttpAction(request, env, origin, "vampir-koylu");
             }
 
             if (url.pathname === "/ws" && request.method === "GET") {
@@ -164,8 +180,9 @@ export default {
                     return json({ error: "WebSocket bağlantısı gerekli." }, 426, origin);
                 }
                 const ticket = await verifyTicket(url.searchParams.get("ticket"), env.CACA_TICKET_SECRET);
-                const stub = getRoomStub(env, ticket.roomId, ticket.round);
-                const internalRequest = new Request("https://uno-room.internal/connect", {
+                const gameId = ticket.gameId === "vampir-koylu" ? "vampir-koylu" : "uno";
+                const stub = getRoomStub(env, gameId, ticket.roomId, ticket.round);
+                const internalRequest = new Request("https://" + gameId + "-room.internal/connect", {
                     method: "GET",
                     headers: {
                         Upgrade: "websocket",
