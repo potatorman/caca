@@ -7,6 +7,11 @@ import {
     forfeitMatch as forfeitUnoMatch,
     returnToLobby as returnUnoToLobby
 } from "../games/uno/index.js";
+import {
+    reconcileMatchPlayers as reconcileVampirKoyluMatchPlayers,
+    forfeitMatch as forfeitVampirKoyluMatch,
+    returnToLobby as returnVampirKoyluToLobby
+} from "../games/vampir-koylu/index.js";
 
 import {
     onAuthStateChanged
@@ -120,6 +125,8 @@ let gameSessionData = null;
 let activeRoomGame = null;
 let observedUnoRosterRoundKey = "";
 let observedUnoRosterIds = [];
+let observedVampirRosterRoundKey = "";
+let observedVampirRosterIds = [];
 let activeRoomGameKey = "";
 let openingRoomGameKey = "";
 let roomGameOpenGeneration = 0;
@@ -1407,11 +1414,32 @@ function getGameLimits(gameId) {
     };
 }
 
-// The lobby can start only when its size fits the game and every member is ready.
+function getVampirLobbySettings(session) {
+    const settings = session?.gameSettings || {};
+    const targetPlayerCount = Number(settings.targetPlayerCount);
+    return {
+        botFillEnabled: settings.botFillEnabled === true,
+        targetPlayerCount: Number.isInteger(targetPlayerCount) &&
+            targetPlayerCount >= 5 && targetPlayerCount <= 12
+            ? targetPlayerCount
+            : 5
+    };
+}
+
+// Bots only exist inside the Durable Object. Firebase lobby and ready lists remain real-user-only.
 function isLobbyReadyToStart(session) {
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
     const ready = Array.isArray(session.readyIds) ? session.readyIds : [];
-    const { minPlayers, maxPlayers } = getGameLimits(session.gameId);
+    const { maxPlayers } = getGameLimits(session.gameId);
+    if (session.gameId === "vampir-koylu") {
+        const settings = getVampirLobbySettings(session);
+        const minRealPlayers = settings.botFillEnabled ? 1 : 5;
+        return players.length >= minRealPlayers &&
+            (!settings.botFillEnabled || players.length <= settings.targetPlayerCount) &&
+            players.length <= maxPlayers &&
+            players.every((id) => ready.includes(id));
+    }
+    const { minPlayers } = getGameLimits(session.gameId);
     return players.length >= minPlayers &&
         players.length <= maxPlayers &&
         players.every((id) => ready.includes(id));
@@ -1529,19 +1557,30 @@ function renderGameCenter() {
     emptyState.hidden = Boolean(session);
     content.hidden = !session;
     if (!session) {
+        $("gameLobbySettingsPanel").hidden = true;
+        $("gameLobbySettingsButton").hidden = true;
+        $("gameBotLobbyPreview").hidden = true;
         renderGameCatalog();
         return;
     }
 
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
+    const vampirSettings = session.gameId === "vampir-koylu"
+        ? getVampirLobbySettings(session)
+        : null;
+    const botFillEnabled = Boolean(vampirSettings?.botFillEnabled);
+    const targetPlayerCount = vampirSettings?.targetPlayerCount || 5;
+    const botSlotCount = botFillEnabled
+        ? Math.max(0, targetPlayerCount - players.length)
+        : 0;
     const readyIds = Array.isArray(session.readyIds) ? session.readyIds : [];
     const matchPlayers = Array.isArray(session.matchPlayerIds)
         ? session.matchPlayerIds
         : (["playing", "results"].includes(session.status) ? players : []);
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
     const resultReturnIds = Array.isArray(session.resultReturnIds) ? session.resultReturnIds : [];
-    const hasReturnedFromUnoResults =
-        session.gameId === "uno" &&
+    const hasReturnedFromWorkerResults =
+        ["uno", "vampir-koylu"].includes(session.gameId) &&
         session.status === "results" &&
         resultReturnIds.includes(currentUser?.uid);
     const isPlaying = session.status === "playing";
@@ -1576,13 +1615,27 @@ function renderGameCenter() {
         : isStarting
             ? "Herkes hazır. Oyun 3 saniyelik geri sayımın sonunda başlayacak; biri vazgeçerse sayaç iptal edilir."
             : isResults
-                ? session.gameId === "uno"
-                    ? `Sonuç ekranı · ${resultReturnIds.length}/${matchPlayers.length} aktif oyuncu lobiye dönmeyi onayladı.`
+                ? ["uno", "vampir-koylu"].includes(session.gameId)
+                    ? `Sonuç ekranı · ${resultReturnIds.length}/${matchPlayers.length} oyuncu lobiye döndü.`
                     : "Maç bitti. İzleyiciler otomatik olarak lobi üyelerine eklendi. Yeni maç için lobiye dön."
-                : `Kalıcı lobi · Maç ${session.round || 1}. En az ${minPlayers} oyuncu hazır olduğunda geri sayım başlayacak.`;
+                : botFillEnabled
+                    ? `Kalıcı lobi · ${players.length} gerçek oyuncu, ${botSlotCount} bot koltuğu. Tüm gerçek oyuncular hazır olunca ${targetPlayerCount} kişilik maç başlayacak.`
+                    : `Kalıcı lobi · Maç ${session.round || 1}. En az ${minPlayers} gerçek oyuncu hazır olduğunda geri sayım başlayacak.`;
 
-    $("gamePlayersHeading").textContent = "Kalıcı lobi üyeleri";
-    $("gamePlayersCount").textContent = `${players.length}/${maxPlayers}`;
+    const botPreview = $("gameBotLobbyPreview");
+    const showBotPreview = session.gameId === "vampir-koylu" &&
+        ["lobby", "starting"].includes(session.status);
+    botPreview.hidden = !showBotPreview;
+    if (showBotPreview) {
+        botPreview.textContent = botFillEnabled
+            ? `Gerçek oyuncu: ${players.length} · Bot: ${botSlotCount} · Toplam hedef: ${targetPlayerCount}`
+            : `Botlar kapalı · Başlamak için en az 5 gerçek oyuncu gerekli.`;
+    }
+
+    $("gamePlayersHeading").textContent = "Lobi oyuncuları";
+    $("gamePlayersCount").textContent = botFillEnabled
+        ? `${players.length}+${botSlotCount}/${targetPlayerCount}`
+        : `${players.length}/${maxPlayers}`;
     renderGameMemberList("gamePlayersList", players, (userId) => {
         if (userId === session.hostId && isPlaying && matchPlayers.includes(userId)) {
             return "Lobi sahibi · Maçta";
@@ -1593,7 +1646,7 @@ function renderGameCenter() {
                 : "Sonraki maç için lobide";
         }
         if (isResults) {
-            if (session.gameId === "uno" && resultReturnIds.includes(userId)) {
+            if (["uno", "vampir-koylu"].includes(session.gameId) && resultReturnIds.includes(userId)) {
                 return "Lobiye döndü";
             }
             return matchPlayers.includes(userId) ? "Sonuç ekranında" : "Lobi üyesi";
@@ -1603,6 +1656,20 @@ function renderGameCenter() {
         }
         return readyIds.includes(userId) ? "Hazır" : "Hazır bekliyor";
     });
+    if (botFillEnabled && showBotPreview) {
+        const list = $("gamePlayersList");
+        for (let index = 0; index < botSlotCount; index += 1) {
+            const row = document.createElement("div");
+            row.className = "game-session-member game-session-bot-seat";
+            const name = document.createElement("span");
+            name.textContent = "Bot koltuğu " + (index + 1);
+            const state = document.createElement("span");
+            state.className = "game-session-member-state";
+            state.textContent = "Maçta eklenecek";
+            row.append(name, state);
+            list.appendChild(row);
+        }
+    }
 
     // Only users who actually enter the game center during a live match appear here.
     $("gameSpectatorsCount").textContent = String(spectators.length);
@@ -1633,16 +1700,29 @@ function renderGameCenter() {
     if (openMatchButton) {
         const canViewGame = ["playing", "results"].includes(session.status) &&
             (isMatchPlayer || isSpectator || (isResults && isLobbyPlayer)) &&
-            !hasReturnedFromUnoResults;
+            !hasReturnedFromWorkerResults;
         openMatchButton.hidden = !(gameDefinition?.module && canViewGame);
         const gameName = gameDefinition?.name || "Oyun";
         openMatchButton.textContent = isResults
             ? gameName + " sonuçlarını gör"
             : isSpectator ? gameName + " masasını izle" : gameName + " ekranını aç";
     }
-    $("finishGameRoundButton").hidden = !isPlaying || !canManage || session.gameId === "uno";
+    $("finishGameRoundButton").hidden = !isPlaying || !canManage ||
+        ["uno", "vampir-koylu"].includes(session.gameId);
     $("closeGameSessionButton").hidden = !canManage;
     $("closeGameSessionButton").textContent = "Lobiyi tamamen kapat";
+    $("gameLobbySettingsButton").hidden = !(
+        session.gameId === "vampir-koylu" &&
+        session.status === "lobby" &&
+        currentUser?.uid === session.hostId
+    );
+    if (
+        currentUser?.uid !== session.hostId ||
+        session.gameId !== "vampir-koylu" ||
+        session.status !== "lobby"
+    ) {
+        $("gameLobbySettingsPanel").hidden = true;
+    }
 
     if (!["playing", "results"].includes(session.status) && isLobbyPlayer) {
         $("readyGameSessionButton").textContent = readyIds.includes(currentUser?.uid)
@@ -1660,16 +1740,16 @@ function renderGameCenter() {
         setGameCenterStatus("Sonraki maç için lobiye katıldın. Sonuç ekranı kapanınca otomatik ekleneceksin.");
     } else if (isResults && canQueueForNextRound) {
         setGameCenterStatus("Maç sonuçlandı. Şimdi lobiye katılarak sonraki maçta yer alabilirsin.");
-    } else if (isResults && hasReturnedFromUnoResults) {
+    } else if (isResults && hasReturnedFromWorkerResults) {
         const waiting = Math.max(0, matchPlayers.length - resultReturnIds.length);
         setGameCenterStatus(
             waiting > 0
-                ? "Lobiye döndün. Diğer " + waiting + " aktif oyuncunun onayı bekleniyor."
+                ? "Lobiye döndün. Diğer " + waiting + " aktif oyuncunun dönüşü bekleniyor."
                 : "Tüm oyuncular döndü. Yeni lobi hazırlanıyor."
         );
     } else if (isResults) {
-        setGameCenterStatus(session.gameId === "uno"
-            ? "Maç sonuçlandı. Her oyuncu kendi sonuç ekranındaki “Yeni tur için lobiye dön” düğmesine basınca yeni lobi açılacak."
+        setGameCenterStatus(["uno", "vampir-koylu"].includes(session.gameId)
+            ? "Her oyuncunun sonuç ekranı 5 saniye içinde lobiye dönüşünü sunucuya kaydeder."
             : "Sonuçlar 5 saniye gösterilecek. Ardından lobi otomatik sıfırlanacak.");
     } else if (isStarting && isLobbyPlayer) {
         setGameCenterStatus("Geri sayım başladı. Hazır durumunu geri alarak maçı durdurabilirsin.");
@@ -1714,10 +1794,33 @@ async function returnUnoToLobbyFromResults(roomId, expectedRound) {
     return result;
 }
 
+async function returnVampirKoyluToLobbyFromResults(roomId, expectedRound) {
+    if (!currentUser) throw new Error("Oturum bulunamadı.");
+
+    const result = await returnVampirKoyluToLobby(
+        db,
+        roomId,
+        expectedRound,
+        currentUser.uid
+    );
+
+    if (result.completed) {
+        setGameCenterStatus("Tüm oyuncular döndü. Yeni Vampir Köylü lobisi hazır.");
+    } else {
+        setGameCenterStatus(
+            "Lobiye döndün. Diğer oyuncular bekleniyor (" +
+            result.returnedCount + "/" + result.requiredCount + ")."
+        );
+    }
+
+    return result;
+}
+
 function syncGameSessionResultsReset(roomId, sessionData) {
     // UNO advances only when a player presses the result screen's
     // "Lobi ekranına dön" button. Never silently reuse a result round.
-    if (!sessionData || sessionData.status !== "results" || sessionData.gameId === "uno") {
+    if (!sessionData || sessionData.status !== "results" ||
+        ["uno", "vampir-koylu"].includes(sessionData.gameId)) {
         clearGameSessionResultsTimer();
         return;
     }
@@ -1975,7 +2078,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
         }
         if (latest.status === "results") {
             if (
-                latest.gameId === "uno" &&
+                ["uno", "vampir-koylu"].includes(latest.gameId) &&
                 Array.isArray(latest.resultReturnIds) &&
                 latest.resultReturnIds.includes(currentUser.uid)
             ) return false;
@@ -2036,10 +2139,13 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
             session: latest,
             roomMembers: activeRoomMembers,
             onLeave: leaveCurrentMatch,
-            onReturnToLobby: latest.gameId === "uno" &&
-                Array.isArray(latest.matchPlayerIds) &&
+            onReturnToLobby: Array.isArray(latest.matchPlayerIds) &&
                 latest.matchPlayerIds.includes(currentUser.uid)
-                ? () => returnUnoToLobbyFromResults(roomId, latest.round)
+                ? latest.gameId === "uno"
+                    ? () => returnUnoToLobbyFromResults(roomId, latest.round)
+                    : latest.gameId === "vampir-koylu"
+                        ? () => returnVampirKoyluToLobbyFromResults(roomId, latest.round)
+                        : null
                 : null
         });
 
@@ -2093,15 +2199,44 @@ function reconcileUnoRosterChange(roomId, sessionData) {
     observedUnoRosterIds = [...currentIds];
     const onlyPlayersLeft = currentIds.length < previousIds.length &&
         currentIds.every((id) => previousIds.includes(id));
-    // Elect one deterministic remaining player to repair moderator removals.
-    // The atomic self-quit path already updates both documents and needs no repair.
-    if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) {
-        return;
-    }
+    if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) return;
 
     reconcileUnoMatchPlayers(db, roomId, sessionData.round, currentUser.uid)
         .catch((error) => {
             console.warn("CACA UNO roster reconciliation failed:", error);
+            if (activeRoomId === roomId) {
+                setGameCenterStatus("Oyuncu ayrılışı eşitlenemedi: " + (error.message || "Bilinmeyen hata"), true);
+            }
+        });
+}
+
+function reconcileVampirKoyluRosterChange(roomId, sessionData) {
+    if (
+        !sessionData ||
+        sessionData.gameId !== "vampir-koylu" ||
+        sessionData.status !== "playing" ||
+        !currentUser
+    ) return;
+
+    const roundKey = roomId + ":" + String(sessionData.round);
+    const currentIds = Array.isArray(sessionData.matchPlayerIds)
+        ? sessionData.matchPlayerIds
+        : [];
+    if (observedVampirRosterRoundKey !== roundKey) {
+        observedVampirRosterRoundKey = roundKey;
+        observedVampirRosterIds = [...currentIds];
+        return;
+    }
+
+    const previousIds = observedVampirRosterIds;
+    observedVampirRosterIds = [...currentIds];
+    const onlyPlayersLeft = currentIds.length < previousIds.length &&
+        currentIds.every((id) => previousIds.includes(id));
+    if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) return;
+
+    reconcileVampirKoyluMatchPlayers(db, roomId, sessionData.round, currentUser.uid)
+        .catch((error) => {
+            console.warn("Vampir Köylü roster eşitlemesi başarısız:", error);
             if (activeRoomId === roomId) {
                 setGameCenterStatus("Oyuncu ayrılışı eşitlenemedi: " + (error.message || "Bilinmeyen hata"), true);
             }
@@ -2113,6 +2248,8 @@ function listenToGameCenter(roomId) {
     openingRoomGameKey = "";
     observedUnoRosterRoundKey = "";
     observedUnoRosterIds = [];
+    observedVampirRosterRoundKey = "";
+    observedVampirRosterIds = [];
     clearGameSessionCountdown();
     clearGameSessionResultsTimer();
     if (unsubscribeGameSession) unsubscribeGameSession();
@@ -2124,6 +2261,7 @@ function listenToGameCenter(roomId) {
         gameSessionData = snapshot.exists() ? snapshot.data() : null;
         renderGameCenter();
         reconcileUnoRosterChange(roomId, gameSessionData);
+        reconcileVampirKoyluRosterChange(roomId, gameSessionData);
         syncGameSessionCountdown(roomId, gameSessionData);
         syncGameSessionResultsReset(roomId, gameSessionData);
         if (gameSessionData) maybeStartGameWhenReady(roomId, gameSessionData);
@@ -2200,6 +2338,117 @@ $("gameCatalogGrid").addEventListener("click", (event) => {
     renderGameCatalog();
 });
 
+function updateGameBotSettingsPreview() {
+    const session = gameSessionData;
+    const enabled = $("gameBotFillToggle").checked;
+    const target = Number($("gameBotTargetCount").value);
+    const humanCount = Array.isArray(session?.playerIds) ? session.playerIds.length : 0;
+    const preview = $("gameBotSettingsPreview");
+    const saveButton = $("saveGameLobbySettingsButton");
+    const remaining = target - humanCount;
+
+    if (!Number.isInteger(target) || target < 5 || target > 12) {
+        preview.textContent = "Hedef oyuncu sayısı 5–12 arasında olmalı.";
+        saveButton.disabled = true;
+        return;
+    }
+    if (enabled && remaining < 0) {
+        preview.textContent = "Hedef sayı mevcut gerçek oyuncu sayısından düşük olamaz.";
+        saveButton.disabled = true;
+        return;
+    }
+
+    preview.textContent = enabled
+        ? `${humanCount} gerçek oyuncu + ${Math.max(0, remaining)} bot = ${target} toplam oyuncu.`
+        : `Botlar kapalı. Başlamak için en az 5 gerçek oyuncu gerekiyor. Şu an ${humanCount} gerçek oyuncu var.`;
+    saveButton.disabled = false;
+}
+
+function openGameLobbySettings() {
+    const session = gameSessionData;
+    if (
+        !currentUser ||
+        !session ||
+        session.gameId !== "vampir-koylu" ||
+        session.status !== "lobby" ||
+        session.hostId !== currentUser.uid
+    ) {
+        setGameCenterStatus("Lobi ayarlarını yalnızca lobi sahibi ve yalnızca lobi açıkken değiştirebilir.", true);
+        return;
+    }
+
+    const settings = getVampirLobbySettings(session);
+    $("gameBotFillToggle").checked = settings.botFillEnabled;
+    $("gameBotTargetCount").value = String(settings.targetPlayerCount);
+    $("gameBotSettingsStatus").textContent = "";
+    $("gameLobbySettingsPanel").hidden = false;
+    updateGameBotSettingsPreview();
+    $("closeGameLobbySettingsButton").focus();
+}
+
+function closeGameLobbySettings() {
+    $("gameLobbySettingsPanel").hidden = true;
+    $("gameLobbySettingsButton").focus();
+}
+
+async function saveGameLobbySettings() {
+    const session = gameSessionData;
+    if (!currentUser || !activeRoomId || !session) return;
+
+    const roomId = activeRoomId;
+    const uid = currentUser.uid;
+    const botFillEnabled = $("gameBotFillToggle").checked;
+    const targetPlayerCount = Number($("gameBotTargetCount").value);
+    const button = $("saveGameLobbySettingsButton");
+
+    if (
+        session.gameId !== "vampir-koylu" ||
+        session.status !== "lobby" ||
+        session.hostId !== uid
+    ) {
+        $("gameBotSettingsStatus").textContent = "Bu ayarları değiştirme yetkin yok veya maç başladı.";
+        return;
+    }
+    if (!Number.isInteger(targetPlayerCount) || targetPlayerCount < 5 || targetPlayerCount > 12) {
+        $("gameBotSettingsStatus").textContent = "Hedef oyuncu sayısı 5–12 arasında olmalı.";
+        return;
+    }
+
+    button.disabled = true;
+    $("gameBotSettingsStatus").textContent = "Ayarlar kaydediliyor…";
+    try {
+        await runTransaction(db, async (transaction) => {
+            const ref = getGameSessionRef(roomId);
+            const snapshot = await transaction.get(ref);
+            if (!snapshot.exists()) throw new Error("Oyun lobisi artık mevcut değil.");
+            const latest = snapshot.data();
+            if (
+                latest.gameId !== "vampir-koylu" ||
+                latest.status !== "lobby" ||
+                latest.hostId !== uid
+            ) {
+                throw new Error("Yalnızca lobi sahibi, maç başlamadan ayarları değiştirebilir.");
+            }
+            const playerCount = Array.isArray(latest.playerIds) ? latest.playerIds.length : 0;
+            if (botFillEnabled && playerCount > targetPlayerCount) {
+                throw new Error("Hedef oyuncu sayısı gerçek oyuncu sayısından düşük olamaz.");
+            }
+
+            transaction.update(ref, {
+                gameSettings: { botFillEnabled, targetPlayerCount },
+                updatedAt: serverTimestamp()
+            });
+        });
+        $("gameBotSettingsStatus").textContent = "Lobi ayarları kaydedildi.";
+        setGameCenterStatus("Vampir Köylü lobi ayarları güncellendi.");
+        $("gameLobbySettingsPanel").hidden = true;
+    } catch (error) {
+        $("gameBotSettingsStatus").textContent = error.message || "Ayarlar kaydedilemedi.";
+    } finally {
+        button.disabled = false;
+    }
+}
+
 async function createGameSession() {
     if (!currentUser || !activeRoomId) {
         setGameCenterStatus("Önce bir odaya girmen gerekiyor.", true);
@@ -2234,6 +2483,9 @@ async function createGameSession() {
             nextRoundPlayerIds: [],
             nextRoundReadyIds: [],
             resultReturnIds: [],
+            ...(selectedGame.id === "vampir-koylu"
+                ? { gameSettings: { botFillEnabled: false, targetPlayerCount: 5 } }
+                : {}),
             createdAt: serverTimestamp(),
             startedAt: null,
             countdownEndsAt: null,
@@ -2262,7 +2514,13 @@ async function joinGameSession() {
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
     const queuedPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
-    const { maxPlayers } = getGameLimits(session.gameId);
+    const baseLimits = getGameLimits(session.gameId);
+    const lobbySettings = session.gameId === "vampir-koylu"
+        ? getVampirLobbySettings(session)
+        : null;
+    const maxPlayers = lobbySettings?.botFillEnabled
+        ? lobbySettings.targetPlayerCount
+        : baseLimits.maxPlayers;
 
     if (session.status === "results") {
         if (players.includes(uid) || spectators.includes(uid) || queuedPlayers.includes(uid)) {
@@ -2377,12 +2635,24 @@ async function leaveUnoMatchFromSession(roomId, session, uid) {
         throw new Error("UNO tur bilgisi bulunamadı.");
     }
 
-    // forfeitMatch reads the latest session and match together. Do not pre-read
-    // the match or create the leaver's hand before attempting to quit.
     try {
         return await forfeitUnoMatch(db, roomId, Number(session.round), uid);
     } catch (error) {
         const wrapped = new Error(error?.message || "UNO maçından çıkış başarısız.");
+        wrapped.code = error?.code;
+        throw wrapped;
+    }
+}
+
+async function leaveVampirKoyluMatchFromSession(roomId, session, uid) {
+    if (session?.gameId !== "vampir-koylu" || !Number.isInteger(Number(session.round))) {
+        throw new Error("Vampir Köylü tur bilgisi bulunamadı.");
+    }
+
+    try {
+        return await forfeitVampirKoyluMatch(db, roomId, Number(session.round), uid);
+    } catch (error) {
+        const wrapped = new Error(error?.message || "Vampir Köylü maçından çıkış başarısız.");
         wrapped.code = error?.code;
         throw wrapped;
     }
@@ -2406,26 +2676,35 @@ async function leaveGameLobby() {
             ? initialSession.playerIds || []
             : []);
 
-    // UNO uses the same atomic forfeit path from both the table and lobby controls.
-    // This removes the player from the persistent lobby and awards a 2-player win.
+    // Worker-backed games process exits on the authoritative game server,
+    // including the case where the final active player leaves.
     if (
-        initialSession.status === "playing" &&
-        initialSession.gameId === "uno" &&
         initialMatchPlayers.includes(uid) &&
-        initialMatchPlayers.length > 1
+        (
+            (initialSession.status === "playing" &&
+                ["uno", "vampir-koylu"].includes(initialSession.gameId)) ||
+            (initialSession.status === "results" && initialSession.gameId === "vampir-koylu")
+        )
     ) {
         try {
-            const result = await leaveUnoMatchFromSession(activeRoomId, initialSession, uid);
+            const result = initialSession.gameId === "uno"
+                ? await leaveUnoMatchFromSession(activeRoomId, initialSession, uid)
+                : await leaveVampirKoyluMatchFromSession(activeRoomId, initialSession, uid);
 
             activeRoomGame?.close();
             activeRoomGame = null;
             activeRoomGameKey = "";
 
-            if (result.finished && result.winner) {
+            if (initialSession.gameId === "uno" && result.finished && result.winner) {
                 const winner = activeRoomMembers.find((member) => member.id === result.winner);
                 setGameCenterStatus(
                     (winner?.displayNickname || winner?.username || "Rakibin") +
                     " maçı terk ettiğin için kazandı."
+                );
+            } else if (initialSession.gameId === "vampir-koylu" && result.finished && result.winner) {
+                setGameCenterStatus(
+                    (result.winner === "vampirler" ? "Vampirler" : "Köylüler") +
+                    " maçı kazandı. Maçtan ayrıldın."
                 );
             } else {
                 setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
@@ -2552,26 +2831,26 @@ async function leaveGameLobby() {
 }
 
 async function leaveCurrentMatch() {
-    if (!currentUser || !activeRoomId || gameSessionData?.gameId !== "uno") {
-        return false;
-    }
+    if (!currentUser || !activeRoomId) return false;
+    const gameId = gameSessionData?.gameId;
+    if (!["uno", "vampir-koylu"].includes(gameId)) return false;
 
-    // The transaction validates live membership and roster. The snapshot is
-    // used only to identify the round, not to authorize the quit.
-    const result = await leaveUnoMatchFromSession(
-        activeRoomId,
-        gameSessionData,
-        currentUser.uid
-    );
+    const result = gameId === "uno"
+        ? await leaveUnoMatchFromSession(activeRoomId, gameSessionData, currentUser.uid)
+        : await leaveVampirKoyluMatchFromSession(activeRoomId, gameSessionData, currentUser.uid);
     if (!result.left) return false;
 
-    if (result.finished && result.winner) {
+    if (gameId === "uno" && result.finished && result.winner) {
         const winner = activeRoomMembers.find((member) => member.id === result.winner);
         setGameCenterStatus(
             (winner?.displayNickname || winner?.username || "Rakibin") +
             " maçı terk ettiğin için kazandı."
         );
-    } else if (result.cancelledBeforeDeal) {
+    } else if (gameId === "vampir-koylu" && result.finished && result.winner) {
+        setGameCenterStatus(
+            (result.winner === "vampirler" ? "Vampirler" : "Köylüler") + " kazandı."
+        );
+    } else if (result.cancelledBeforeStart || result.cancelledBeforeDeal) {
         setGameCenterStatus("Maç başlamadan terk edildi. Kalan oyuncular lobiye döndü.");
     } else {
         setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
@@ -2630,6 +2909,15 @@ async function closeGameSession() {
 }
 
 $("createGameSessionButton").addEventListener("click", createGameSession);
+$("gameLobbySettingsButton").addEventListener("click", openGameLobbySettings);
+$("closeGameLobbySettingsButton").addEventListener("click", closeGameLobbySettings);
+$("cancelGameLobbySettingsButton").addEventListener("click", closeGameLobbySettings);
+$("saveGameLobbySettingsButton").addEventListener("click", saveGameLobbySettings);
+$("gameBotFillToggle").addEventListener("change", updateGameBotSettingsPreview);
+$("gameBotTargetCount").addEventListener("change", updateGameBotSettingsPreview);
+$("gameLobbySettingsPanel").addEventListener("click", (event) => {
+    if (event.target === $("gameLobbySettingsPanel")) closeGameLobbySettings();
+});
 $("openGameMatchButton")?.addEventListener("click", async () => {
     if (!currentUser || !activeRoomId || !gameSessionData ||
         !["playing", "results"].includes(gameSessionData.status)) return;
@@ -4857,10 +5145,17 @@ async function removeSelfFromActiveGame(roomId) {
             if (
                 activeSession.gameId === "uno" &&
                 activeSession.status === "playing" &&
-                activeMatchPlayers.includes(currentUser.uid) &&
-                activeMatchPlayers.length >= 1
+                activeMatchPlayers.includes(currentUser.uid)
             ) {
                 await leaveUnoMatchFromSession(roomId, activeSession, currentUser.uid);
+                return;
+            }
+            if (
+                activeSession.gameId === "vampir-koylu" &&
+                ["playing", "results"].includes(activeSession.status) &&
+                activeMatchPlayers.includes(currentUser.uid)
+            ) {
+                await leaveVampirKoyluMatchFromSession(roomId, activeSession, currentUser.uid);
                 return;
             }
         }
