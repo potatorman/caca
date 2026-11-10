@@ -37,7 +37,7 @@ running on your PC.
 
 In the Worker **Settings → Variables & Secrets**, add these as encrypted secrets:
 
-- `UNO_TICKET_SECRET`: a random secret with at least 32 characters.
+- `CACA_TICKET_SECRET`: a random secret with at least 32 characters.
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: the full JSON key for a service account in Firebase
   project `caca-dfe6c`.
 
@@ -186,7 +186,7 @@ The current repository uses Wrangler `4.135.0+` and has a `previews` section in 
 2. Enable **Preview Builds** (or **Builds for non-production branches**, depending on the dashboard label).
 3. If this existing Worker shows a **Set up Worker Previews** banner under **Settings → Builds**, select **Set up**, review the switch, and then select **Switch to Worker Previews**. This is a one-time change to the preview workflow; it does not change the production branch.
 4. Confirm the Preview command is `npx wrangler preview`. Production should continue using its existing production deploy command.
-5. Under **Settings → Variables & Secrets → Previews Base**, add the encrypted secrets `UNO_TICKET_SECRET` and `FIREBASE_SERVICE_ACCOUNT_JSON` with the same values used by the Worker. Never put either secret in the repository.
+5. Under **Settings → Variables & Secrets → Previews Base**, add the encrypted secrets `CACA_TICKET_SECRET` and `FIREBASE_SERVICE_ACCOUNT_JSON` with the same values used by the Worker. Never put either secret in the repository.
 
 Newer Workers use `npx wrangler preview` for non-production branches. Existing Workers connected to Builds may need the one-time Worker Previews setup before this model is active. Cloudflare creates isolated Durable Object namespaces for each Preview when the Wrangler `previews` binding is configured.
 
