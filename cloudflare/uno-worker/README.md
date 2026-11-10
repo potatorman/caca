@@ -36,7 +36,7 @@ running on your PC.
 
 In the Worker **Settings → Variables & Secrets**, add these as encrypted secrets:
 
-- `UNO_TICKET_SECRET`: a random secret with at least 32 characters.
+- `CACA_TICKET_SECRET`: a random secret with at least 32 characters.
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: the full JSON key for a service account in Firebase
   project `caca-dfe6c`.
 
