@@ -557,6 +557,115 @@ service cloud.firestore {
             && newList.hasAny([request.auth.uid]);
         }
 
+        // Self-service fallback for an existing game-session participant.
+        function sameGameSessionIdentity() {
+          return request.resource.data.gameId == resource.data.gameId
+            && request.resource.data.gameName == resource.data.gameName
+            && request.resource.data.round == resource.data.round
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.get('gameSettings', null)
+              == resource.data.get('gameSettings', null);
+        }
+
+        function selfRemovesOrKeeps(oldList, newList) {
+          return oldList is list
+            && newList is list
+            && (
+              newList == oldList
+              || (
+                oldList.hasAll(newList)
+                && oldList.size() == newList.size() + 1
+                && oldList.hasAny([request.auth.uid])
+                && !newList.hasAny([request.auth.uid])
+              )
+            );
+        }
+
+        function canSelfToggleGameReady() {
+          return signedIn()
+            && resource.data.status == 'lobby'
+            && request.resource.data.status == 'lobby'
+            && resource.data.playerIds is list
+            && resource.data.playerIds.hasAny([request.auth.uid])
+            && request.resource.data.playerIds == resource.data.playerIds
+            && request.resource.data.hostId == resource.data.hostId
+            && sameGameSessionIdentity()
+            && request.resource.data.readyIds is list
+            && request.resource.data.readyIds.hasOnly(resource.data.playerIds)
+            && (
+              onlyAddsSelf(resource.data.readyIds, request.resource.data.readyIds)
+              || (
+                resource.data.readyIds.hasAll(request.resource.data.readyIds)
+                && resource.data.readyIds.size()
+                  == request.resource.data.readyIds.size() + 1
+                && resource.data.readyIds.hasAny([request.auth.uid])
+                && !request.resource.data.readyIds.hasAny([request.auth.uid])
+              )
+            )
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['readyIds', 'updatedAt'])
+            && request.resource.data.updatedAt is timestamp;
+        }
+
+        function canSelfCancelGameCountdown() {
+          return signedIn()
+            && resource.data.status == 'starting'
+            && request.resource.data.status == 'lobby'
+            && resource.data.playerIds is list
+            && resource.data.playerIds.hasAny([request.auth.uid])
+            && request.resource.data.playerIds == resource.data.playerIds
+            && request.resource.data.hostId == resource.data.hostId
+            && sameGameSessionIdentity()
+            && resource.data.readyIds is list
+            && request.resource.data.readyIds is list
+            && resource.data.readyIds.size()
+              == request.resource.data.readyIds.size() + 1
+            && resource.data.readyIds.hasAll(request.resource.data.readyIds)
+            && resource.data.readyIds.hasAny([request.auth.uid])
+            && !request.resource.data.readyIds.hasAny([request.auth.uid])
+            && request.resource.data.readyIds.hasOnly(resource.data.playerIds)
+            && request.resource.data.countdownEndsAt == null
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'countdownEndsAt', 'readyIds', 'updatedAt'])
+            && request.resource.data.updatedAt is timestamp;
+        }
+
+        function canSelfLeaveGameLobby() {
+          return signedIn()
+            && resource.data.status in ['lobby', 'starting']
+            && request.resource.data.status == 'lobby'
+            && resource.data.playerIds is list
+            && request.resource.data.playerIds is list
+            && resource.data.playerIds.hasAny([request.auth.uid])
+            && !request.resource.data.playerIds.hasAny([request.auth.uid])
+            && resource.data.playerIds.hasAll(request.resource.data.playerIds)
+            && resource.data.playerIds.size()
+              == request.resource.data.playerIds.size() + 1
+            && request.resource.data.playerIds.size() >= 1
+            && sameGameSessionIdentity()
+            && (
+              request.auth.uid == resource.data.hostId
+              ? request.resource.data.hostId == request.resource.data.playerIds[0]
+              : request.resource.data.hostId == resource.data.hostId
+            )
+            && selfRemovesOrKeeps(resource.data.readyIds, request.resource.data.readyIds)
+            && request.resource.data.readyIds.hasOnly(request.resource.data.playerIds)
+            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+            && spectators(request.resource.data) == spectators(resource.data)
+            && request.resource.data.nextRoundPlayerIds == resource.data.nextRoundPlayerIds
+            && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
+            && selfRemovesOrKeeps(
+              resource.data.get('resultReturnIds', []),
+              request.resource.data.get('resultReturnIds', [])
+            )
+            && request.resource.data.countdownEndsAt == null
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'hostId', 'status', 'countdownEndsAt', 'playerIds',
+              'readyIds', 'resultReturnIds', 'updatedAt'
+            ])
+            && request.resource.data.updatedAt is timestamp;
+        }
+
         function matchPlayers(data) {
           return data.keys().hasAny(['matchPlayerIds'])
             ? data.matchPlayerIds
@@ -923,7 +1032,15 @@ service cloud.firestore {
               )
             );
         }
-        allow get: if sessionId == 'active' && isRoomMember(roomId);
+        allow get: if sessionId == 'active'
+          && (
+            isRoomMember(roomId)
+            || (
+              signedIn()
+              && resource.data.playerIds is list
+              && resource.data.playerIds.hasAny([request.auth.uid])
+            )
+          );
         allow list: if false;
 
         allow create: if sessionId == 'active'
@@ -1452,6 +1569,16 @@ service cloud.firestore {
                 || request.resource.data.hostId != resource.data.hostId
               )
             )
+          );
+
+        // Narrow self-service fallback. A listed player may only ready/unready
+        // themselves or remove their own lobby seat. They cannot change settings,
+        // another member, or any match-owned state.
+        allow update: if sessionId == 'active'
+          && (
+            canSelfToggleGameReady()
+            || canSelfCancelGameCountdown()
+            || canSelfLeaveGameLobby()
           );
 
         allow delete: if sessionId == 'active'
