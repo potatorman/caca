@@ -95,7 +95,7 @@ async function issueTicket(request, env, url, origin, gameId) {
         role: access.role,
         gameId,
         exp: Math.floor(Date.now() / 1000) + 120
-    }, env.UNO_TICKET_SECRET);
+    }, env.CACA_TICKET_SECRET);
 
     return json({
         ticket,
@@ -179,7 +179,7 @@ export default {
                 if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
                     return json({ error: "WebSocket bağlantısı gerekli." }, 426, origin);
                 }
-                const ticket = await verifyTicket(url.searchParams.get("ticket"), env.UNO_TICKET_SECRET);
+                const ticket = await verifyTicket(url.searchParams.get("ticket"), env.CACA_TICKET_SECRET);
                 const gameId = ticket.gameId === "vampir-koylu" ? "vampir-koylu" : "uno";
                 const stub = getRoomStub(env, gameId, ticket.roomId, ticket.round);
                 const internalRequest = new Request("https://" + gameId + "-room.internal/connect", {
