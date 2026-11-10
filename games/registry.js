@@ -10,6 +10,17 @@ export const GAME_REGISTRY = Object.freeze([
         minPlayers: 2,
         maxPlayers: 10,
         module: "./uno/index.js"
+    }),
+    Object.freeze({
+        id: "vampir-koylu",
+        name: "Vampir Köylü",
+        icon: "🌙",
+        description: "5–12 oyuncu. Vampir, doktor ve köylüler; gizli gece hamleleri, tartışma ve oylama.",
+        status: "ready",
+        lobbyEnabled: true,
+        minPlayers: 5,
+        maxPlayers: 12,
+        module: "./vampir-koylu/index.js"
     })
 ]);
 
