@@ -15,7 +15,7 @@ function fromBase64Url(value) {
 
 async function ticketKey(secret, usage) {
     if (typeof secret !== "string" || secret.length < 32) {
-        throw new Error("UNO_TICKET_SECRET en az 32 karakter olmalı.");
+        throw new Error("CACA_TICKET_SECRET en az 32 karakter olmalı.");
     }
     return crypto.subtle.importKey(
         "raw",
