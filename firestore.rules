@@ -1076,6 +1076,24 @@ service cloud.firestore {
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['status', 'countdownEndsAt', 'updatedAt'])
             )
+            // The countdown starts a match with a frozen player list.
+            || (
+              resource.data.status == 'starting'
+              && request.resource.data.status == 'playing'
+              && request.time >= resource.data.countdownEndsAt
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.matchPlayerIds == request.resource.data.playerIds
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.spectatorIds.size() == 0
+              && request.resource.data.startedAt is timestamp
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly([
+                  'status', 'matchPlayerIds', 'spectatorIds', 'readyIds',
+                  'nextRoundPlayerIds', 'nextRoundReadyIds',
+                  'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+                ])
+            )
             || canSelfToggleVampirReady()
             || canSelfCancelVampirCountdown()
             || canSelfLeaveVampirLobby()
@@ -1214,24 +1232,6 @@ service cloud.firestore {
               && request.resource.data.countdownEndsAt == null
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['status', 'countdownEndsAt', 'playerIds', 'readyIds', 'updatedAt'])
-            )
-            // The countdown starts a match with a frozen player list.
-            || (
-              resource.data.status == 'starting'
-              && request.resource.data.status == 'playing'
-              && request.time >= resource.data.countdownEndsAt
-              && request.resource.data.playerIds == resource.data.playerIds
-              && request.resource.data.matchPlayerIds == request.resource.data.playerIds
-              && request.resource.data.readyIds.size() == 0
-              && request.resource.data.spectatorIds.size() == 0
-              && request.resource.data.startedAt is timestamp
-              && request.resource.data.countdownEndsAt == null
-              && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly([
-                  'status', 'matchPlayerIds', 'spectatorIds', 'readyIds',
-                  'nextRoundPlayerIds', 'nextRoundReadyIds',
-                  'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
-                ])
             )
             // A member who enters the game center during a live match becomes a spectator.
             || (
