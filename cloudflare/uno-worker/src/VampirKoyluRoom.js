@@ -795,7 +795,7 @@ export class VampirKoyluRoom extends DurableObject {
     }
 
     async syncFinishedResult(match) {
-        if (match.status !== "results" || match.firebaseResultSynced) return;
+        if (match.status !== "results") return;
 
         const sessionPath = "rooms/" + match.roomId + "/gameSessions/active";
         const sessionDoc = await getFirestoreDocument(this.env, sessionPath);
@@ -1117,16 +1117,46 @@ export class VampirKoyluRoom extends DurableObject {
         if (!match || match.status !== "results") {
             throw new Error("Vampir Köylü sonuç ekranı artık etkin değil.");
         }
+        const sessionPath = "rooms/" + roomId + "/gameSessions/active";
+        const sessionBeforeSync = await getFirestoreDocument(this.env, sessionPath);
+        if (!sessionBeforeSync) {
+            throw new Error("Firebase oyun lobisi bulunamadı.");
+        }
+        if (sessionBeforeSync.data.status === "lobby" &&
+            uniqueIds(sessionBeforeSync.data.playerIds).includes(uid)) {
+            return {
+                completed: true,
+                alreadyReturned: true,
+                round: Number(sessionBeforeSync.data.round) || round,
+                returnedCount: 1,
+                requiredCount: 1
+            };
+        }
+
         await this.syncFinishedResult(match);
 
-        const sessionPath = "rooms/" + roomId + "/gameSessions/active";
         const sessionDoc = await getFirestoreDocument(this.env, sessionPath);
-        if (!sessionDoc || Number(sessionDoc.data.round) !== round ||
-            sessionDoc.data.status !== "results") {
-            throw new Error("Firebase oyun lobisi sonuç aşamasında değil.");
+        if (!sessionDoc) {
+            throw new Error("Firebase oyun lobisi bulunamadı.");
         }
 
         const session = sessionDoc.data;
+        const sessionRound = Number(session.round);
+        const lobbyPlayers = uniqueIds(session.playerIds);
+        if (session.status === "lobby" && lobbyPlayers.includes(uid)) {
+            // Another return request may have already restored the lobby while
+            // this player's results screen was still submitting its request.
+            return {
+                completed: true,
+                alreadyReturned: true,
+                round: sessionRound,
+                returnedCount: 1,
+                requiredCount: 1
+            };
+        }
+        if (sessionRound !== round || session.status !== "results") {
+            throw new Error("Firebase oyun lobisi sonuç aşamasında değil.");
+        }
         const players = getSessionPlayers(session);
         if (!players.includes(uid)) {
             throw new Error("Bu oyuncu sonuç ekranında aktif değil.");

@@ -1034,8 +1034,71 @@ service cloud.firestore {
           && request.resource.data.gameName == resource.data.gameName
           && request.resource.data.createdAt == resource.data.createdAt
           && (
-            // Evaluate narrow Vampir lobby edits before the larger UNO lifecycle policy.
-// A room member joins the persistent lobby.
+            // The settings write is host-only and intentionally evaluated first.
+            (
+              resource.data.gameId == 'vampir-koylu'
+              && resource.data.status == 'lobby'
+              && request.resource.data.status == 'lobby'
+              && request.auth.uid == resource.data.hostId
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['gameSettings', 'updatedAt'])
+            )
+            || (
+              resource.data.status == 'lobby'
+              && request.resource.data.status == 'starting'
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && (
+                (
+                  resource.data.gameId == 'vampir-koylu'
+                  && (
+                    vampirBotFillEnabled(resource.data)
+                    ? (
+                      request.resource.data.playerIds.size() >= 1
+                      && request.resource.data.playerIds.size() <= vampirTargetPlayerCount(resource.data)
+                    )
+                    : request.resource.data.playerIds.size() >= 5
+                  )
+                  && request.resource.data.playerIds.size() <= 12
+                )
+                || (
+                  resource.data.gameId != 'vampir-koylu'
+                  && request.resource.data.playerIds.size() >= 2
+                )
+              )
+              && (resource.data.gameId != 'uno' || request.resource.data.playerIds.size() <= 10)
+              && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
+              && request.resource.data.countdownEndsAt is timestamp
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'countdownEndsAt', 'updatedAt'])
+            )
+            // The countdown starts a match with a frozen player list.
+            || (
+              resource.data.status == 'starting'
+              && request.resource.data.status == 'playing'
+              && request.time >= resource.data.countdownEndsAt
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.matchPlayerIds == request.resource.data.playerIds
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.spectatorIds.size() == 0
+              && request.resource.data.startedAt is timestamp
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly([
+                  'status', 'matchPlayerIds', 'spectatorIds', 'readyIds',
+                  'nextRoundPlayerIds', 'nextRoundReadyIds',
+                  'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+                ])
+            )
+            || canSelfToggleVampirReady()
+            || canSelfCancelVampirCountdown()
+            || canSelfLeaveVampirLobby()
+            ||
+            // A room member joins the persistent lobby.
             (
               resource.data.status == 'lobby'
               && request.resource.data.status == 'lobby'
@@ -1062,10 +1125,6 @@ service cloud.firestore {
               && matchPlayers(request.resource.data) == matchPlayers(resource.data)
               && spectators(request.resource.data) == spectators(resource.data)
             )
-            ||
-                        canSelfToggleVampirReady()
-            || canSelfCancelVampirCountdown()
-            || canSelfLeaveVampirLobby()
             // Ready toggles are common lobby writes. Evaluate them before the
             // much larger match lifecycle policy to stay under the rules limit.
             || (
@@ -1094,22 +1153,6 @@ service cloud.firestore {
             canCancelUnoBeforeMatchExists()
             ||
             canRecoverUnoForfeitSession()
-            ||
-            // Only the current Vampir Köylü lobby host can change bot settings,
-            // and only while the shared session is still in the lobby state.
-            (
-              resource.data.gameId == 'vampir-koylu'
-              && resource.data.status == 'lobby'
-              && request.resource.data.status == 'lobby'
-              && request.auth.uid == resource.data.hostId
-              && request.resource.data.hostId == resource.data.hostId
-              && request.resource.data.playerIds == resource.data.playerIds
-              && request.resource.data.readyIds == resource.data.readyIds
-              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
-              && spectators(request.resource.data) == spectators(resource.data)
-              && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['gameSettings', 'updatedAt'])
-            )
             // The host leaves the lobby; the first remaining member inherits ownership.
             || (
               resource.data.status in ['lobby', 'starting']
@@ -1189,56 +1232,6 @@ service cloud.firestore {
               && request.resource.data.countdownEndsAt == null
               && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(['status', 'countdownEndsAt', 'playerIds', 'readyIds', 'updatedAt'])
-            )
-            // Start the shared countdown when every persistent lobby member is ready.
-            || (
-              resource.data.status == 'lobby'
-              && request.resource.data.status == 'starting'
-              && request.resource.data.hostId == resource.data.hostId
-              && request.resource.data.playerIds == resource.data.playerIds
-              && request.resource.data.readyIds == resource.data.readyIds
-              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
-              && (
-                (
-                  resource.data.gameId == 'vampir-koylu'
-                  && (
-                    vampirBotFillEnabled(resource.data)
-                    ? (
-                      request.resource.data.playerIds.size() >= 1
-                      && request.resource.data.playerIds.size() <= vampirTargetPlayerCount(resource.data)
-                    )
-                    : request.resource.data.playerIds.size() >= 5
-                  )
-                  && request.resource.data.playerIds.size() <= 12
-                )
-                || (
-                  resource.data.gameId != 'vampir-koylu'
-                  && request.resource.data.playerIds.size() >= 2
-                )
-              )
-              && (resource.data.gameId != 'uno' || request.resource.data.playerIds.size() <= 10)
-              && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
-              && request.resource.data.countdownEndsAt is timestamp
-              && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['status', 'countdownEndsAt', 'updatedAt'])
-            )
-            // The countdown starts a match with a frozen player list.
-            || (
-              resource.data.status == 'starting'
-              && request.resource.data.status == 'playing'
-              && request.time >= resource.data.countdownEndsAt
-              && request.resource.data.playerIds == resource.data.playerIds
-              && request.resource.data.matchPlayerIds == request.resource.data.playerIds
-              && request.resource.data.readyIds.size() == 0
-              && request.resource.data.spectatorIds.size() == 0
-              && request.resource.data.startedAt is timestamp
-              && request.resource.data.countdownEndsAt == null
-              && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly([
-                  'status', 'matchPlayerIds', 'spectatorIds', 'readyIds',
-                  'nextRoundPlayerIds', 'nextRoundReadyIds',
-                  'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
-                ])
             )
             // A member who enters the game center during a live match becomes a spectator.
             || (
