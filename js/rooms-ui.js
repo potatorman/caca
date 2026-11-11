@@ -136,6 +136,7 @@ let selectedGameId = GAME_REGISTRY.find((game) => game.lobbyEnabled !== false)?.
 let gameSessionStartInProgress = false;
 let gameSessionCountdownTimer = null;
 let gameSessionCountdownEndAt = null;
+let gameLobbyCooldownTimer = null;
 let activeRoomOwnerId = null;
 let currentRoomMemberRecord = null;
 let currentAdminExpiryTimer = null;
@@ -1452,6 +1453,40 @@ function setGameCenterStatus(message, isError = false) {
     status.classList.toggle("error", Boolean(isError));
 }
 
+function getGameLobbyCooldownUntil(roomId = activeRoomId) {
+    if (!roomId) return 0;
+    try {
+        const key = "caca-game-lobby-cooldown:" + roomId;
+        const stored = Number(localStorage.getItem(key));
+        if (!Number.isFinite(stored) || stored <= Date.now()) {
+            localStorage.removeItem(key);
+            return 0;
+        }
+        return stored;
+    } catch {
+        return 0;
+    }
+}
+
+function recordGameLobbyCooldown(roomId, sessionData) {
+    if (!roomId || sessionData?.status !== "results") return;
+    const finishedAt = sessionData.finishedAt?.toMillis?.();
+    const until = (Number.isFinite(finishedAt) ? finishedAt : Date.now()) + 3000;
+    try {
+        localStorage.setItem("caca-game-lobby-cooldown:" + roomId, String(until));
+    } catch {
+        // The disabled button still provides a per-tab fallback when storage is unavailable.
+    }
+    if (gameLobbyCooldownTimer) clearInterval(gameLobbyCooldownTimer);
+    gameLobbyCooldownTimer = setInterval(() => {
+        renderGameCatalog();
+        if (getGameLobbyCooldownUntil(roomId) <= Date.now()) {
+            clearInterval(gameLobbyCooldownTimer);
+            gameLobbyCooldownTimer = null;
+        }
+    }, 200);
+}
+
 function renderGameCatalog() {
     const grid = $("gameCatalogGrid");
     const createButton = $("createGameSessionButton");
@@ -1510,10 +1545,13 @@ function renderGameCatalog() {
     const selectedGame = GAME_REGISTRY.find((game) =>
         game.id === selectedGameId && game.lobbyEnabled !== false
     );
-    createButton.disabled = !selectedGame;
-    createButton.textContent = selectedGame
-        ? `${selectedGame.name} lobisi oluştur`
-        : "Şu an lobi oluşturulamıyor";
+    const cooldownRemaining = Math.max(0, getGameLobbyCooldownUntil() - Date.now());
+    createButton.disabled = !selectedGame || cooldownRemaining > 0;
+    createButton.textContent = cooldownRemaining > 0
+        ? `Yeni lobi için ${Math.ceil(cooldownRemaining / 1000)} sn bekle`
+        : selectedGame
+            ? `${selectedGame.name} lobisi oluştur`
+            : "Şu an lobi oluşturulamıyor";
 }
 
 function renderGameMemberList(containerId, memberIds, statusForMember = null) {
@@ -2001,7 +2039,7 @@ async function maybeStartGameWhenReady(roomId, sessionData) {
 
             transaction.update(ref, {
                 status: "starting",
-                countdownEndsAt: Timestamp.fromMillis(Date.now() + 3000),
+                countdownEndsAt: Timestamp.fromMillis(Date.now() + 5000),
                 updatedAt: serverTimestamp()
             });
         });
@@ -2259,6 +2297,7 @@ function listenToGameCenter(roomId) {
     unsubscribeGameSession = onSnapshot(getGameSessionRef(roomId), (snapshot) => {
         if (activeRoomId !== roomId) return;
         gameSessionData = snapshot.exists() ? snapshot.data() : null;
+        recordGameLobbyCooldown(roomId, gameSessionData);
         renderGameCenter();
         reconcileUnoRosterChange(roomId, gameSessionData);
         reconcileVampirKoyluRosterChange(roomId, gameSessionData);
@@ -2464,6 +2503,12 @@ async function createGameSession() {
     if (gameSessionData) {
         setGameCenterStatus("Bu odada zaten açık bir oyun lobisi var.");
         renderGameCenter();
+        return;
+    }
+    const cooldownRemaining = getGameLobbyCooldownUntil() - Date.now();
+    if (cooldownRemaining > 0) {
+        setGameCenterStatus(`Yeni lobi oluşturmak için ${Math.ceil(cooldownRemaining / 1000)} saniye beklemelisin.`);
+        renderGameCatalog();
         return;
     }
     const button = $("createGameSessionButton");
