@@ -1034,37 +1034,8 @@ service cloud.firestore {
           && request.resource.data.gameName == resource.data.gameName
           && request.resource.data.createdAt == resource.data.createdAt
           && (
-            // UNO result acknowledgements and return-to-lobby lifecycle.
-            canBeginUnoResultReturn()
-            ||
-            canAcknowledgeUnoResultReturn()
-            ||
-            canCompleteUnoResultReturn()
-            ||
-            // Atomic UNO forfeit plus recovery for an older partial forfeit.
-            canSelfForfeitUnoSession()
-            ||
-            canCancelUnoBeforeMatchExists()
-            ||
-            canRecoverUnoForfeitSession()
-            ||
-            // Only the current Vampir Köylü lobby host can change bot settings,
-            // and only while the shared session is still in the lobby state.
-            (
-              resource.data.gameId == 'vampir-koylu'
-              && resource.data.status == 'lobby'
-              && request.resource.data.status == 'lobby'
-              && request.auth.uid == resource.data.hostId
-              && request.resource.data.hostId == resource.data.hostId
-              && request.resource.data.playerIds == resource.data.playerIds
-              && request.resource.data.readyIds == resource.data.readyIds
-              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
-              && spectators(request.resource.data) == spectators(resource.data)
-              && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['gameSettings', 'updatedAt'])
-            )
-            ||
-            // A room member joins the persistent lobby.
+            // Evaluate narrow Vampir lobby edits before the larger UNO lifecycle policy.
+// A room member joins the persistent lobby.
             (
               resource.data.status == 'lobby'
               && request.resource.data.status == 'lobby'
@@ -1091,9 +1062,15 @@ service cloud.firestore {
               && matchPlayers(request.resource.data) == matchPlayers(resource.data)
               && spectators(request.resource.data) == spectators(resource.data)
             )
-            // A player toggles their ready state.
+            ||
+                        canSelfToggleVampirReady()
+            || canSelfCancelVampirCountdown()
+            || canSelfLeaveVampirLobby()
+            // Ready toggles are common lobby writes. Evaluate them before the
+            // much larger match lifecycle policy to stay under the rules limit.
             || (
-              resource.data.status == 'lobby'
+              resource.data.gameId == 'uno'
+              && resource.data.status == 'lobby'
               && request.resource.data.status == 'lobby'
               && request.resource.data.hostId == resource.data.hostId
               && request.resource.data.playerIds == resource.data.playerIds
@@ -1103,6 +1080,35 @@ service cloud.firestore {
                 onlyAddsSelf(resource.data.readyIds, request.resource.data.readyIds)
                 || onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
               )
+            )
+            || canBeginUnoResultReturn()
+            // UNO result acknowledgements and return-to-lobby lifecycle.
+            ||
+            canAcknowledgeUnoResultReturn()
+            ||
+            canCompleteUnoResultReturn()
+            ||
+            // Atomic UNO forfeit plus recovery for an older partial forfeit.
+            canSelfForfeitUnoSession()
+            ||
+            canCancelUnoBeforeMatchExists()
+            ||
+            canRecoverUnoForfeitSession()
+            ||
+            // Only the current Vampir Köylü lobby host can change bot settings,
+            // and only while the shared session is still in the lobby state.
+            (
+              resource.data.gameId == 'vampir-koylu'
+              && resource.data.status == 'lobby'
+              && request.resource.data.status == 'lobby'
+              && request.auth.uid == resource.data.hostId
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+              && spectators(request.resource.data) == spectators(resource.data)
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['gameSettings', 'updatedAt'])
             )
             // The host leaves the lobby; the first remaining member inherits ownership.
             || (
@@ -1536,16 +1542,6 @@ service cloud.firestore {
                 || request.resource.data.hostId != resource.data.hostId
               )
             )
-          );
-
-        // Self-service exception only for Vampir Köylü. UNO continues to use
-        // the original room-member checks and its existing dedicated rules.
-        allow update: if sessionId == 'active'
-          && resource.data.gameId == 'vampir-koylu'
-          && (
-            canSelfToggleVampirReady()
-            || canSelfCancelVampirCountdown()
-            || canSelfLeaveVampirLobby()
           );
 
         allow delete: if sessionId == 'active'
