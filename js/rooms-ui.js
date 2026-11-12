@@ -2431,13 +2431,8 @@ function setWorkspaceTab(tab) {
     }
 }
 
-function setGameCenterOpen(isOpen) {
-    setWorkspaceTab(isOpen ? "games" : "chats");
-}
-
 $("chatsNavButton").addEventListener("click", () => setWorkspaceTab("chats"));
 $("gamesNavButton").addEventListener("click", () => setWorkspaceTab("games"));
-$("funCenterOpenButton").addEventListener("click", () => setWorkspaceTab("games"));
 $("closeGameCenterButton").addEventListener("click", () => setWorkspaceTab("chats"));
 $("gameCatalogGrid").addEventListener("click", (event) => {
     const card = event.target.closest(".game-catalog-card[data-game-id]");
