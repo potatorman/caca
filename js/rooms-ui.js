@@ -2469,6 +2469,12 @@ function listenToGameCenter(roomId) {
                 }
             }
             renderGameCenter();
+            if (gameSessionData && !snapshot.metadata.fromCache) {
+                const gamesView = $("gamesView");
+                if (gamesView && !gamesView.hidden) {
+                    $("gameSessionContent")?.scrollIntoView({ behavior: "auto", block: "start" });
+                }
+            }
             if (!gameSessionData) {
                 clearGameSessionCountdown();
                 clearGameSessionResultsTimer();
@@ -2792,7 +2798,8 @@ async function createGameSession() {
         hasOwnedActiveGameLobby = true;
         renderGameCenter();
         renderGameCatalog();
-        setGameCenterStatus("Yeni oyun lobisi kuruldu. Oyuncular katılabilir.");
+        setGameCenterStatus("");
+        $("gameSessionContent")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
         activeGameLobbyId = previousLobbyId;
         console.error("CACA game session create failed:", error);
@@ -3114,15 +3121,9 @@ async function leaveGameLobby() {
             activeRoomGameKey = "";
         }
 
-        if (result.closed) {
-            setGameCenterStatus("Lobide başka oyuncu kalmadığı için lobi kapatıldı.");
-        } else if (result.reset) {
-            setGameCenterStatus("Son maç oyuncusu ayrıldı. Lobi yeni maç için sıfırlandı.");
-        } else if (result.hostChanged) {
-            setGameCenterStatus("Lobiden ayrıldın. Lobi sahipliği sıradaki üyeye devredildi.");
-        } else if (result.left) {
-            setGameCenterStatus("Oyun lobisinden ayrıldın.");
-        }
+        // Leave/cleanup confirmations are intentionally silent; keep the
+        // status area reserved for actionable errors only.
+        if (result.left) setGameCenterStatus("");
         return Boolean(result.left);
     } catch (error) {
         setGameCenterStatus("Lobiden ayrılamadın: " + (error.message || "Bilinmeyen hata"), true);
