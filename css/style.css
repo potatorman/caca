@@ -6700,57 +6700,32 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 }
 
 
-/* CACA global game lobby controls and unified navy/blue game tables. */
-.workspace-layout.is-games-workspace .game-create-controls {
-    display: grid;
-    grid-template-columns: minmax(150px, 210px) minmax(220px, 300px) minmax(180px, auto);
-    align-items: end;
-    gap: 12px;
-}
-.workspace-layout.is-games-workspace .game-max-players-field,
-.workspace-layout.is-games-workspace .game-password-field {
+/* Keep the original create-lobby controls layout; style only the added password field. */
+.game-password-field {
     display: flex;
-    min-width: 0;
+    width: min(100%, 280px);
     flex-direction: column;
-    gap: 7px;
-    margin: 0;
-    color: #a9c4e3;
+    gap: 6px;
+    margin-top: 12px;
+    color: #a9bdd6;
     font-size: 11px;
-    font-weight: 750;
+    font-weight: 700;
 }
-.workspace-layout.is-games-workspace .game-password-field small {
-    color: #7899bd;
-    font-size: 10px;
-    font-weight: 550;
-}
-.workspace-layout.is-games-workspace .game-max-players-field select,
-.workspace-layout.is-games-workspace .game-password-field input {
+.game-password-field small { color: #7899bd; font-size: 10px; font-weight: 550; }
+.game-password-field input {
     box-sizing: border-box;
     width: 100%;
-    min-width: 0;
-    height: 42px;
-    padding: 0 12px;
-    color: #edf6ff;
-    background: #101f33;
-    border: 1px solid rgba(105, 158, 213, .38);
-    border-radius: 9px;
-    outline: none;
+    min-height: 34px;
+    padding: 0 10px;
+    color: #eaf4ff;
+    background: #10243d;
+    border: 1px solid rgba(111,164,222,.3);
+    border-radius: 8px;
     font: inherit;
-    font-size: 12px;
+    font-size: 11px;
 }
-.workspace-layout.is-games-workspace .game-password-field input::placeholder { color: #6683a4; }
-.workspace-layout.is-games-workspace .game-max-players-field select:focus,
-.workspace-layout.is-games-workspace .game-password-field input:focus {
-    border-color: #69adf4;
-    box-shadow: 0 0 0 3px rgba(73, 151, 231, .15);
-}
-.workspace-layout.is-games-workspace .game-create-button {
-    min-height: 42px;
-    height: 42px;
-    padding: 0 18px;
-    border-radius: 9px;
-    white-space: nowrap;
-}
+.game-password-field input:focus { border-color: #69adf4; outline: 2px solid rgba(73,151,231,.15); }
+
 .uno-shell {
     color: #edf5ff;
     background:
@@ -6794,19 +6769,7 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     border-radius: 9px;
     font-weight: 800;
 }
-@media (max-width: 760px) {
-    .workspace-layout.is-games-workspace .game-create-controls {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
-    .workspace-layout.is-games-workspace .game-create-button {
-        grid-column: 1 / -1;
-        width: 100%;
-    }
-}
-@media (max-width: 440px) {
-    .workspace-layout.is-games-workspace .game-create-controls { grid-template-columns: 1fr; }
-    .workspace-layout.is-games-workspace .game-create-button { grid-column: auto; }
-}
+
 
 
 /* Dark CACA treatment for in-game dialogs and result surfaces. */
