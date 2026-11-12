@@ -2516,6 +2516,7 @@ async function createGameSession() {
     setGameCenterStatus("Kalıcı oyun lobisi oluşturuluyor...");
     try {
         await setDoc(getGameSessionRef(), {
+            ...(selectedGame.id === "vampir-koylu" ? { sessionId: crypto.randomUUID() } : {}),
             gameId: selectedGame.id,
             gameName: selectedGame.name,
             status: "lobby",
