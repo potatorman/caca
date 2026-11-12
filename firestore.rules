@@ -1155,6 +1155,19 @@ service cloud.firestore {
             )
             || (
               resource.data.status == 'lobby'
+              && request.resource.data.status == 'lobby'
+              && request.auth.uid == resource.data.hostId
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && request.resource.data.maxPlayers is int
+              && request.resource.data.maxPlayers >= (resource.data.gameId == 'vampir-koylu' ? 5 : 2)
+              && request.resource.data.maxPlayers <= (resource.data.gameId == 'uno' ? 10 : (resource.data.gameId == 'vampir-koylu' ? 12 : 20))
+              && request.resource.data.playerIds.size() <= request.resource.data.maxPlayers
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['maxPlayers', 'updatedAt'])
+            )
+            || (
+              resource.data.status == 'lobby'
               && request.resource.data.status == 'starting'
               && request.resource.data.hostId == resource.data.hostId
               && request.resource.data.playerIds == resource.data.playerIds
