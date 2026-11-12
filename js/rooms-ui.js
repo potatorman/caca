@@ -2303,7 +2303,7 @@ function listenToGameCenter(roomId) {
         const nextSession = snapshot.exists() ? snapshot.data() : null;
         if (
             nextSession?.gameId === "vampir-koylu" &&
-            nextSession.status === "lobby" &&
+            ["lobby", "starting", "playing", "results"].includes(nextSession.status) &&
             !nextSession.sessionId &&
             currentUser?.uid === nextSession.hostId
         ) {
