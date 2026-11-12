@@ -568,6 +568,11 @@ service cloud.firestore {
           );
       }
       // Every game lobby is an independent document. Members can list them to discover open tables.
+      match /lobbySecrets/{secretId} {
+        // Password salts and verifiers are only accessible to the Cloudflare service account.
+        allow read, write: if false;
+      }
+
       match /gameSessions/{sessionId} {
         function onlyRemovesSelf(oldList, newList) {
           return oldList.hasAll(newList)
@@ -753,7 +758,7 @@ service cloud.firestore {
               'gameId', 'gameName', 'status', 'round', 'hostId',
               'playerIds', 'readyIds', 'nextRoundPlayerIds',
               'nextRoundReadyIds', 'matchPlayerIds', 'spectatorIds', 'resultReturnIds',
-              'gameSettings', 'sessionId', 'maxPlayers', 'createdAt', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+              'gameSettings', 'sessionId', 'maxPlayers', 'hasPassword', 'createdAt', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
             ])
             && data.gameId is string && data.gameId.size() >= 3 && data.gameId.size() <= 32
             && (!data.keys().hasAny(['sessionId']) || data.sessionId == null || (data.sessionId is string && data.sessionId.size() >= 16 && data.sessionId.size() <= 80 && data.sessionId.matches('^[A-Za-z0-9_-]+$')))
@@ -1193,9 +1198,9 @@ service cloud.firestore {
             || canSelfCancelVampirCountdown()
             || canSelfLeaveVampirLobby()
             ||
-            // A room member joins the persistent lobby.
-            (
-              resource.data.status == 'lobby'
+            // Legacy chat-room lobbies retain direct join. Global lobbies require Worker password verification.
+            (roomId != 'global'
+              && resource.data.status == 'lobby'
               && request.resource.data.status == 'lobby'
               && request.resource.data.hostId == resource.data.hostId
               && request.resource.data.diff(resource.data).affectedKeys()
