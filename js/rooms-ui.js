@@ -2405,7 +2405,19 @@ function listenToGameCenter(roomId) {
                 next.set(item.id, { ...data, lobbyId: item.id });
             });
             gameSessionsById = next;
-            hasOwnedActiveGameLobby = [...next.values()].some((session) => session.hostId === currentUser?.uid && ["lobby", "starting", "playing", "results"].includes(session.status));
+            const ownedActiveLobby = [...next.values()].find((session) => session.hostId === currentUser?.uid && ["lobby", "starting", "playing", "results"].includes(session.status));
+            hasOwnedActiveGameLobby = Boolean(ownedActiveLobby);
+            if (ownedActiveLobby) {
+                // Migrate lobbies created before the per-user lock was introduced.
+                const ownedLockRef = doc(db, "users", currentUser.uid, "gameState", "activeLobby");
+                void getDoc(ownedLockRef).then((lock) => {
+                    if (!lock.exists()) return setDoc(ownedLockRef, {
+                        lobbyId: ownedActiveLobby.lobbyId,
+                        gameId: ownedActiveLobby.gameId,
+                        createdAt: serverTimestamp()
+                    });
+                }).catch((error) => console.warn("CACA legacy lobby lock migration failed:", error));
+            }
             renderGameCatalog();
             for (const [id, entry] of backgroundGameCountdownTimers) {
                 const current = next.get(id);
@@ -5522,6 +5534,7 @@ $("copyRoomCode").addEventListener("click", async () => {
 onAuthStateChanged(auth, async (user) => {
 
     if (!user) {
+        hasOwnedActiveGameLobby = false;
         stopMemberListener();
         if (unsubscribeGameSession) unsubscribeGameSession();
         unsubscribeGameSession = null;
