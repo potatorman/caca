@@ -2300,7 +2300,22 @@ function listenToGameCenter(roomId) {
     activeRoomGameKey = "";
     unsubscribeGameSession = onSnapshot(getGameSessionRef(roomId), (snapshot) => {
         if (activeRoomId !== roomId) return;
-        gameSessionData = snapshot.exists() ? snapshot.data() : null;
+        const nextSession = snapshot.exists() ? snapshot.data() : null;
+        if (
+            nextSession?.gameId === "vampir-koylu" &&
+            nextSession.status === "lobby" &&
+            !nextSession.sessionId &&
+            currentUser?.uid === nextSession.hostId
+        ) {
+            // One-time migration for a lobby created before session isolation existed.
+            void updateDoc(getGameSessionRef(roomId), {
+                sessionId: crypto.randomUUID(),
+                updatedAt: serverTimestamp()
+            }).catch((error) => {
+                console.warn("CACA legacy Vampir lobby identity migration failed:", error);
+            });
+        }
+        gameSessionData = nextSession;
         recordGameLobbyCooldown(roomId, gameSessionData);
         renderGameCenter();
         reconcileUnoRosterChange(roomId, gameSessionData);
