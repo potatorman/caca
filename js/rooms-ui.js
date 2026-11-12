@@ -1403,9 +1403,13 @@ async function sendPersonalJumpscare() {
 
 $("sendPersonalJumpscareButton").addEventListener("click", sendPersonalJumpscare);
 
+// Global Games use a dedicated scope, independent from chat-room membership.
+const GAME_SCOPE_ID = "global";
+let gameCenterScopeListening = false;
+
 // ROOM GAME CENTER — persistent lobby with independent match cycles.
 
-function getGameSessionRef(roomId = activeRoomId, lobbyId = activeGameLobbyId || gameSessionData?.lobbyId) {
+function getGameSessionRef(roomId = GAME_SCOPE_ID, lobbyId = activeGameLobbyId || gameSessionData?.lobbyId) {
     if (!lobbyId) throw new Error("Önce bir oyun lobisi seçmelisin.");
     return doc(db, "rooms", roomId, "gameSessions", lobbyId);
 }
@@ -1457,7 +1461,7 @@ function setGameCenterStatus(message, isError = false) {
     status.classList.toggle("error", Boolean(isError));
 }
 
-function getGameLobbyCooldownUntil(roomId = activeRoomId) {
+function getGameLobbyCooldownUntil(roomId = GAME_SCOPE_ID) {
     if (!roomId) return 0;
     try {
         const key = "caca-game-lobby-cooldown:" + roomId;
@@ -1533,18 +1537,18 @@ function renderGameCatalog() {
     }
 
     const cooldown = Math.max(0, getGameLobbyCooldownUntil() - Date.now());
-    createButton.disabled = !selected || cooldown > 0 || !activeRoomId;
+    createButton.disabled = !selected || cooldown > 0;
     createButton.textContent = cooldown > 0
         ? `Yeni lobi için ${Math.ceil(cooldown / 1000)} sn bekle`
-        : !activeRoomId ? "Önce bir sohbet odasına gir" : `${selected?.name || "Oyun"} lobisi oluştur`;
+        : `${selected?.name || "Oyun"} lobisi oluştur`;
 }
 
 function selectGameLobby(lobbyId) {
     if (!lobbyId || !gameSessionsById.has(lobbyId)) return;
     if (activeGameLobbyId === lobbyId) return;
     const previousSession = gameSessionData;
-    if (previousSession?.status === "starting" && activeRoomId) {
-        const previousRoomId = activeRoomId;
+    if (previousSession?.status === "starting" && GAME_SCOPE_ID) {
+        const previousRoomId = GAME_SCOPE_ID;
         const endAt = previousSession.countdownEndsAt?.toMillis?.();
         if (Number.isFinite(endAt) && !backgroundGameCountdownTimers.has(previousSession.lobbyId)) {
             const timer = setTimeout(() => {
@@ -1564,9 +1568,9 @@ function selectGameLobby(lobbyId) {
     activeRoomGame = null;
     activeRoomGameKey = "";
     renderGameCenter();
-    syncGameSessionCountdown(activeRoomId, gameSessionData);
-    syncGameSessionResultsReset(activeRoomId, gameSessionData);
-    if (gameSessionData) maybeStartGameWhenReady(activeRoomId, gameSessionData);
+    syncGameSessionCountdown(GAME_SCOPE_ID, gameSessionData);
+    syncGameSessionResultsReset(GAME_SCOPE_ID, gameSessionData);
+    if (gameSessionData) maybeStartGameWhenReady(GAME_SCOPE_ID, gameSessionData);
     if (gameSessionData?.status === "playing") joinGameAsSpectator();
     if (["playing", "results"].includes(gameSessionData?.status)) {
         void openRoomGame(gameSessionData, { automatic: true });
@@ -1582,12 +1586,10 @@ function renderOpenGameLobbies() {
         .filter((session) => ["lobby", "starting", "playing", "results"].includes(session.status))
         .sort((a, b) => String(a.createdAt?.seconds || 0).localeCompare(String(b.createdAt?.seconds || 0)));
     count.textContent = String(sessions.length);
-    if (!activeRoomId || !sessions.length) {
+    if (!sessions.length) {
         const empty = document.createElement("p");
         empty.className = "open-lobbies-empty";
-        empty.textContent = activeRoomId
-            ? "Bu odada henüz oyun lobisi yok. İlk lobiyi sen oluştur."
-            : "Oyun lobilerini görmek için önce bir sohbet odasına gir.";
+        empty.textContent = "Henüz açık oyun lobisi yok. İlk lobiyi sen oluştur.";
         list.appendChild(empty);
         return;
     }
@@ -1947,7 +1949,7 @@ function syncGameSessionResultsReset(roomId, sessionData) {
 
     gameSessionResultsTimer = setTimeout(async () => {
         gameSessionResultsTimer = null;
-        if (activeRoomId !== roomId) return;
+        if (GAME_SCOPE_ID !== roomId) return;
 
         try {
             await runTransaction(db, async (transaction) => {
@@ -1986,7 +1988,7 @@ function syncGameSessionResultsReset(roomId, sessionData) {
             });
         } catch (error) {
             console.warn("CACA automatic results reset failed:", error);
-            if (activeRoomId === roomId && gameSessionData?.status === "results" &&
+            if (GAME_SCOPE_ID === roomId && gameSessionData?.status === "results" &&
                 gameSessionData.lobbyId === sessionData.lobbyId && Number(gameSessionData.round) === round) {
                 setGameCenterStatus(
                     "Lobi otomatik sıfırlanamadı: " + (error.message || "Bilinmeyen hata"),
@@ -2003,7 +2005,7 @@ function syncGameSessionResultsReset(roomId, sessionData) {
 }
 
 async function completeGameStartCountdown(roomId, lobbyId, expectedEndAt, retry = 0) {
-    if (activeRoomId !== roomId) return;
+    if (GAME_SCOPE_ID !== roomId) return;
     try {
         await runTransaction(db, async (transaction) => {
             const ref = getGameSessionRef(roomId, lobbyId);
@@ -2041,12 +2043,12 @@ async function completeGameStartCountdown(roomId, lobbyId, expectedEndAt, retry 
         if (
             error.code === "permission-denied" &&
             retry < 20 &&
-            activeRoomId === roomId
+            GAME_SCOPE_ID === roomId
         ) {
             setTimeout(() => completeGameStartCountdown(roomId, lobbyId, expectedEndAt, retry + 1), 1000);
             return;
         }
-        if (activeRoomId === roomId && activeGameLobbyId === lobbyId) {
+        if (GAME_SCOPE_ID === roomId && activeGameLobbyId === lobbyId) {
             console.warn("CACA game countdown completion failed:", error);
             setGameCenterStatus("Oyun başlatılamadı: " + (error.message || "Bilinmeyen hata"), true);
         }
@@ -2069,7 +2071,7 @@ function syncGameSessionCountdown(roomId, sessionData) {
     clearGameSessionCountdown();
     gameSessionCountdownEndAt = endAt;
     const tick = () => {
-        if (activeRoomId !== roomId || gameSessionData?.status !== "starting") {
+        if (GAME_SCOPE_ID !== roomId || gameSessionData?.status !== "starting") {
             clearGameSessionCountdown();
             return;
         }
@@ -2113,7 +2115,7 @@ async function maybeStartGameWhenReady(roomId, sessionData) {
             });
         });
     } catch (error) {
-        if (activeRoomId === roomId) {
+        if (GAME_SCOPE_ID === roomId) {
             console.warn("CACA game countdown start failed:", error);
             if (error.code === "permission-denied") {
                 setGameCenterStatus("Geri sayım başlatılamadı. Firestore Rules güncel olmalı.", true);
@@ -2127,9 +2129,9 @@ async function maybeStartGameWhenReady(roomId, sessionData) {
 let gameSpectatorJoinInProgress = false;
 
 async function joinGameAsSpectator() {
-    if (!currentUser || !activeRoomId || gameSpectatorJoinInProgress || !gameSessionData?.lobbyId) return;
+    if (!currentUser || !GAME_SCOPE_ID || gameSpectatorJoinInProgress || !gameSessionData?.lobbyId) return;
     gameSpectatorJoinInProgress = true;
-    const roomId = activeRoomId;
+    const roomId = GAME_SCOPE_ID;
     const lobbyId = gameSessionData.lobbyId;
     const uid = currentUser.uid;
     try {
@@ -2158,11 +2160,11 @@ async function joinGameAsSpectator() {
             });
             return "joined";
         });
-        if (result === "full" && activeRoomId === roomId) {
+        if (result === "full" && GAME_SCOPE_ID === roomId) {
             setGameCenterStatus("Bu maçın lobi kapasitesi dolu; izleyici listesine eklenemedin.", true);
         }
     } catch (error) {
-        if (activeRoomId === roomId) {
+        if (GAME_SCOPE_ID === roomId) {
             console.warn("CACA spectator join failed:", error);
             setGameCenterStatus("İzleyici olarak katılınamadı: " + (error.message || "Bilinmeyen hata"), true);
         }
@@ -2172,9 +2174,9 @@ async function joinGameAsSpectator() {
 }
 
 async function openRoomGame(sessionData, { automatic = false } = {}) {
-    if (!currentUser || !activeRoomId || !sessionData) return;
+    if (!currentUser || !sessionData) return;
 
-    const roomId = activeRoomId;
+    const roomId = GAME_SCOPE_ID;
     const gameKey = roomId + ":" + String(sessionData.lobbyId || activeGameLobbyId) + ":" + sessionData.gameId + ":" + String(sessionData.round) +
         (sessionData.gameId === "vampir-koylu" ? ":" + String(sessionData.sessionId || "") : "");
 
@@ -2236,7 +2238,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
             : "";
         if (
             requestId !== roomGameOpenGeneration ||
-            activeRoomId !== roomId ||
+            GAME_SCOPE_ID !== roomId ||
             latestKey !== gameKey ||
             !isUserEligible(latest)
         ) return;
@@ -2266,7 +2268,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
             : "";
         if (
             requestId !== roomGameOpenGeneration ||
-            activeRoomId !== roomId ||
+            GAME_SCOPE_ID !== roomId ||
             currentKey !== gameKey ||
             !isUserEligible(current)
         ) {
@@ -2280,7 +2282,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
         if (previousGame && previousGame !== nextGame) previousGame.close();
     } catch (error) {
         console.error("CACA room game launch failed:", error);
-        if (activeRoomId === roomId && requestId === roomGameOpenGeneration) {
+        if (GAME_SCOPE_ID === roomId && requestId === roomGameOpenGeneration) {
             setGameCenterStatus("Oyun ekranı açılamadı: " + (error.message || "Bilinmeyen hata"), true);
         }
     } finally {
@@ -2315,7 +2317,7 @@ function reconcileUnoRosterChange(roomId, sessionData) {
     reconcileUnoMatchPlayers(db, roomId, sessionData.lobbyId, sessionData.round, currentUser.uid)
         .catch((error) => {
             console.warn("CACA UNO roster reconciliation failed:", error);
-            if (activeRoomId === roomId) {
+            if (GAME_SCOPE_ID === roomId) {
                 setGameCenterStatus("Oyuncu ayrılışı eşitlenemedi: " + (error.message || "Bilinmeyen hata"), true);
             }
         });
@@ -2348,7 +2350,7 @@ function reconcileVampirKoyluRosterChange(roomId, sessionData) {
     reconcileVampirKoyluMatchPlayers(db, roomId, sessionData.lobbyId, sessionData.round, sessionData.sessionId, currentUser.uid)
         .catch((error) => {
             console.warn("Vampir Köylü roster eşitlemesi başarısız:", error);
-            if (activeRoomId === roomId) {
+            if (GAME_SCOPE_ID === roomId) {
                 setGameCenterStatus("Oyuncu ayrılışı eşitlenemedi: " + (error.message || "Bilinmeyen hata"), true);
             }
         });
@@ -2375,7 +2377,7 @@ function listenToGameCenter(roomId) {
     unsubscribeGameSession = onSnapshot(
         collection(db, "rooms", roomId, "gameSessions"),
         (snapshot) => {
-            if (activeRoomId !== roomId) return;
+            if (GAME_SCOPE_ID !== roomId) return;
             const next = new Map();
             snapshot.forEach((item) => {
                 const data = item.data();
@@ -2457,7 +2459,7 @@ function listenToGameCenter(roomId) {
             if ($("gameCenterPanel") && !$("gameCenterPanel").hidden && selected.status === "playing") joinGameAsSpectator();
         },
         (error) => {
-            if (activeRoomId !== roomId) return;
+            if (GAME_SCOPE_ID !== roomId) return;
             console.warn("CACA game center listener failed:", error);
             setGameCenterStatus(error.code === "permission-denied"
                 ? "Oyun lobileri okunamadı. Firestore Rules güncel olmalı."
@@ -2499,6 +2501,10 @@ function setWorkspaceTab(tab) {
         if (roomView) roomView.hidden = true;
         if (workspace) workspace.classList.add("is-games-workspace");
         gamesView.hidden = false;
+        if (!gameCenterScopeListening) {
+            listenToGameCenter(GAME_SCOPE_ID);
+            gameCenterScopeListening = true;
+        }
         renderGameCenter();
         renderOpenGameLobbies();
         if (gameSessionData?.status === "playing") joinGameAsSpectator();
@@ -2506,8 +2512,8 @@ function setWorkspaceTab(tab) {
         gamesView.hidden = true;
         if (workspace) workspace.classList.remove("is-games-workspace");
         if (roomSidebar) roomSidebar.hidden = gamesTabPreviousVisibility?.sidebarHidden ?? false;
-        if (dashboardView) dashboardView.hidden = gamesTabPreviousVisibility?.dashboardHidden ?? !activeRoomId;
-        if (roomView) roomView.hidden = gamesTabPreviousVisibility?.roomHidden ?? Boolean(!activeRoomId);
+        if (dashboardView) dashboardView.hidden = gamesTabPreviousVisibility?.dashboardHidden ?? !GAME_SCOPE_ID;
+        if (roomView) roomView.hidden = gamesTabPreviousVisibility?.roomHidden ?? Boolean(!GAME_SCOPE_ID);
         gamesTabPreviousVisibility = null;
     }
 
@@ -2583,9 +2589,9 @@ function closeGameLobbySettings() {
 
 async function saveGameLobbySettings() {
     const session = gameSessionData;
-    if (!currentUser || !activeRoomId || !session) return;
+    if (!currentUser || !GAME_SCOPE_ID || !session) return;
 
-    const roomId = activeRoomId;
+    const roomId = GAME_SCOPE_ID;
     const lobbyId = session.lobbyId;
     const uid = currentUser.uid;
     const botFillEnabled = $("gameBotFillToggle").checked;
@@ -2641,8 +2647,8 @@ async function saveGameLobbySettings() {
 }
 
 async function createGameSession() {
-    if (!currentUser || !activeRoomId) {
-        setGameCenterStatus("Önce bir odaya girmen gerekiyor.", true);
+    if (!currentUser) {
+        setGameCenterStatus("Lobi oluşturmak için giriş yapmalısın.", true);
         return;
     }
     const selectedGame = GAME_REGISTRY.find((game) =>
@@ -2665,7 +2671,7 @@ async function createGameSession() {
     try {
         const lobbyId = crypto.randomUUID().replace(/-/g, "");
         activeGameLobbyId = lobbyId;
-        await setDoc(getGameSessionRef(activeRoomId, lobbyId), {
+        await setDoc(getGameSessionRef(GAME_SCOPE_ID, lobbyId), {
             ...(selectedGame.id === "vampir-koylu" ? { sessionId: crypto.randomUUID().replace(/-/g, "") } : {}),
             gameId: selectedGame.id,
             gameName: selectedGame.name,
@@ -2737,7 +2743,7 @@ async function joinGameSession() {
         const button = $("joinGameSessionButton");
         if (button) button.disabled = true;
         try {
-            await updateDoc(getGameSessionRef(activeRoomId, lobbyId), {
+            await updateDoc(getGameSessionRef(GAME_SCOPE_ID, lobbyId), {
                 nextRoundPlayerIds: arrayUnion(uid),
                 updatedAt: serverTimestamp()
             });
@@ -2756,7 +2762,7 @@ async function joinGameSession() {
         return;
     }
     try {
-        await updateDoc(getGameSessionRef(activeRoomId, lobbyId), {
+        await updateDoc(getGameSessionRef(GAME_SCOPE_ID, lobbyId), {
             playerIds: arrayUnion(uid),
             updatedAt: serverTimestamp()
         });
@@ -2769,9 +2775,9 @@ async function joinGameSession() {
 let gameReadyToggleInProgress = false;
 
 async function toggleGameReady() {
-    if (!currentUser || !activeRoomId || gameReadyToggleInProgress) return;
+    if (!currentUser || gameReadyToggleInProgress) return;
 
-    const roomId = activeRoomId;
+    const roomId = GAME_SCOPE_ID;
     const lobbyId = gameSessionData?.lobbyId;
     const uid = currentUser.uid;
     const button = $("readyGameSessionButton");
@@ -2891,8 +2897,8 @@ async function leaveGameLobby() {
     ) {
         try {
             const result = initialSession.gameId === "uno"
-                ? await leaveUnoMatchFromSession(activeRoomId, initialSession, uid)
-                : await leaveVampirKoyluMatchFromSession(activeRoomId, initialSession, uid);
+                ? await leaveUnoMatchFromSession(GAME_SCOPE_ID, initialSession, uid)
+                : await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, initialSession, uid);
 
             activeRoomGame?.close();
             activeRoomGame = null;
@@ -2927,7 +2933,7 @@ async function leaveGameLobby() {
 
     try {
         const result = await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef(activeRoomId, lobbyId);
+            const ref = getGameSessionRef(GAME_SCOPE_ID, lobbyId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) return { left: false };
 
@@ -3034,13 +3040,13 @@ async function leaveGameLobby() {
 }
 
 async function leaveCurrentMatch() {
-    if (!currentUser || !activeRoomId) return false;
+    if (!currentUser || !GAME_SCOPE_ID) return false;
     const gameId = gameSessionData?.gameId;
     if (!["uno", "vampir-koylu"].includes(gameId)) return false;
 
     const result = gameId === "uno"
-        ? await leaveUnoMatchFromSession(activeRoomId, gameSessionData, currentUser.uid)
-        : await leaveVampirKoyluMatchFromSession(activeRoomId, gameSessionData, currentUser.uid);
+        ? await leaveUnoMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid)
+        : await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid);
     if (!result.left) return false;
 
     if (gameId === "uno" && result.finished && result.winner) {
@@ -3068,7 +3074,7 @@ async function finishGameMatch() {
 
     try {
         await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef(activeRoomId, session.lobbyId);
+            const ref = getGameSessionRef(GAME_SCOPE_ID, session.lobbyId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) return;
             const latest = snapshot.data();
@@ -3104,7 +3110,7 @@ async function closeGameSession() {
     if (gameSessionData.hostId !== currentUser.uid && !canCurrentUserKickMembers()) return;
     if (!window.confirm("Bu odanın kalıcı oyun lobisini tamamen kapatmak istiyor musun?")) return;
     try {
-        await deleteDoc(getGameSessionRef(activeRoomId, gameSessionData.lobbyId));
+        await deleteDoc(getGameSessionRef(GAME_SCOPE_ID, gameSessionData.lobbyId));
         setGameCenterStatus("Kalıcı oyun lobisi kapatıldı.");
     } catch (error) {
         setGameCenterStatus("Lobi kapatılamadı: " + (error.message || "Bilinmeyen hata"), true);
@@ -3122,7 +3128,7 @@ $("gameLobbySettingsPanel").addEventListener("click", (event) => {
     if (event.target === $("gameLobbySettingsPanel")) closeGameLobbySettings();
 });
 $("openGameMatchButton")?.addEventListener("click", async () => {
-    if (!currentUser || !activeRoomId || !gameSessionData ||
+    if (!currentUser || !GAME_SCOPE_ID || !gameSessionData ||
         !["playing", "results"].includes(gameSessionData.status)) return;
 
     const button = $("openGameMatchButton");
@@ -5193,7 +5199,6 @@ async function openRoom(roomId) {
         listenToMessages(roomId);
         listenToRoomPranks(roomId);
         listenToPersonalPranks(roomId);
-        listenToGameCenter(roomId);
 
     } catch (error) {
         if (requestVersion === roomOpenRequestVersion) {
