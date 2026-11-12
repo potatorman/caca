@@ -142,7 +142,7 @@ export class VampirKoyluRoom extends DurableObject {
             !/^[A-Za-z0-9_-]{1,128}$/.test(roomId) ||
             !Number.isInteger(round) ||
             round < 1 ||
-            !/^[A-Za-z0-9_-]{16,80}$/.test(sessionId)
+            !isValidVampirKoyluSessionId(sessionId)
         ) {
             throw new Error("Oda veya tur bilgisi geçersiz.");
         }
@@ -195,7 +195,7 @@ export class VampirKoyluRoom extends DurableObject {
             session.gameId !== "vampir-koylu" ||
             session.status !== "playing" ||
             Number(session.round) !== round ||
-            session.sessionId !== sessionId
+            !matchesVampirKoyluSession(session, { sessionId, round })
         ) {
             throw new Error("Vampir Köylü maçı başlatılmaya hazır değil.");
         }
@@ -321,7 +321,7 @@ export class VampirKoyluRoom extends DurableObject {
                 "rooms/" + match.roomId + "/gameSessions/active"
             );
             let session = sessionDoc?.data;
-            if (!session || Number(session.round) !== match.round || session.sessionId !== match.sessionId) {
+            if (!session || Number(session.round) !== match.round || !matchesVampirKoyluSession(session, { sessionId: match.sessionId, round: match.round })) {
                 throw new Error("Vampir Köylü turu artık etkin değil.");
             }
 
@@ -851,7 +851,7 @@ export class VampirKoyluRoom extends DurableObject {
 
         const sessionPath = "rooms/" + match.roomId + "/gameSessions/active";
         const sessionDoc = await getFirestoreDocument(this.env, sessionPath);
-        if (!sessionDoc || Number(sessionDoc.data.round) !== match.round || sessionDoc.data.sessionId !== match.sessionId) {
+        if (!sessionDoc || Number(sessionDoc.data.round) !== match.round || !matchesVampirKoyluSession(sessionDoc.data, { sessionId: match.sessionId, round: match.round })) {
             throw new Error("Vampir Köylü sonucu Firebase oyun lobisine yazılamadı.");
         }
 
@@ -951,7 +951,7 @@ export class VampirKoyluRoom extends DurableObject {
             !sessionDoc ||
             sessionDoc.data.gameId !== "vampir-koylu" ||
             Number(sessionDoc.data.round) !== round ||
-            sessionDoc.data.sessionId !== (await this.getIdentity()).sessionId ||
+            !matchesVampirKoyluSession(sessionDoc.data, await this.getIdentity()) ||
             !["playing", "results"].includes(sessionDoc.data.status)
         ) {
             throw new Error("Bu Vampir Köylü turu artık aktif değil.");
@@ -1104,7 +1104,7 @@ export class VampirKoyluRoom extends DurableObject {
             "rooms/" + roomId + "/gameSessions/active"
         );
         if (!sessionDoc || Number(sessionDoc.data.round) !== round ||
-            sessionDoc.data.sessionId !== sessionId || sessionDoc.data.status !== "playing") return { reconciled: false };
+            !matchesVampirKoyluSession(sessionDoc.data, { sessionId, round }) || sessionDoc.data.status !== "playing") return { reconciled: false };
 
         const allowed = getSessionPlayers(sessionDoc.data);
         if (!allowed.includes(uid)) return { reconciled: false };
@@ -1173,7 +1173,7 @@ export class VampirKoyluRoom extends DurableObject {
         }
         const sessionPath = "rooms/" + roomId + "/gameSessions/active";
         const sessionBeforeSync = await getFirestoreDocument(this.env, sessionPath);
-        if (!sessionBeforeSync || sessionBeforeSync.data.sessionId !== sessionId || Number(sessionBeforeSync.data.round) !== round) {
+        if (!sessionBeforeSync || !matchesVampirKoyluSession(sessionBeforeSync.data, { sessionId, round })) {
             throw new Error("Firebase oyun lobisi bulunamadı veya artık etkin değil.");
         }
         if (sessionBeforeSync.data.status === "lobby" &&
