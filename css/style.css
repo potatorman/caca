@@ -6501,3 +6501,40 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     backdrop-filter: none !important;
 }
 .game-center-panel[hidden] { display: none !important; }
+
+
+/* Desktop Games tab occupies the workspace content without the room rail. */
+.workspace-layout.is-games-workspace {
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: stretch;
+}
+.workspace-layout.is-games-workspace > .room-sidebar {
+    display: none !important;
+}
+.workspace-layout.is-games-workspace > .workspace-main {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+}
+.workspace-layout.is-games-workspace .games-view {
+    width: 100%;
+    min-height: calc(100vh - 110px);
+    padding: 26px 30px;
+}
+.workspace-layout.is-games-workspace .games-workspace {
+    width: 100%;
+    max-width: 1500px;
+    margin: 0 auto;
+}
+.workspace-layout.is-games-workspace .games-page-mount {
+    width: 100%;
+    min-width: 0;
+}
+.workspace-layout.is-games-workspace .game-center-panel {
+    width: 100%;
+    min-width: 0;
+}
+.workspace-layout.is-games-workspace .game-center-card {
+    width: 100%;
+}
