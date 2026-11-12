@@ -444,25 +444,28 @@
                                     <div class="room-management-card game-center-card">
                                         <div class="room-management-heading">
                                             <div>
-                                                <span class="small-label">ROOM GAMES</span>
-                                                <h3 id="gameCenterTitle">Eğlence Merkezi</h3>
-                                                <p>Bir oyun seç, lobiyi kur ve oda üyelerini davet et.</p>
+                                                <span class="small-label">CACA ARCADE · ODA OYUNLARI</span>
+                                                <h3 id="gameCenterTitle">Sıradaki oyununu seç.</h3>
+                                                <p>Arkadaşlarını topla, bir oyun seç ve rekabete başlayın.</p>
                                             </div>
                                             <button id="closeGameCenterButton" class="icon-button" type="button" aria-label="Eğlence merkezini kapat">×</button>
                                         </div>
                                         <div class="game-center-intro">
-                                            <strong>Oda oyunları</strong>
-                                            <p>Her odada aynı anda bir oyun lobisi bulunur. Oyun seçimi ve lobi yönetimi buradan yapılır.</p>
+                                            <span class="game-center-intro-mark" aria-hidden="true">✦</span>
+                                            <div>
+                                                <strong>Arkadaşlarınla oyna.</strong>
+                                                <p>Bu odada aynı anda tek bir oyun lobisi açılabilir. Bir oyun seçerek başlayın.</p>
+                                            </div>
                                         </div>
                                         <section id="gameCenterEmptyState" class="game-center-empty">
                                             <div class="game-catalog-heading">
                                                 <div>
-                                                    <strong>Bir oyun seç</strong>
-                                                    <p>Seçtiğin oyun için bu odada yeni bir lobi oluşturulur.</p>
+                                                    <strong>Oyun kütüphanesi</strong>
+                                                    <p>Bir oyuna tıkla; oyuncu sayısını ve detaylarını incele.</p>
                                                 </div>
                                             </div>
                                             <div id="gameCatalogGrid" class="game-catalog-grid"></div>
-                                            <p class="game-catalog-note">UNO maçında kart elleri yalnızca ilgili oyuncuya açıktır. Hazır olan herkes 3 saniyelik geri sayım sonunda masaya girebilir.</p>
+                                            <p class="game-catalog-note"><span aria-hidden="true">ⓘ</span> Seçtiğin oyun için özel bir lobi açılır. Hazır olduğunuzda maça başlayabilirsiniz.</p>
                                             <button id="createGameSessionButton" class="primary-button" type="button">UNO lobisi oluştur</button>
                                         </section>
                                         <p id="gameCenterStatus" class="game-center-status" role="status" aria-live="polite"></p>
