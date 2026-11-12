@@ -204,9 +204,15 @@ service cloud.firestore {
         allow delete: if signedIn()
           && request.auth.uid == userId
           && stateId == 'activeLobby'
-          && exists(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId))
-          && get(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId)).data.hostId == userId
-          && !existsAfter(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId));
+          && (
+            // Allow recovery from an orphaned lock whose lobby was already deleted.
+            !exists(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId))
+            || (
+              exists(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId))
+              && get(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId)).data.hostId == userId
+              && !existsAfter(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId))
+            )
+          );
       }
 
       // Each user owns a private library of exactly three compressed images.
