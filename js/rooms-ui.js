@@ -2414,21 +2414,46 @@ if (gamePanel && gamesMount) {
     gamePanel.removeAttribute("aria-modal");
 }
 
+let gamesTabPreviousVisibility = null;
+
 function setWorkspaceTab(tab) {
     const showGames = tab === "games";
     const workspace = document.querySelector(".workspace-layout");
-    if (workspace) workspace.hidden = showGames;
-    $("gamesView").hidden = !showGames;
+    const roomSidebar = document.querySelector(".room-sidebar");
+    const dashboardView = $("dashboardView");
+    const roomView = $("roomView");
+    const gamesView = $("gamesView");
+
+    if (showGames) {
+        if (!gamesTabPreviousVisibility) {
+            gamesTabPreviousVisibility = {
+                sidebarHidden: Boolean(roomSidebar?.hidden),
+                dashboardHidden: Boolean(dashboardView?.hidden),
+                roomHidden: Boolean(roomView?.hidden)
+            };
+        }
+        if (roomSidebar) roomSidebar.hidden = true;
+        if (dashboardView) dashboardView.hidden = true;
+        if (roomView) roomView.hidden = true;
+        if (workspace) workspace.classList.add("is-games-workspace");
+        gamesView.hidden = false;
+        renderGameCenter();
+        renderOpenGameLobbies();
+        if (gameSessionData?.status === "playing") joinGameAsSpectator();
+    } else {
+        gamesView.hidden = true;
+        if (workspace) workspace.classList.remove("is-games-workspace");
+        if (roomSidebar) roomSidebar.hidden = gamesTabPreviousVisibility?.sidebarHidden ?? false;
+        if (dashboardView) dashboardView.hidden = gamesTabPreviousVisibility?.dashboardHidden ?? !activeRoomId;
+        if (roomView) roomView.hidden = gamesTabPreviousVisibility?.roomHidden ?? Boolean(!activeRoomId);
+        gamesTabPreviousVisibility = null;
+    }
+
     $("settingsView").hidden = true;
     $("chatsNavButton").classList.toggle("is-active", !showGames);
     $("gamesNavButton").classList.toggle("is-active", showGames);
     $("chatsNavButton").setAttribute("aria-pressed", String(!showGames));
     $("gamesNavButton").setAttribute("aria-pressed", String(showGames));
-    if (showGames) {
-        renderGameCenter();
-        renderOpenGameLobbies();
-        if (gameSessionData?.status === "playing") joinGameAsSpectator();
-    }
 }
 
 $("chatsNavButton").addEventListener("click", () => setWorkspaceTab("chats"));
