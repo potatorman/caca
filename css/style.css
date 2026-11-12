@@ -6921,3 +6921,13 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     box-sizing: border-box;
     margin: 0 !important;
 }
+
+
+/* The status line is for errors, not routine lobby lifecycle chatter. */
+.workspace-layout.is-games-workspace .game-center-status:not(.error) {
+    display: none !important;
+}
+/* Keep the active lobby as the first visible Games panel after creation. */
+.workspace-layout.is-games-workspace #gameSessionContent {
+    scroll-margin-top: 18px;
+}
