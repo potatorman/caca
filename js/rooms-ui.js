@@ -1491,89 +1491,70 @@ function renderGameCatalog() {
     const grid = $("gameCatalogGrid");
     const createButton = $("createGameSessionButton");
     if (!grid || !createButton) return;
-
-    const selectableGames = GAME_REGISTRY.filter((game) => game.lobbyEnabled !== false);
-    if (!selectableGames.some((game) => game.id === selectedGameId)) {
-        selectedGameId = selectableGames[0]?.id || "";
-    }
-
+    const games = GAME_REGISTRY.filter((game) => game.lobbyEnabled !== false);
+    if (!games.some((game) => game.id === selectedGameId)) selectedGameId = games[0]?.id || "";
     grid.replaceChildren();
-    GAME_REGISTRY.forEach((game) => {
-        const canCreateLobby = game.lobbyEnabled !== false;
-        const isSelected = canCreateLobby && game.id === selectedGameId;
-        const card = document.createElement("button");
-        card.type = "button";
-        card.className = "game-catalog-card";
-        card.disabled = !canCreateLobby;
-        card.dataset.gameId = game.id;
-        card.setAttribute("aria-pressed", String(isSelected));
-        card.classList.toggle("is-selected", isSelected);
-
-        card.classList.add("arena-game-choice");
-
-        const art = document.createElement("span");
-        art.className = "game-catalog-art";
-        art.setAttribute("aria-hidden", "true");
-        if (game.id === "uno") {
-            art.innerHTML = '<span class="uno-art-card uno-art-red">7</span><span class="uno-art-card uno-art-blue">↻</span><span class="uno-art-card uno-art-yellow">+2</span><span class="uno-art-glow"></span>';
-        } else if (game.id === "vampir-koylu") {
-            art.innerHTML = '<span class="vampir-art-moon"></span><span class="vampir-art-hill"></span><span class="vampir-art-tower"></span><span class="vampir-art-window"></span><span class="vampir-art-star"></span>';
-        } else {
-            art.textContent = game.icon || "🎮";
-        }
-
-        const content = document.createElement("span");
-        content.className = "game-catalog-content";
-        const top = document.createElement("span");
-        top.className = "game-catalog-card-top";
-        const eyebrow = document.createElement("span");
-        eyebrow.className = "game-catalog-eyebrow";
-        eyebrow.textContent = game.id === "uno" ? "01 / KART ARENASI" : "02 / GİZLİ KİMLİK";
-        const status = document.createElement("span");
-        status.className = "game-catalog-status";
-        status.textContent = game.status === "ready" ? "● OYNANABİLİR" : "YAKINDA";
-        top.append(eyebrow, status);
-
+    games.forEach((game, index) => {
+        const selected = game.id === selectedGameId;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "game-catalog-card honeycomb-game-button";
+        button.dataset.gameId = game.id;
+        button.setAttribute("aria-pressed", String(selected));
+        button.classList.toggle("is-selected", selected);
+        button.style.setProperty("--honeycomb-index", String(index));
         const name = document.createElement("strong");
         name.className = "game-catalog-name";
         name.textContent = game.name;
-        const description = document.createElement("span");
-        description.className = "game-catalog-description";
-        description.textContent = game.id === "uno"
-            ? "Renkleri değiştir, hamleni zamanla ve son kartını ilk sen bitir."
-            : game.id === "vampir-koylu"
-                ? "Gece karar ver. Gündüz ikna et. Köyün kaderini değiştir."
-                : game.description || "Bu oyun yakında eklenecek.";
-
-        const details = document.createElement("span");
-        details.className = "game-catalog-details";
-        const players = document.createElement("span");
-        players.className = "game-catalog-player-count";
-        players.textContent = Number.isFinite(game.minPlayers) && Number.isFinite(game.maxPlayers)
-            ? `${game.minPlayers}–${game.maxPlayers} OYUNCU`
-            : "ÇOK OYUNCULU";
-        const selection = document.createElement("span");
-        selection.className = "game-catalog-select-label";
-        selection.textContent = isSelected ? "MASA SEÇİLDİ ✓" : "MASAYI SEÇ ↗";
-        details.append(players, selection);
-
-        content.append(top, name, description, details);
-        card.append(art, content);
-        grid.appendChild(card);
+        const range = document.createElement("span");
+        range.className = "game-catalog-player-count";
+        range.textContent = "Min. " + game.minPlayers + " · Maks. " + game.maxPlayers + " oyuncu";
+        button.append(name, range);
+        grid.appendChild(button);
     });
-
-    const selectedGame = GAME_REGISTRY.find((game) =>
-        game.id === selectedGameId && game.lobbyEnabled !== false
-    );
-    const cooldownRemaining = Math.max(0, getGameLobbyCooldownUntil() - Date.now());
-    createButton.disabled = !selectedGame || cooldownRemaining > 0;
-    createButton.textContent = cooldownRemaining > 0
-        ? `Yeni lobi için ${Math.ceil(cooldownRemaining / 1000)} sn bekle`
-        : selectedGame
-            ? `${selectedGame.name} lobisi oluştur`
-            : "Şu an lobi oluşturulamıyor";
+    const selected = games.find((game) => game.id === selectedGameId);
+    const cooldown = Math.max(0, getGameLobbyCooldownUntil() - Date.now());
+    createButton.disabled = !selected || cooldown > 0 || !activeRoomId;
+    createButton.textContent = cooldown > 0
+        ? "Yeni lobi için " + Math.ceil(cooldown / 1000) + " sn bekle"
+        : !activeRoomId
+            ? "Önce bir sohbet odasına gir"
+            : selected ? selected.name + " lobisi oluştur" : "Lobi oluştur";
 }
 
+function renderOpenGameLobbies() {
+    const list = $("openGameLobbiesList");
+    const count = $("openGameLobbyCount");
+    if (!list || !count) return;
+    list.replaceChildren();
+    if (!gameSessionData || !activeRoomId || gameSessionData.status === "results") {
+        count.textContent = "0";
+        const empty = document.createElement("p");
+        empty.className = "open-lobbies-empty";
+        empty.textContent = activeRoomId
+            ? "Bu odada şu anda açık lobi yok."
+            : "Açık lobileri görmek için önce bir sohbet odasına gir.";
+        list.appendChild(empty);
+        return;
+    }
+    const game = getGameDefinition(gameSessionData.gameId);
+    const players = Array.isArray(gameSessionData.playerIds) ? gameSessionData.playerIds : [];
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "open-game-lobby";
+    const title = document.createElement("strong");
+    title.textContent = gameSessionData.gameName || game?.name || "Oyun";
+    const playerCount = document.createElement("span");
+    playerCount.textContent = players.length + "/" + (gameSessionData.maxPlayers || game?.maxPlayers || "?");
+    item.append(title, playerCount);
+    item.addEventListener("click", () => {
+        $("gameSessionContent").hidden = false;
+        $("gameCenterEmptyState").hidden = true;
+        $("gameSessionContent").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    list.appendChild(item);
+    count.textContent = "1";
+}
 function renderGameMemberList(containerId, memberIds, statusForMember = null) {
     const container = $(containerId);
     if (!container) return;
@@ -1615,6 +1596,7 @@ function renderGameCenter() {
     emptyState.hidden = Boolean(session);
     content.hidden = !session;
     if (!session) {
+        renderOpenGameLobbies();
         $("gameLobbySettingsPanel").hidden = true;
         $("gameLobbySettingsButton").hidden = true;
         $("gameBotLobbyPreview").hidden = true;
@@ -1653,6 +1635,7 @@ function renderGameCenter() {
         session.hostId === currentUser.uid || canCurrentUserKickMembers()
     ));
 
+    renderOpenGameLobbies();
     $("gameSessionName").textContent = session.gameName || "Oda oyunu";
     const hostMember = activeRoomMembers.find((member) => member.id === session.hostId);
     $("gameSessionHost").textContent = hostMember?.displayNickname || hostMember?.username || "Oyuncu";
@@ -2409,24 +2392,41 @@ function listenToGameCenter(roomId) {
     });
 }
 
-function setGameCenterOpen(isOpen) {
-    const panel = $("gameCenterPanel");
-    if (!panel || (isOpen && (!currentUser || !activeRoomId))) return;
-    panel.hidden = !isOpen;
-    if (isOpen) {
+const gamePanel = $("gameCenterPanel");
+const gamesMount = $("gamesPageMount");
+if (gamePanel && gamesMount) {
+    gamesMount.appendChild(gamePanel);
+    gamePanel.hidden = false;
+    gamePanel.classList.remove("room-management-panel");
+    gamePanel.removeAttribute("role");
+    gamePanel.removeAttribute("aria-modal");
+}
+
+function setWorkspaceTab(tab) {
+    const showGames = tab === "games";
+    const workspace = document.querySelector(".workspace-layout");
+    if (workspace) workspace.hidden = showGames;
+    $("gamesView").hidden = !showGames;
+    $("settingsView").hidden = true;
+    $("chatsNavButton").classList.toggle("is-active", !showGames);
+    $("gamesNavButton").classList.toggle("is-active", showGames);
+    $("chatsNavButton").setAttribute("aria-pressed", String(!showGames));
+    $("gamesNavButton").setAttribute("aria-pressed", String(showGames));
+    if (showGames) {
         renderGameCenter();
+        renderOpenGameLobbies();
         if (gameSessionData?.status === "playing") joinGameAsSpectator();
-        $("closeGameCenterButton").focus();
-    } else {
-        $("funCenterOpenButton").focus();
     }
 }
 
-$("funCenterOpenButton").addEventListener("click", () => setGameCenterOpen(true));
-$("closeGameCenterButton").addEventListener("click", () => setGameCenterOpen(false));
-$("gameCenterPanel").addEventListener("click", (event) => {
-    if (event.target === $("gameCenterPanel")) setGameCenterOpen(false);
-});
+function setGameCenterOpen(isOpen) {
+    setWorkspaceTab(isOpen ? "games" : "chats");
+}
+
+$("chatsNavButton").addEventListener("click", () => setWorkspaceTab("chats"));
+$("gamesNavButton").addEventListener("click", () => setWorkspaceTab("games"));
+$("funCenterOpenButton").addEventListener("click", () => setWorkspaceTab("games"));
+$("closeGameCenterButton").addEventListener("click", () => setWorkspaceTab("chats"));
 $("gameCatalogGrid").addEventListener("click", (event) => {
     const card = event.target.closest(".game-catalog-card[data-game-id]");
     if (!card || card.disabled) return;
