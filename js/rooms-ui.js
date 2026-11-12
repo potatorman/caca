@@ -1494,42 +1494,61 @@ function renderGameCatalog() {
     const games = GAME_REGISTRY.filter((game) => game.lobbyEnabled !== false);
     if (!games.some((game) => game.id === selectedGameId)) selectedGameId = games[0]?.id || "";
     grid.replaceChildren();
-    games.forEach((game) => {
-        const selected = game.id === selectedGameId;
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "game-catalog-card honeycomb-game-button";
-        button.dataset.gameId = game.id;
-        button.setAttribute("aria-pressed", String(selected));
-        button.classList.toggle("is-selected", selected);
-        const name = document.createElement("strong");
-        name.className = "game-catalog-name";
-        name.textContent = game.name;
-        const range = document.createElement("span");
-        range.className = "game-catalog-player-count";
-        range.textContent = "Min. " + game.minPlayers + " · Maks. " + game.maxPlayers + " oyuncu";
-        button.append(name, range);
-        grid.appendChild(button);
+
+    // Flat-sided hexagon cells arranged as a compact honeycomb cluster.
+    // Column heights follow the reference silhouette: 3, 5, 6, 7, 6, 5, 3.
+    const columnHeights = [3, 5, 6, 7, 6, 5, 3];
+    const rowStarts = [2, 1, 1, 0, 1, 1, 2];
+    const cells = [];
+    columnHeights.forEach((height, column) => {
+        for (let offset = 0; offset < height; offset++) {
+            cells.push({ column, row: rowStarts[column] + offset });
+        }
     });
 
-    // Temporary, non-interactive tiles make the intended three-row honeycomb
-    // composition visible while the catalog still contains only two real games.
-    const placeholders = [
-        "Yakında yeni oyunlar",
-        "Yakında yeni oyunlar",
-        "Yakında yeni oyunlar",
-        "Yakında yeni oyunlar",
-        "Yakında yeni oyunlar"
+    const gameSlots = [{ column: 2, row: 2 }, { column: 4, row: 2 }];
+    const placeholderSlots = [
+        { column: 3, row: 0 },
+        { column: 1, row: 3 },
+        { column: 5, row: 3 },
+        { column: 2, row: 5 },
+        { column: 4, row: 5 }
     ];
-    placeholders.forEach((label) => {
+    cells.forEach((cell) => {
+        const gameIndex = gameSlots.findIndex((slot) => slot.column === cell.column && slot.row === cell.row);
+        if (gameIndex >= 0 && games[gameIndex]) {
+            const game = games[gameIndex];
+            const selected = game.id === selectedGameId;
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "game-catalog-card honeycomb-game-button";
+            button.dataset.gameId = game.id;
+            button.setAttribute("aria-pressed", String(selected));
+            button.classList.toggle("is-selected", selected);
+            button.style.setProperty("--hex-column", String(cell.column));
+            button.style.setProperty("--hex-row", String(cell.row));
+            const name = document.createElement("strong");
+            name.className = "game-catalog-name";
+            name.textContent = game.name;
+            const range = document.createElement("span");
+            range.className = "game-catalog-player-count";
+            range.textContent = "Min. " + game.minPlayers + " · Maks. " + game.maxPlayers + " oyuncu";
+            button.append(name, range);
+            grid.appendChild(button);
+            return;
+        }
+
         const tile = document.createElement("div");
-        tile.className = "game-catalog-placeholder-tile";
+        const isPlaceholder = placeholderSlots.some((slot) => slot.column === cell.column && slot.row === cell.row);
+        tile.className = isPlaceholder ? "game-catalog-placeholder-tile" : "game-catalog-hex-cell";
+        tile.style.setProperty("--hex-column", String(cell.column));
+        tile.style.setProperty("--hex-row", String(cell.row));
         tile.setAttribute("aria-hidden", "true");
-        const name = document.createElement("strong");
-        name.textContent = label;
-        const detail = document.createElement("span");
-        detail.textContent = "Oyun alanı";
-        tile.append(name, detail);
+        if (isPlaceholder) {
+            const name = document.createElement("strong");
+            name.textContent = "Yakında";
+            tile.appendChild(name);
+        }
         grid.appendChild(tile);
     });
 
