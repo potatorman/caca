@@ -7252,3 +7252,61 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
         margin-left: 0;
     }
 }
+
+
+/* Final alignment pass: lobby settings actions and ready-up button */
+.game-lobby-settings-actions {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+}
+.game-lobby-settings-actions > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    height: 44px;
+    box-sizing: border-box;
+    margin: 0;
+    line-height: 1;
+}
+.game-lobby-settings-danger-zone {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 18px 0 14px;
+    padding: 12px 0 0;
+    border-top: 1px solid rgba(125, 153, 188, .17);
+}
+.game-lobby-settings-danger-zone > span {
+    color: #7897bb;
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+.game-lobby-settings-danger-zone > button {
+    min-height: 36px;
+    padding: 0 13px;
+    color: #ffb9c3;
+    background: rgba(194, 70, 93, .1);
+    border: 1px solid rgba(218, 102, 124, .25);
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 800;
+}
+.game-room-redesign .game-session-actions #readyGameSessionButton {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+}
+@media (max-width: 520px) {
+    .game-lobby-settings-actions { gap: 8px; }
+    .game-lobby-settings-actions > button { min-height: 44px; height: 44px; }
+    .game-lobby-settings-danger-zone { align-items: flex-start; flex-direction: column; }
+    .game-lobby-settings-danger-zone > button { width: 100%; }
+}
