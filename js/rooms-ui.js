@@ -1527,6 +1527,7 @@ function renderGameCatalog() {
             button.classList.toggle("is-selected", selected);
             button.style.setProperty("--hex-column", String(cell.column));
             button.style.setProperty("--hex-row", String(cell.row));
+            button.style.setProperty("--hex-y-offset", cell.column % 2 ? "23.5px" : "0px");
             const name = document.createElement("strong");
             name.className = "game-catalog-name";
             name.textContent = game.name;
@@ -1543,6 +1544,7 @@ function renderGameCatalog() {
         tile.className = isPlaceholder ? "game-catalog-placeholder-tile" : "game-catalog-hex-cell";
         tile.style.setProperty("--hex-column", String(cell.column));
         tile.style.setProperty("--hex-row", String(cell.row));
+        tile.style.setProperty("--hex-y-offset", cell.column % 2 ? "23.5px" : "0px");
         tile.setAttribute("aria-hidden", "true");
         if (isPlaceholder) {
             const name = document.createElement("strong");
