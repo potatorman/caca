@@ -475,44 +475,49 @@
                                             </div>
                                         </section>
                                         <p id="gameCenterStatus" class="game-center-status" role="status" aria-live="polite"></p>
-                                        <section id="gameSessionContent" class="game-session-content" hidden>
-                                            <div class="arena-lobby-banner">
-                                                <div class="arena-lobby-symbol" aria-hidden="true"><span>✦</span></div>
-                                                <div class="arena-lobby-title">
-                                                    <span class="arena-section-kicker">02 / AKTİF OYUN ODASI</span>
+                                        <section id="gameSessionContent" class="game-session-content game-room-redesign" hidden>
+                                            <header class="game-room-topbar">
+                                                <div class="game-room-heading">
+                                                    <span class="game-room-eyebrow"><i></i> CACA OYUN ODASI</span>
                                                     <h4 id="gameSessionName">UNO</h4>
                                                     <p id="gameSessionSummary" class="game-session-summary"></p>
                                                 </div>
                                                 <span id="gameSessionStatus" class="game-session-status">Lobi açık</span>
-                                            </div>
-                                            <div class="arena-lobby-meta">
-                                                <div class="game-session-hostline"><span>LOBİ SAHİBİ</span><strong id="gameSessionHost">—</strong></div>
+                                            </header>
+                                            <div class="game-room-info-strip">
+                                                <div class="game-room-host">
+                                                    <span class="game-room-info-icon" aria-hidden="true">♛</span>
+                                                    <span><small>LOBİ SAHİBİ</small><strong id="gameSessionHost">—</strong></span>
+                                                </div>
                                                 <p id="gameBotLobbyPreview" class="game-bot-lobby-preview" hidden></p>
                                             </div>
-                                            <div class="arena-roster-layout">
-                                                <section class="game-session-list-section arena-roster-main">
-                                                    <div class="game-session-list-heading">
-                                                        <strong id="gamePlayersHeading">Lobi oyuncuları</strong>
-                                                        <span id="gamePlayersCount">0</span>
+                                            <div class="game-room-rosters">
+                                                <section class="game-room-roster game-room-roster-players">
+                                                    <div class="game-room-roster-heading">
+                                                        <div><span class="game-room-roster-mark">01</span><strong id="gamePlayersHeading">Lobi oyuncuları</strong></div>
+                                                        <span id="gamePlayersCount" class="game-room-count">0</span>
                                                     </div>
                                                     <div id="gamePlayersList" class="game-session-member-list"></div>
                                                 </section>
-                                                <section class="game-session-list-section arena-roster-side">
-                                                    <div class="game-session-list-heading">
-                                                        <strong id="gameSpectatorsHeading">İzleyiciler</strong>
-                                                        <span id="gameSpectatorsCount">0</span>
+                                                <section class="game-room-roster game-room-roster-spectators">
+                                                    <div class="game-room-roster-heading">
+                                                        <div><span class="game-room-roster-mark">02</span><strong id="gameSpectatorsHeading">İzleyiciler</strong></div>
+                                                        <span id="gameSpectatorsCount" class="game-room-count">0</span>
                                                     </div>
                                                     <div id="gameSpectatorsList" class="game-session-member-list"></div>
                                                 </section>
                                             </div>
-                                            <div class="game-session-actions">
-                                                <button id="joinGameSessionButton" class="primary-button" type="button" hidden>Lobiye katıl</button>
-                                                <button id="readyGameSessionButton" class="primary-button" type="button" hidden>Hazırım</button>
-                                                <button id="gameLobbySettingsButton" class="secondary-button" type="button" hidden>Lobi Ayarları</button>
-                                                <button id="openGameMatchButton" class="primary-button" type="button" hidden>UNO masasına gir</button>
-                                                <button id="leaveGameSessionButton" class="secondary-button" type="button" hidden>Lobiden ayrıl</button>
-                                                <button id="finishGameRoundButton" class="secondary-button" type="button" hidden>Maçı bitir · Sonuçları göster</button>
-                                                <button id="closeGameSessionButton" class="danger-button" type="button" hidden>Lobiyi tamamen kapat</button>
+                                            <div class="game-room-controls">
+                                                <div class="game-room-controls-label"><span>ODA KONTROLLERİ</span><i></i></div>
+                                                <div class="game-session-actions">
+                                                    <button id="joinGameSessionButton" class="primary-button" type="button" hidden>Lobiye katıl</button>
+                                                    <button id="readyGameSessionButton" class="primary-button" type="button" hidden>Hazırım</button>
+                                                    <button id="gameLobbySettingsButton" class="secondary-button" type="button" hidden>Lobi Ayarları</button>
+                                                    <button id="openGameMatchButton" class="primary-button" type="button" hidden>UNO masasına gir</button>
+                                                    <button id="leaveGameSessionButton" class="secondary-button" type="button" hidden>Lobiden ayrıl</button>
+                                                    <button id="finishGameRoundButton" class="secondary-button" type="button" hidden>Maçı bitir · Sonuçları göster</button>
+                                                    <button id="closeGameSessionButton" class="danger-button" type="button" hidden>Lobiyi tamamen kapat</button>
+                                                </div>
                                             </div>
                                             <p class="game-engine-note">Lobi kalıcıdır. Maçtan ayrılan oyuncu lobide kalır; maç sırasında oyun merkezine gelen izleyiciler maç bitince otomatik lobiye eklenir.</p>
                                         </section>
