@@ -6807,3 +6807,51 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .workspace-layout.is-games-workspace .game-create-controls { grid-template-columns: 1fr; }
     .workspace-layout.is-games-workspace .game-create-button { grid-column: auto; }
 }
+
+
+/* Dark CACA treatment for in-game dialogs and result surfaces. */
+.uno-color-card, .uno-result-card {
+    color: #eaf3ff;
+    background: linear-gradient(155deg, #142b46, #0d1c30);
+    border: 1px solid rgba(111, 166, 224, .42);
+    border-radius: 14px;
+    box-shadow: 0 20px 65px rgba(0,0,0,.5);
+}
+.uno-color-card p { color: #a9c4e3; }
+.vampir-result-card {
+    color: #eaf3ff;
+    background: linear-gradient(155deg, #142b46, #0d1c30);
+    border: 1px solid rgba(111, 166, 224, .42);
+    border-radius: 14px;
+}
+.vampir-primary {
+    color: #f5f9ff;
+    background: linear-gradient(135deg, #287dc4, #18558f);
+    border: 1px solid #579cde;
+    border-radius: 9px;
+}
+.vampir-chat-message.is-you > p {
+    color: #eaf4ff;
+    background: rgba(38, 102, 159, .28);
+    border-color: rgba(96, 157, 216, .4);
+}
+.vampir-chat-form input {
+    color: #edf5ff;
+    background: #101f33;
+    border-color: rgba(105, 158, 213, .38);
+}
+.vampir-shell button,
+.uno-shell button {
+    font-family: inherit;
+}
+.vampir-shell button:not(.vampir-card):not(.vampir-close),
+.uno-shell button:not(.uno-card):not(.uno-close) {
+    min-height: 40px;
+    padding-inline: 14px;
+    border-radius: 9px;
+}
+.vampir-shell button:focus-visible,
+.uno-shell button:focus-visible {
+    outline: 2px solid #7bbcff;
+    outline-offset: 2px;
+}
