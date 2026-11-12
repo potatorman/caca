@@ -566,8 +566,8 @@ service cloud.firestore {
 
       function canMigrateLegacyVampirSession() {
         return resource.data.gameId == 'vampir-koylu'
-          && resource.data.status == 'lobby'
-          && request.resource.data.status == 'lobby'
+          && resource.data.status in ['lobby', 'starting', 'playing', 'results']
+          && request.resource.data.status == resource.data.status
           && resource.data.get('sessionId', null) == null
           && validVampirSessionId(request.resource.data.get('sessionId', null))
           && request.auth.uid == resource.data.hostId
