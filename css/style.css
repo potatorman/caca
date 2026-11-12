@@ -6641,13 +6641,26 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 }
 .workspace-layout.is-games-workspace .game-create-controls {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 14px;
     margin-top: 8px;
 }
+.workspace-layout.is-games-workspace .game-create-options {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 18px;
+}
 .workspace-layout.is-games-workspace .game-max-players-field { margin: 0; }
-.workspace-layout.is-games-workspace .game-create-button { min-height: 38px; margin: 0; }
+.workspace-layout.is-games-workspace .game-password-field {
+    width: min(280px, 100%);
+    margin: 0;
+}
+.workspace-layout.is-games-workspace .game-create-button {
+    min-height: 38px;
+    margin: 0;
+}
 @keyframes games-honeycomb-border-sheen {
     0%, 12% { background-position: 180% 0; }
     78%, 100% { background-position: -180% 0; }
@@ -6697,6 +6710,9 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     margin-top: auto;
     padding-top: 24px;
     padding-bottom: 0;
+}
+.workspace-layout.is-games-workspace .game-create-options {
+    width: 100%;
 }
 
 
