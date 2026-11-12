@@ -1,6 +1,8 @@
 import {
     authenticateFirebaseToken,
-    getFirestoreDocument
+    getFirestoreDocument,
+    patchFirestoreDocument,
+    deleteFirestoreDocument
 } from "./firebase.js";
 import { signTicket, verifyTicket } from "./ticket.js";
 import { UnoRoom } from "./UnoRoom.js";
@@ -154,6 +156,76 @@ async function sendHttpAction(request, env, origin, gameId) {
     return json(payload, response.status, origin);
 }
 
+
+const PASSWORD_ITERATIONS = 210000;
+const encoder = new TextEncoder();
+function base64(bytes) {
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+}
+function fromBase64(value) {
+    const binary = atob(value);
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+async function deriveLobbyPassword(password, salt) {
+    const material = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: PASSWORD_ITERATIONS }, material, 256);
+    return new Uint8Array(bits);
+}
+function constantTimeEqual(a, b) {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i += 1) diff |= a[i] ^ b[i];
+    return diff === 0;
+}
+async function manageLobby(request, env, origin) {
+    const user = await authenticateFirebaseToken(getBearerToken(request), env);
+    const body = await readJson(request);
+    validateLobbyId(body.lobbyId);
+    const path = "rooms/global/gameSessions/" + body.lobbyId;
+    const lobbyDoc = await getFirestoreDocument(env, path);
+    if (!lobbyDoc) return json({ error: "Oyun lobisi bulunamadı." }, 404, origin);
+    const lobby = lobbyDoc.data;
+    const secretPath = "rooms/global/lobbySecrets/" + body.lobbyId;
+    if (body.action === "set-password") {
+        if (lobby.hostId !== user.uid || lobby.status !== "lobby") return json({ error: "Yalnızca açık lobinin sahibi parola ayarlayabilir." }, 403, origin);
+        const password = String(body.password || "");
+        if (password && (password.length < 4 || password.length > 64)) return json({ error: "Lobi parolası 4–64 karakter olmalı." }, 400, origin);
+        if (!password) {
+            await deleteFirestoreDocument(env, secretPath);
+            await patchFirestoreDocument(env, path, { hasPassword: false });
+            return json({ ok: true, hasPassword: false }, 200, origin);
+        }
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const verifier = await deriveLobbyPassword(password, salt);
+        await patchFirestoreDocument(env, secretPath, {
+            salt: base64(salt), verifier: base64(verifier), iterations: PASSWORD_ITERATIONS,
+            updatedAt: new Date().toISOString()
+        });
+        await patchFirestoreDocument(env, path, { hasPassword: true });
+        return json({ ok: true, hasPassword: true }, 200, origin);
+    }
+    if (body.action === "join") {
+        if (!['lobby', 'results'].includes(lobby.status)) return json({ error: "Bu lobiye şu anda katılınamıyor." }, 409, origin);
+        if (lobby.hostId === user.uid || (lobby.playerIds || []).includes(user.uid) || (lobby.nextRoundPlayerIds || []).includes(user.uid)) return json({ ok: true, alreadyJoined: true }, 200, origin);
+        if (lobby.hasPassword) {
+            const secret = await getFirestoreDocument(env, secretPath);
+            if (!secret || !body.password) return json({ error: "Lobi parolası yanlış." }, 403, origin);
+            const candidate = await deriveLobbyPassword(String(body.password), fromBase64(secret.data.salt));
+            if (!constantTimeEqual(candidate, fromBase64(secret.data.verifier))) return json({ error: "Lobi parolası yanlış." }, 403, origin);
+        }
+        const field = lobby.status === "results" ? "nextRoundPlayerIds" : "playerIds";
+        const existing = Array.isArray(lobby[field]) ? lobby[field] : [];
+        const occupied = (lobby.playerIds || []).length + (lobby.spectatorIds || []).length + (lobby.nextRoundPlayerIds || []).length;
+        const max = Number(lobby.maxPlayers) || 10;
+        if (occupied >= max) return json({ error: "Lobi dolu." }, 409, origin);
+        await patchFirestoreDocument(env, path, { [field]: [...existing, user.uid], updatedAt: new Date().toISOString() });
+        return json({ ok: true, joined: true }, 200, origin);
+    }
+    return json({ error: "Desteklenmeyen lobi işlemi." }, 400, origin);
+}
+
 async function readJson(request) {
     try {
         return await request.json();
@@ -185,6 +257,9 @@ export default {
                 return json({ ok: true, service: "caca-uno", version: 2 }, 200, origin);
             }
 
+            if (url.pathname === "/api/lobby/manage" && request.method === "POST") {
+                return await manageLobby(request, env, origin);
+            }
             if (url.pathname === "/api/uno/ticket" && request.method === "POST") {
                 return await issueTicket(request, env, url, origin, "uno");
             }
