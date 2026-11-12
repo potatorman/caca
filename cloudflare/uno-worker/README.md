@@ -212,3 +212,13 @@ The Vampir Köylü lobby stores only real Firebase user IDs. Its optional `gameS
 When bot filling is enabled, the Worker creates the missing seats inside `VampirKoyluRoom` after the real-player match roster is frozen. Synthetic bot IDs and roles exist only in Durable Object storage; they are not Firebase accounts, room members, lobby-ready entries or result-return acknowledgements.
 
 Bot actions are performed by the Durable Object during night and voting phases. Bots use role-specific deterministic decision helpers from `games/vampir-koylu/bots.js`; no external AI service or API key is used. Real Vampire teammates get the first opportunity to submit a hidden choice so a Vampire bot can coordinate without exposing its action.
+
+
+## Global lobby passwords
+
+Global lobby passwords are handled only by the Worker endpoint `POST /api/lobby/manage`.
+
+- `action: "set-password"` is restricted to the lobby host and stores a PBKDF2-HMAC-SHA256 verifier plus random salt under `rooms/global/lobbySecrets/{lobbyId}`.
+- `action: "join"` checks the password server-side and updates the lobby roster through the Worker service account.
+- Firestore Rules deny client reads/writes to `lobbySecrets` and deny direct client self-joins to global lobbies, so the public lobby document never contains the password or verifier.
+- Leave the password blank to keep a lobby public. Passwords must be 4–64 characters.
