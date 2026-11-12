@@ -442,56 +442,66 @@
 
                                 <section id="gameCenterPanel" class="room-management-panel game-center-panel" role="dialog" aria-modal="true" aria-labelledby="gameCenterTitle" hidden>
                                     <div class="room-management-card game-center-card">
-                                        <div class="room-management-heading">
-                                            <div>
-                                                <span class="small-label">CACA ARCADE · ODA OYUNLARI</span>
-                                                <h3 id="gameCenterTitle">Sıradaki oyununu seç.</h3>
-                                                <p>Arkadaşlarını topla, bir oyun seç ve rekabete başlayın.</p>
+                                        <header class="arena-heading">
+                                            <div class="arena-heading-brand">
+                                                <span class="arena-kicker"><i></i> CACA / ODA OYUNLARI</span>
+                                                <h3 id="gameCenterTitle">Oyun alanına hoş geldin.</h3>
+                                                <p>Ekibini topla. Bir masa seç. Oyun başlasın.</p>
                                             </div>
-                                            <button id="closeGameCenterButton" class="icon-button" type="button" aria-label="Eğlence merkezini kapat">×</button>
-                                        </div>
-                                        <div class="game-center-intro">
-                                            <span class="game-center-intro-mark" aria-hidden="true">✦</span>
-                                            <div>
-                                                <strong>Arkadaşlarınla oyna.</strong>
-                                                <p>Bu odada aynı anda tek bir oyun lobisi açılabilir. Bir oyun seçerek başlayın.</p>
+                                            <div class="arena-heading-side">
+                                                <span class="arena-live-mark"><i></i> ROOM ARENA</span>
+                                                <button id="closeGameCenterButton" class="icon-button" type="button" aria-label="Eğlence merkezini kapat">×</button>
                                             </div>
+                                        </header>
+                                        <div class="arena-stage">
+                                            <div class="arena-stage-orbit arena-stage-orbit-one"></div>
+                                            <div class="arena-stage-orbit arena-stage-orbit-two"></div>
+                                            <div class="arena-stage-copy">
+                                                <span class="arena-stage-label">BU ODANIN OYUNLARI</span>
+                                                <strong>Bir masa<br>seç, <em>hikâyeyi</em><br>başlat.</strong>
+                                                <span class="arena-stage-foot">İKİ OYUN · TEK ODA · SINIRSIZ REKABET</span>
+                                            </div>
+                                            <div class="arena-stage-mark" aria-hidden="true"><span>c.</span><i></i><b></b></div>
                                         </div>
                                         <section id="gameCenterEmptyState" class="game-center-empty">
                                             <div class="game-catalog-heading">
                                                 <div>
-                                                    <strong>Oyun kütüphanesi</strong>
-                                                    <p>Bir oyuna tıkla; oyuncu sayısını ve detaylarını incele.</p>
+                                                    <span class="arena-section-kicker">01 / OYUN SEÇİMİ</span>
+                                                    <strong>Hangi masaya oturuyorsun?</strong>
+                                                    <p>Her oyunun kendine ait bir atmosferi var.</p>
                                                 </div>
+                                                <span class="arena-game-count">02 <i>OYUN</i></span>
                                             </div>
                                             <div id="gameCatalogGrid" class="game-catalog-grid"></div>
-                                            <p class="game-catalog-note"><span aria-hidden="true">ⓘ</span> Seçtiğin oyun için özel bir lobi açılır. Hazır olduğunuzda maça başlayabilirsiniz.</p>
-                                            <button id="createGameSessionButton" class="primary-button" type="button">UNO lobisi oluştur</button>
+                                            <div class="arena-create-row">
+                                                <p class="game-catalog-note"><span aria-hidden="true">↳</span> Seçimin için özel bir kalıcı lobi açılır.</p>
+                                                <button id="createGameSessionButton" class="primary-button" type="button">Seçili oyun için lobi oluştur <span aria-hidden="true">↗</span></button>
+                                            </div>
                                         </section>
                                         <p id="gameCenterStatus" class="game-center-status" role="status" aria-live="polite"></p>
                                         <section id="gameSessionContent" class="game-session-content" hidden>
-                                            <div class="game-session-topline">
-                                                <div>
-                                                    <span class="small-label">AKTİF OTURUM</span>
+                                            <div class="arena-lobby-banner">
+                                                <div class="arena-lobby-symbol" aria-hidden="true"><span>✦</span></div>
+                                                <div class="arena-lobby-title">
+                                                    <span class="arena-section-kicker">02 / AKTİF OYUN ODASI</span>
                                                     <h4 id="gameSessionName">UNO</h4>
+                                                    <p id="gameSessionSummary" class="game-session-summary"></p>
                                                 </div>
                                                 <span id="gameSessionStatus" class="game-session-status">Lobi açık</span>
                                             </div>
-                                            <div class="game-session-hostline">
-                                                <span>LOBİ SAHİBİ</span>
-                                                <strong id="gameSessionHost">—</strong>
+                                            <div class="arena-lobby-meta">
+                                                <div class="game-session-hostline"><span>LOBİ SAHİBİ</span><strong id="gameSessionHost">—</strong></div>
+                                                <p id="gameBotLobbyPreview" class="game-bot-lobby-preview" hidden></p>
                                             </div>
-                                            <p id="gameSessionSummary" class="game-session-summary"></p>
-                                            <p id="gameBotLobbyPreview" class="game-bot-lobby-preview" hidden></p>
-                                            <div class="game-session-columns">
-                                                <section class="game-session-list-section">
+                                            <div class="arena-roster-layout">
+                                                <section class="game-session-list-section arena-roster-main">
                                                     <div class="game-session-list-heading">
                                                         <strong id="gamePlayersHeading">Lobi oyuncuları</strong>
                                                         <span id="gamePlayersCount">0</span>
                                                     </div>
                                                     <div id="gamePlayersList" class="game-session-member-list"></div>
                                                 </section>
-                                                <section class="game-session-list-section">
+                                                <section class="game-session-list-section arena-roster-side">
                                                     <div class="game-session-list-heading">
                                                         <strong id="gameSpectatorsHeading">İzleyiciler</strong>
                                                         <span id="gameSpectatorsCount">0</span>
@@ -521,23 +531,16 @@
                                                     <button id="closeGameLobbySettingsButton" class="icon-button" type="button" aria-label="Lobi ayarlarını kapat">×</button>
                                                 </div>
                                                 <label class="game-bot-toggle">
-                                                    <span>
-                                                        <strong>Botlarla oyna</strong>
-                                                        <small>Boş oyuncu yerleri maç başlayınca botlarla doldurulur.</small>
-                                                    </span>
+                                                    <span><strong>Botlarla oyna</strong><small>Boş oyuncu yerleri maç başlayınca botlarla doldurulur.</small></span>
                                                     <input id="gameBotFillToggle" type="checkbox">
                                                 </label>
                                                 <label class="game-bot-target-field" for="gameBotTargetCount">
                                                     <span>Hedef toplam oyuncu sayısı</span>
                                                     <select id="gameBotTargetCount">
-                                                        <option value="5">5 oyuncu</option>
-                                                        <option value="6">6 oyuncu</option>
-                                                        <option value="7">7 oyuncu</option>
-                                                        <option value="8">8 oyuncu</option>
-                                                        <option value="9">9 oyuncu</option>
-                                                        <option value="10">10 oyuncu</option>
-                                                        <option value="11">11 oyuncu</option>
-                                                        <option value="12">12 oyuncu</option>
+                                                        <option value="5">5 oyuncu</option><option value="6">6 oyuncu</option>
+                                                        <option value="7">7 oyuncu</option><option value="8">8 oyuncu</option>
+                                                        <option value="9">9 oyuncu</option><option value="10">10 oyuncu</option>
+                                                        <option value="11">11 oyuncu</option><option value="12">12 oyuncu</option>
                                                     </select>
                                                 </label>
                                                 <p id="gameBotSettingsPreview" class="game-bot-settings-preview" aria-live="polite"></p>
