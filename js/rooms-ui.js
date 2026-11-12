@@ -2,6 +2,7 @@ import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY, getGameDefinition } from "../games/registry.js";
+import { UNO_WORKER_URL } from "../games/uno/worker-config.js";
 import {
     reconcileMatchPlayers as reconcileUnoMatchPlayers,
     forfeitMatch as forfeitUnoMatch,
@@ -1407,6 +1408,20 @@ const GAME_SCOPE_ID = "global";
 let gameCenterScopeListening = false;
 let hasOwnedActiveGameLobby = false;
 
+
+async function callLobbyWorker(payload) {
+    if (!currentUser) throw new Error("Yeniden giriş yapmalısın.");
+    const token = await currentUser.getIdToken();
+    const response = await fetch(String(UNO_WORKER_URL).replace(/\\/+$/, "") + "/api/lobby/manage", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Lobi sunucusu isteği başarısız.");
+    return result;
+}
+
 // ROOM GAME CENTER — persistent lobby with independent match cycles.
 
 function getGameSessionRef(roomId = GAME_SCOPE_ID, lobbyId = activeGameLobbyId || gameSessionData?.lobbyId) {
@@ -1609,7 +1624,7 @@ function renderOpenGameLobbies() {
         const state = session.status === "playing" ? " · Maçta" :
             session.status === "starting" ? " · Başlıyor" :
             session.status === "results" ? " · Sonuçlar" : " · Açık";
-        details.textContent = players.length + "/" +
+        details.textContent = (session.hasPassword ? "🔒 Parolalı · " : "") + players.length + "/" +
             (session.maxPlayers || game?.maxPlayers || "?") + state;
         item.append(title, details);
         item.addEventListener("click", () => {
@@ -1661,7 +1676,7 @@ function renderGameCenter() {
 
     // Keep the game picker visible when returning to Games, even if this room
     // already has an active session. The session panel can render beneath it.
-    emptyState.hidden = false;
+    emptyState.hidden = Boolean(session);
     content.hidden = !session;
     renderGameCatalog();
     if (!session) {
@@ -2437,7 +2452,9 @@ function listenToGameCenter(roomId) {
                 }, Math.max(0, endAt - Date.now()) + 600);
                 backgroundGameCountdownTimers.set(session.lobbyId, { endAt, timer });
             }
-            if (!next.has(activeGameLobbyId)) {
+            if (ownedActiveLobby) {
+                activeGameLobbyId = ownedActiveLobby.lobbyId;
+            } else if (!next.has(activeGameLobbyId)) {
                 activeGameLobbyId = next.keys().next().value || "";
             }
             gameSessionData = activeGameLobbyId ? next.get(activeGameLobbyId) || null : null;
@@ -2729,7 +2746,10 @@ async function createGameSession() {
         }
         const createBatch = writeBatch(db);
         createBatch.set(lockRef, { lobbyId, gameId: selectedGame.id, createdAt: serverTimestamp() });
+        const lobbyPassword = String($("gameLobbyPasswordInput")?.value || "").trim();
+        if (lobbyPassword && (lobbyPassword.length < 4 || lobbyPassword.length > 64)) throw new Error("Lobi parolası 4–64 karakter olmalı.");
         createBatch.set(lobbyRef, {
+            hasPassword: Boolean(lobbyPassword),
             ...(selectedGame.id === "vampir-koylu" ? { sessionId: crypto.randomUUID().replace(/-/g, "") } : {}),
             gameId: selectedGame.id,
             gameName: selectedGame.name,
@@ -2754,6 +2774,16 @@ async function createGameSession() {
             updatedAt: serverTimestamp()
         });
         await createBatch.commit();
+        if (lobbyPassword) {
+            try {
+                await callLobbyWorker({ action: "set-password", lobbyId, password: lobbyPassword });
+            } catch (passwordError) {
+                await deleteDoc(lobbyRef).catch(() => {});
+                await deleteDoc(lockRef).catch(() => {});
+                throw passwordError;
+            }
+        }
+        if ($("gameLobbyPasswordInput")) $("gameLobbyPasswordInput").value = "";
         const createdSnapshot = await getDoc(lobbyRef);
         if (createdSnapshot.exists()) {
             gameSessionData = { ...createdSnapshot.data(), lobbyId };
@@ -2808,10 +2838,9 @@ async function joinGameSession() {
         const button = $("joinGameSessionButton");
         if (button) button.disabled = true;
         try {
-            await updateDoc(getGameSessionRef(GAME_SCOPE_ID, lobbyId), {
-                nextRoundPlayerIds: arrayUnion(uid),
-                updatedAt: serverTimestamp()
-            });
+            const password = session.hasPassword ? window.prompt("Bu lobi parola korumalı. Parolayı gir:") : "";
+            if (session.hasPassword && password === null) return;
+            await callLobbyWorker({ action: "join", lobbyId, password: password || "" });
             setGameCenterStatus("Sonraki maç için lobiye katıldın. Sonuçlar bitince otomatik ekleneceksin.");
         } catch (error) {
             setGameCenterStatus("Sonraki lobiye katılamadın: " + (error.message || "Bilinmeyen hata"), true);
@@ -2827,10 +2856,9 @@ async function joinGameSession() {
         return;
     }
     try {
-        await updateDoc(getGameSessionRef(GAME_SCOPE_ID, lobbyId), {
-            playerIds: arrayUnion(uid),
-            updatedAt: serverTimestamp()
-        });
+        const password = session.hasPassword ? window.prompt("Bu lobi parola korumalı. Parolayı gir:") : "";
+        if (session.hasPassword && password === null) return;
+        await callLobbyWorker({ action: "join", lobbyId, password: password || "" });
         setGameCenterStatus("Kalıcı lobiye katıldın. Hazır olduğunda hazır butonuna bas.");
     } catch (error) {
         setGameCenterStatus("Lobiye katılamadın: " + (error.message || "Bilinmeyen hata"), true);
