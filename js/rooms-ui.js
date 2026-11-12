@@ -1494,40 +1494,21 @@ function renderGameCatalog() {
 
     const games = GAME_REGISTRY.filter((game) => game.lobbyEnabled !== false);
     if (!games.some((game) => game.id === selectedGameId)) selectedGameId = games[0]?.id || "";
-    grid.replaceChildren();
+    grid.replaceChildren(...games.map((game) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "game-catalog-choice";
+        button.dataset.gameId = game.id;
+        button.setAttribute("aria-pressed", String(game.id === selectedGameId));
+        button.classList.toggle("is-selected", game.id === selectedGameId);
 
-    let gameIndex = 0;
-    [4, 3, 4].forEach((columns, row) => {
-        for (let column = 0; column < columns; column++) {
-            const game = games[gameIndex++];
-            const tile = document.createElement(game ? "button" : "div");
-            tile.className = game
-                ? "game-catalog-card honeycomb-game-button"
-                : "game-catalog-placeholder-tile";
-            tile.style.gridColumn = String(column + 1);
-            tile.style.gridRow = String(row + 1);
-            tile.dataset.row = String(row);
-            if (game) {
-                tile.type = "button";
-                tile.dataset.gameId = game.id;
-                tile.setAttribute("aria-pressed", String(game.id === selectedGameId));
-                tile.classList.toggle("is-selected", game.id === selectedGameId);
-                const name = document.createElement("strong");
-                name.className = "game-catalog-name";
-                name.textContent = game.name;
-                const players = document.createElement("span");
-                players.className = "game-catalog-player-count";
-                players.textContent = `Min. ${game.minPlayers} · Maks. ${game.maxPlayers} oyuncu`;
-                tile.append(name, players);
-            } else {
-                tile.setAttribute("aria-hidden", "true");
-                const name = document.createElement("strong");
-                name.textContent = "Yakında";
-                tile.appendChild(name);
-            }
-            grid.appendChild(tile);
-        }
-    });
+        const name = document.createElement("strong");
+        name.textContent = game.name;
+        const players = document.createElement("span");
+        players.textContent = `Min. ${game.minPlayers} · Maks. ${game.maxPlayers} oyuncu`;
+        button.append(name, players);
+        return button;
+    }));
 
     const selected = games.find((game) => game.id === selectedGameId);
     const maxSelect = $("gameMaxPlayersSelect");
