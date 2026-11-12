@@ -2308,10 +2308,28 @@ function listenToGameCenter(roomId) {
             currentUser?.uid === nextSession.hostId
         ) {
             // One-time migration for a lobby created before session isolation existed.
-            void updateDoc(getGameSessionRef(roomId), {
+            const migration = {
                 sessionId: crypto.randomUUID(),
                 updatedAt: serverTimestamp()
-            }).catch((error) => {
+            };
+            if (nextSession.status === "results") {
+                // A fresh Durable Object has no old result state to acknowledge.
+                // Move the abandoned legacy result screen into a clean next lobby.
+                Object.assign(migration, {
+                    status: "lobby",
+                    round: (Number(nextSession.round) || 1) + 1,
+                    readyIds: [],
+                    matchPlayerIds: [],
+                    spectatorIds: [],
+                    nextRoundPlayerIds: [],
+                    nextRoundReadyIds: [],
+                    resultReturnIds: [],
+                    startedAt: null,
+                    countdownEndsAt: null,
+                    finishedAt: null
+                });
+            }
+            void updateDoc(getGameSessionRef(roomId), migration).catch((error) => {
                 console.warn("CACA legacy Vampir lobby identity migration failed:", error);
             });
         }

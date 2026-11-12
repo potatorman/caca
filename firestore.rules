@@ -567,16 +567,41 @@ service cloud.firestore {
       function canMigrateLegacyVampirSession() {
         return resource.data.gameId == 'vampir-koylu'
           && resource.data.status in ['lobby', 'starting', 'playing', 'results']
-          && request.resource.data.status == resource.data.status
           && resource.data.get('sessionId', null) == null
           && validVampirSessionId(request.resource.data.get('sessionId', null))
           && request.auth.uid == resource.data.hostId
           && request.resource.data.hostId == resource.data.hostId
-          && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['sessionId', 'updatedAt'])
+          && (
+            (
+              resource.data.status == 'results'
+              && request.resource.data.status == 'lobby'
+              && request.resource.data.round == resource.data.round + 1
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.matchPlayerIds.size() == 0
+              && request.resource.data.spectatorIds.size() == 0
+              && request.resource.data.nextRoundPlayerIds.size() == 0
+              && request.resource.data.nextRoundReadyIds.size() == 0
+              && request.resource.data.resultReturnIds.size() == 0
+              && request.resource.data.startedAt == null
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.finishedAt == null
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'sessionId', 'status', 'round', 'readyIds', 'matchPlayerIds',
+                'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
+                'resultReturnIds', 'startedAt', 'countdownEndsAt', 'finishedAt',
+                'updatedAt'
+              ])
+            )
+            || (
+              resource.data.status in ['lobby', 'starting', 'playing']
+              && request.resource.data.status == resource.data.status
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['sessionId', 'updatedAt'])
+            )
+          )
           && request.resource.data.updatedAt is timestamp;
       }
-
       // Vampir Köylü-specific self-service rules. These deliberately do not
         // apply to UNO; UNO keeps its original membership and lifecycle rules.
         function canSelfToggleVampirReady() {
