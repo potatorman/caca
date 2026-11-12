@@ -1509,36 +1509,56 @@ function renderGameCatalog() {
         card.setAttribute("aria-pressed", String(isSelected));
         card.classList.toggle("is-selected", isSelected);
 
+        card.classList.add("arena-game-choice");
+
+        const art = document.createElement("span");
+        art.className = "game-catalog-art";
+        art.setAttribute("aria-hidden", "true");
+        if (game.id === "uno") {
+            art.innerHTML = '<span class="uno-art-card uno-art-red">7</span><span class="uno-art-card uno-art-blue">↻</span><span class="uno-art-card uno-art-yellow">+2</span><span class="uno-art-glow"></span>';
+        } else if (game.id === "vampir-koylu") {
+            art.innerHTML = '<span class="vampir-art-moon"></span><span class="vampir-art-hill"></span><span class="vampir-art-tower"></span><span class="vampir-art-window"></span><span class="vampir-art-star"></span>';
+        } else {
+            art.textContent = game.icon || "🎮";
+        }
+
+        const content = document.createElement("span");
+        content.className = "game-catalog-content";
         const top = document.createElement("span");
         top.className = "game-catalog-card-top";
-        const icon = document.createElement("span");
-        icon.className = "game-catalog-icon";
-        icon.textContent = game.icon || "🎮";
+        const eyebrow = document.createElement("span");
+        eyebrow.className = "game-catalog-eyebrow";
+        eyebrow.textContent = game.id === "uno" ? "01 / KART ARENASI" : "02 / GİZLİ KİMLİK";
         const status = document.createElement("span");
         status.className = "game-catalog-status";
-        status.textContent = game.status === "ready" ? "OYNANABİLİR" : "YAKINDA";
-        top.append(icon, status);
+        status.textContent = game.status === "ready" ? "● OYNANABİLİR" : "YAKINDA";
+        top.append(eyebrow, status);
 
         const name = document.createElement("strong");
         name.className = "game-catalog-name";
         name.textContent = game.name;
         const description = document.createElement("span");
         description.className = "game-catalog-description";
-        description.textContent = game.description || "Bu oyun yakında eklenecek.";
+        description.textContent = game.id === "uno"
+            ? "Renkleri değiştir, hamleni zamanla ve son kartını ilk sen bitir."
+            : game.id === "vampir-koylu"
+                ? "Gece karar ver. Gündüz ikna et. Köyün kaderini değiştir."
+                : game.description || "Bu oyun yakında eklenecek.";
 
         const details = document.createElement("span");
         details.className = "game-catalog-details";
         const players = document.createElement("span");
         players.className = "game-catalog-player-count";
         players.textContent = Number.isFinite(game.minPlayers) && Number.isFinite(game.maxPlayers)
-            ? `${game.minPlayers}–${game.maxPlayers} oyuncu`
-            : "Çok oyunculu";
+            ? `${game.minPlayers}–${game.maxPlayers} OYUNCU`
+            : "ÇOK OYUNCULU";
         const selection = document.createElement("span");
         selection.className = "game-catalog-select-label";
-        selection.textContent = isSelected ? "SEÇİLDİ ✓" : "OYUNU SEÇ →";
+        selection.textContent = isSelected ? "MASA SEÇİLDİ ✓" : "MASAYI SEÇ ↗";
         details.append(players, selection);
 
-        card.append(top, name, description, details);
+        content.append(top, name, description, details);
+        card.append(art, content);
         grid.appendChild(card);
     });
 
