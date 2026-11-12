@@ -1495,7 +1495,7 @@ function renderGameCatalog() {
     if (!games.some((game) => game.id === selectedGameId)) selectedGameId = games[0]?.id || "";
     grid.replaceChildren();
 
-    // Flat-sided hexagon cells arranged as a compact honeycomb cluster.
+    // True pointy-side honeycomb: full-height rows with alternating half-height columns.
     // Column heights follow the reference silhouette: 3, 5, 6, 7, 6, 5, 3.
     const columnHeights = [3, 5, 6, 7, 6, 5, 3];
     const rowStarts = [2, 1, 1, 0, 1, 1, 2];
@@ -1525,9 +1525,9 @@ function renderGameCatalog() {
             button.dataset.gameId = game.id;
             button.setAttribute("aria-pressed", String(selected));
             button.classList.toggle("is-selected", selected);
-            button.style.setProperty("--hex-column", String(cell.column));
-            button.style.setProperty("--hex-row", String(cell.row));
-            button.style.setProperty("--hex-y-offset", cell.column % 2 ? "23.5px" : "0px");
+            button.style.gridColumn = String(cell.column + 1);
+            button.style.gridRow = String(cell.row + 1);
+            button.style.setProperty("--hex-y-offset", cell.column % 2 ? "43px" : "0px");
             const name = document.createElement("strong");
             name.className = "game-catalog-name";
             name.textContent = game.name;
@@ -1542,9 +1542,9 @@ function renderGameCatalog() {
         const tile = document.createElement("div");
         const isPlaceholder = placeholderSlots.some((slot) => slot.column === cell.column && slot.row === cell.row);
         tile.className = isPlaceholder ? "game-catalog-placeholder-tile" : "game-catalog-hex-cell";
-        tile.style.setProperty("--hex-column", String(cell.column));
-        tile.style.setProperty("--hex-row", String(cell.row));
-        tile.style.setProperty("--hex-y-offset", cell.column % 2 ? "23.5px" : "0px");
+        tile.style.gridColumn = String(cell.column + 1);
+        tile.style.gridRow = String(cell.row + 1);
+        tile.style.setProperty("--hex-y-offset", cell.column % 2 ? "43px" : "0px");
         tile.setAttribute("aria-hidden", "true");
         if (isPlaceholder) {
             const name = document.createElement("strong");
