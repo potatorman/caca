@@ -327,6 +327,11 @@ export class VampirKoyluRoom extends DurableObject {
 
             if (match.status === "results") await this.syncFinishedResult(match);
         } catch (error) {
+            console.error("CACA Vampir Köylü WebSocket rejected", {
+                roomId: request.headers.get("X-CACA-ROOM-ID") || "",
+                round: Number(request.headers.get("X-CACA-ROUND")) || 0,
+                reason: String(error?.message || "Vampir Köylü bağlantısı kurulamadı.").slice(0, 240)
+            });
             return new Response(error.message || "Vampir Köylü bağlantısı kurulamadı.", { status: 403 });
         }
 
