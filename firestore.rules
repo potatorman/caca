@@ -1151,10 +1151,11 @@ service cloud.firestore {
               && request.resource.data.playerIds == resource.data.playerIds
               && request.resource.data.readyIds == resource.data.readyIds
               && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['gameSettings', 'updatedAt'])
+                .hasOnly(['gameSettings', 'maxPlayers', 'updatedAt'])
             )
             || (
-              resource.data.status == 'lobby'
+              resource.data.gameId != 'vampir-koylu'
+              && resource.data.status == 'lobby'
               && request.resource.data.status == 'lobby'
               && request.auth.uid == resource.data.hostId
               && request.resource.data.hostId == resource.data.hostId
