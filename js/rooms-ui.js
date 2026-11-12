@@ -322,7 +322,6 @@ function stopMemberListener() {
     if (pendingJumpscareCrop) closeJumpscareCrop();
     if ($("jumpscarePanel")) $("jumpscarePanel").hidden = true;
     if ($("jumpscareOpenButton")) $("jumpscareOpenButton").hidden = true;
-    if ($("gameCenterPanel")) $("gameCenterPanel").hidden = true;
 }
 
 // Resolve the current public profile so older membership/ban records
@@ -1406,6 +1405,7 @@ $("sendPersonalJumpscareButton").addEventListener("click", sendPersonalJumpscare
 // Global Games use a dedicated scope, independent from chat-room membership.
 const GAME_SCOPE_ID = "global";
 let gameCenterScopeListening = false;
+let hasOwnedActiveGameLobby = false;
 
 // ROOM GAME CENTER — persistent lobby with independent match cycles.
 
@@ -1537,10 +1537,12 @@ function renderGameCatalog() {
     }
 
     const cooldown = Math.max(0, getGameLobbyCooldownUntil() - Date.now());
-    createButton.disabled = !selected || cooldown > 0;
-    createButton.textContent = cooldown > 0
-        ? `Yeni lobi için ${Math.ceil(cooldown / 1000)} sn bekle`
-        : `${selected?.name || "Oyun"} lobisi oluştur`;
+    createButton.disabled = !selected || cooldown > 0 || hasOwnedActiveGameLobby;
+    createButton.textContent = hasOwnedActiveGameLobby
+        ? "Zaten bir aktif lobin var"
+        : cooldown > 0
+            ? `Yeni lobi için ${Math.ceil(cooldown / 1000)} sn bekle`
+            : `${selected?.name || "Oyun"} lobisi oluştur`;
 }
 
 function selectGameLobby(lobbyId) {
@@ -2403,6 +2405,8 @@ function listenToGameCenter(roomId) {
                 next.set(item.id, { ...data, lobbyId: item.id });
             });
             gameSessionsById = next;
+            hasOwnedActiveGameLobby = [...next.values()].some((session) => session.hostId === currentUser?.uid && ["lobby", "starting", "playing", "results"].includes(session.status));
+            renderGameCatalog();
             for (const [id, entry] of backgroundGameCountdownTimers) {
                 const current = next.get(id);
                 const endAt = current?.countdownEndsAt?.toMillis?.();
@@ -2670,6 +2674,11 @@ async function createGameSession() {
         setGameCenterStatus("Lobi oluşturmak için giriş yapmalısın.", true);
         return;
     }
+    if (hasOwnedActiveGameLobby) {
+        setGameCenterStatus("Aynı anda yalnızca bir aktif lobi oluşturabilirsin. Önce mevcut lobini kapat.", true);
+        renderGameCatalog();
+        return;
+    }
     const selectedGame = GAME_REGISTRY.find((game) =>
         game.id === selectedGameId && game.lobbyEnabled !== false
     );
@@ -2690,7 +2699,11 @@ async function createGameSession() {
     try {
         const lobbyId = crypto.randomUUID().replace(/-/g, "");
         activeGameLobbyId = lobbyId;
-        await setDoc(getGameSessionRef(GAME_SCOPE_ID, lobbyId), {
+        const lobbyRef = getGameSessionRef(GAME_SCOPE_ID, lobbyId);
+        const lockRef = doc(db, "users", currentUser.uid, "gameState", "activeLobby");
+        const createBatch = writeBatch(db);
+        createBatch.set(lockRef, { lobbyId, gameId: selectedGame.id, createdAt: serverTimestamp() });
+        createBatch.set(lobbyRef, {
             ...(selectedGame.id === "vampir-koylu" ? { sessionId: crypto.randomUUID().replace(/-/g, "") } : {}),
             gameId: selectedGame.id,
             gameName: selectedGame.name,
@@ -2714,8 +2727,15 @@ async function createGameSession() {
             finishedAt: null,
             updatedAt: serverTimestamp()
         });
-        activeGameLobbyId = lobbyId;
-        gameSessionData = gameSessionsById.get(lobbyId) || gameSessionData;
+        await createBatch.commit();
+        const createdSnapshot = await getDoc(lobbyRef);
+        if (createdSnapshot.exists()) {
+            gameSessionData = { ...createdSnapshot.data(), lobbyId };
+            gameSessionsById.set(lobbyId, gameSessionData);
+        }
+        hasOwnedActiveGameLobby = true;
+        renderGameCenter();
+        renderGameCatalog();
         setGameCenterStatus("Yeni oyun lobisi kuruldu. Oyuncular katılabilir.");
     } catch (error) {
         activeGameLobbyId = previousLobbyId;
@@ -3129,7 +3149,12 @@ async function closeGameSession() {
     if (gameSessionData.hostId !== currentUser.uid && !canCurrentUserKickMembers()) return;
     if (!window.confirm("Bu odanın kalıcı oyun lobisini tamamen kapatmak istiyor musun?")) return;
     try {
-        await deleteDoc(getGameSessionRef(GAME_SCOPE_ID, gameSessionData.lobbyId));
+        const closeBatch = writeBatch(db);
+        closeBatch.delete(getGameSessionRef(GAME_SCOPE_ID, gameSessionData.lobbyId));
+        if (gameSessionData.hostId === currentUser.uid) closeBatch.delete(doc(db, "users", currentUser.uid, "gameState", "activeLobby"));
+        await closeBatch.commit();
+        hasOwnedActiveGameLobby = false;
+        renderGameCatalog();
         setGameCenterStatus("Kalıcı oyun lobisi kapatıldı.");
     } catch (error) {
         setGameCenterStatus("Lobi kapatılamadı: " + (error.message || "Bilinmeyen hata"), true);
