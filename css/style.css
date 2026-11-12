@@ -6675,3 +6675,26 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     width: min(100%, 1500px);
     margin-inline: auto;
 }
+
+
+/* Anchor lobby creation controls at the bottom of the main Games column. */
+.workspace-layout.is-games-workspace .games-page-mount,
+.workspace-layout.is-games-workspace .game-center-panel,
+.workspace-layout.is-games-workspace .game-center-card {
+    min-height: 0;
+}
+.workspace-layout.is-games-workspace .game-center-empty {
+    display: flex;
+    min-height: calc(100vh - 270px);
+    flex-direction: column;
+    box-sizing: border-box;
+    padding-bottom: 26px;
+}
+.workspace-layout.is-games-workspace .game-catalog-grid {
+    flex: 0 0 auto;
+}
+.workspace-layout.is-games-workspace .game-create-controls {
+    margin-top: auto;
+    padding-top: 24px;
+    padding-bottom: 0;
+}
