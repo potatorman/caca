@@ -1491,54 +1491,41 @@ function renderGameCatalog() {
     const grid = $("gameCatalogGrid");
     const createButton = $("createGameSessionButton");
     if (!grid || !createButton) return;
+
     const games = GAME_REGISTRY.filter((game) => game.lobbyEnabled !== false);
     if (!games.some((game) => game.id === selectedGameId)) selectedGameId = games[0]?.id || "";
     grid.replaceChildren();
 
-    // Three clean rows. Alternate rows shift by half a hex width to create
-    // a honeycomb rhythm without building a full hive-shaped cluster.
-    const rows = [
-        { count: 4, offset: 0 },
-        { count: 3, offset: 1 },
-        { count: 4, offset: 0 }
-    ];
-    const placeholderCells = new Set(["0:2", "0:3", "1:1", "1:2", "1:3"]);
-    rows.forEach((row, rowIndex) => {
-        for (let column = 0; column < row.count; column++) {
-            const cellKey = rowIndex + ":" + column;
-            const game = rowIndex === 0 ? games[column] : null;
+    let gameIndex = 0;
+    [4, 3, 4].forEach((columns, row) => {
+        for (let column = 0; column < columns; column++) {
+            const game = games[gameIndex++];
+            const tile = document.createElement(game ? "button" : "div");
+            tile.className = game
+                ? "game-catalog-card honeycomb-game-button"
+                : "game-catalog-placeholder-tile";
+            tile.style.gridColumn = String(column + 1);
+            tile.style.gridRow = String(row + 1);
+            tile.dataset.row = String(row);
             if (game) {
-                const selected = game.id === selectedGameId;
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = "game-catalog-card honeycomb-game-button";
-                button.dataset.gameId = game.id;
-                button.setAttribute("aria-pressed", String(selected));
-                button.classList.toggle("is-selected", selected);
-                button.style.gridColumn = String(column * 2 + row.offset + 1);
-                button.style.gridRow = String(rowIndex + 1);
+                tile.type = "button";
+                tile.dataset.gameId = game.id;
+                tile.setAttribute("aria-pressed", String(game.id === selectedGameId));
+                tile.classList.toggle("is-selected", game.id === selectedGameId);
                 const name = document.createElement("strong");
                 name.className = "game-catalog-name";
                 name.textContent = game.name;
-                const range = document.createElement("span");
-                range.className = "game-catalog-player-count";
-                range.textContent = "Min. " + game.minPlayers + " · Maks. " + game.maxPlayers + " oyuncu";
-                button.append(name, range);
-                grid.appendChild(button);
-                continue;
-            }
-
-            if (placeholderCells.has(cellKey)) {
-                const tile = document.createElement("div");
-                tile.className = "game-catalog-placeholder-tile";
+                const players = document.createElement("span");
+                players.className = "game-catalog-player-count";
+                players.textContent = `Min. ${game.minPlayers} · Maks. ${game.maxPlayers} oyuncu`;
+                tile.append(name, players);
+            } else {
                 tile.setAttribute("aria-hidden", "true");
-                tile.style.gridColumn = String(column * 2 + row.offset + 1);
-                tile.style.gridRow = String(rowIndex + 1);
                 const name = document.createElement("strong");
                 name.textContent = "Yakında";
                 tile.appendChild(name);
-                grid.appendChild(tile);
             }
+            grid.appendChild(tile);
         }
     });
 
@@ -1546,22 +1533,25 @@ function renderGameCatalog() {
     const maxSelect = $("gameMaxPlayersSelect");
     if (maxSelect && selected) {
         const previous = Number(maxSelect.value);
-        maxSelect.replaceChildren();
-        for (let count = selected.minPlayers; count <= selected.maxPlayers; count++) {
-            const option = document.createElement("option");
-            option.value = String(count);
-            option.textContent = count + " oyuncu";
-            maxSelect.appendChild(option);
-        }
-        maxSelect.value = String(Number.isInteger(previous) && previous >= selected.minPlayers && previous <= selected.maxPlayers ? previous : selected.maxPlayers);
+        maxSelect.replaceChildren(...Array.from(
+            { length: selected.maxPlayers - selected.minPlayers + 1 },
+            (_, index) => {
+                const count = selected.minPlayers + index;
+                return new Option(`${count} oyuncu`, String(count));
+            }
+        ));
+        maxSelect.value = String(
+            Number.isInteger(previous) && previous >= selected.minPlayers && previous <= selected.maxPlayers
+                ? previous
+                : selected.maxPlayers
+        );
     }
+
     const cooldown = Math.max(0, getGameLobbyCooldownUntil() - Date.now());
     createButton.disabled = !selected || cooldown > 0 || !activeRoomId;
     createButton.textContent = cooldown > 0
-        ? "Yeni lobi için " + Math.ceil(cooldown / 1000) + " sn bekle"
-        : !activeRoomId
-            ? "Önce bir sohbet odasına gir"
-            : selected ? selected.name + " lobisi oluştur" : "Lobi oluştur";
+        ? `Yeni lobi için ${Math.ceil(cooldown / 1000)} sn bekle`
+        : !activeRoomId ? "Önce bir sohbet odasına gir" : `${selected?.name || "Oyun"} lobisi oluştur`;
 }
 
 function renderOpenGameLobbies() {
