@@ -2243,13 +2243,32 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
             !isUserEligible(latest)
         ) return;
 
+        const lobbyPlayerIds = [...new Set([
+            ...(Array.isArray(latest.playerIds) ? latest.playerIds : []),
+            ...(Array.isArray(latest.matchPlayerIds) ? latest.matchPlayerIds : []),
+            ...(Array.isArray(latest.spectatorIds) ? latest.spectatorIds : [])
+        ])];
+        const profileSnapshots = await Promise.all(lobbyPlayerIds.map(async (playerId) => {
+            try {
+                const profile = await getDoc(doc(db, "users", playerId));
+                return profile.exists() ? { id: playerId, ...profile.data() } : { id: playerId };
+            } catch {
+                return { id: playerId };
+            }
+        }));
+        const gameMembers = profileSnapshots.map((profile) => ({
+            ...profile,
+            username: profile.username || profile.nickname || "Oyuncu",
+            displayNickname: profile.nickname || profile.username || "Oyuncu"
+        }));
+
         const nextGame = await game.open({
             db,
             roomId,
             round: latest.round,
             uid: currentUser.uid,
             session: latest,
-            roomMembers: activeRoomMembers,
+            roomMembers: gameMembers,
             onLeave: leaveCurrentMatch,
             onReturnToLobby: Array.isArray(latest.matchPlayerIds) &&
                 latest.matchPlayerIds.includes(currentUser.uid)
