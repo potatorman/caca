@@ -1832,13 +1832,14 @@ async function returnUnoToLobbyFromResults(roomId, expectedRound) {
     return result;
 }
 
-async function returnVampirKoyluToLobbyFromResults(roomId, expectedRound) {
+async function returnVampirKoyluToLobbyFromResults(roomId, expectedRound, sessionId) {
     if (!currentUser) throw new Error("Oturum bulunamadı.");
 
     const result = await returnVampirKoyluToLobby(
         db,
         roomId,
         expectedRound,
+        sessionId,
         currentUser.uid
     );
 
@@ -2105,7 +2106,8 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
     if (!currentUser || !activeRoomId || !sessionData) return;
 
     const roomId = activeRoomId;
-    const gameKey = roomId + ":" + sessionData.gameId + ":" + String(sessionData.round);
+    const gameKey = roomId + ":" + sessionData.gameId + ":" + String(sessionData.round) +
+        (sessionData.gameId === "vampir-koylu" ? ":" + String(sessionData.sessionId || "") : "");
 
     const isUserEligible = (latest) => {
         if (!latest || latest.gameId !== sessionData.gameId) return false;
@@ -2160,7 +2162,8 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
         // the latest snapshot and cancel any request belonging to an old round.
         const latest = gameSessionData;
         const latestKey = latest
-            ? roomId + ":" + latest.gameId + ":" + String(latest.round)
+            ? roomId + ":" + latest.gameId + ":" + String(latest.round) +
+                (latest.gameId === "vampir-koylu" ? ":" + String(latest.sessionId || "") : "")
             : "";
         if (
             requestId !== roomGameOpenGeneration ||
@@ -2182,14 +2185,15 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
                 ? latest.gameId === "uno"
                     ? () => returnUnoToLobbyFromResults(roomId, latest.round)
                     : latest.gameId === "vampir-koylu"
-                        ? () => returnVampirKoyluToLobbyFromResults(roomId, latest.round)
+                        ? () => returnVampirKoyluToLobbyFromResults(roomId, latest.round, latest.sessionId)
                         : null
                 : null
         });
 
         const current = gameSessionData;
         const currentKey = current
-            ? roomId + ":" + current.gameId + ":" + String(current.round)
+            ? roomId + ":" + current.gameId + ":" + String(current.round) +
+                (current.gameId === "vampir-koylu" ? ":" + String(current.sessionId || "") : "")
             : "";
         if (
             requestId !== roomGameOpenGeneration ||
@@ -2256,7 +2260,7 @@ function reconcileVampirKoyluRosterChange(roomId, sessionData) {
         !currentUser
     ) return;
 
-    const roundKey = roomId + ":" + String(sessionData.round);
+    const roundKey = roomId + ":" + String(sessionData.round) + ":" + String(sessionData.sessionId || "");
     const currentIds = Array.isArray(sessionData.matchPlayerIds)
         ? sessionData.matchPlayerIds
         : [];
@@ -2272,7 +2276,7 @@ function reconcileVampirKoyluRosterChange(roomId, sessionData) {
         currentIds.every((id) => previousIds.includes(id));
     if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) return;
 
-    reconcileVampirKoyluMatchPlayers(db, roomId, sessionData.round, currentUser.uid)
+    reconcileVampirKoyluMatchPlayers(db, roomId, sessionData.round, sessionData.sessionId, currentUser.uid)
         .catch((error) => {
             console.warn("Vampir Köylü roster eşitlemesi başarısız:", error);
             if (activeRoomId === roomId) {
@@ -2296,7 +2300,22 @@ function listenToGameCenter(roomId) {
     activeRoomGameKey = "";
     unsubscribeGameSession = onSnapshot(getGameSessionRef(roomId), (snapshot) => {
         if (activeRoomId !== roomId) return;
-        gameSessionData = snapshot.exists() ? snapshot.data() : null;
+        const nextSession = snapshot.exists() ? snapshot.data() : null;
+        if (
+            nextSession?.gameId === "vampir-koylu" &&
+            ["lobby", "starting", "playing", "results"].includes(nextSession.status) &&
+            !nextSession.sessionId &&
+            currentUser?.uid === nextSession.hostId
+        ) {
+            // One-time migration for a lobby created before session isolation existed.
+            void updateDoc(getGameSessionRef(roomId), {
+                sessionId: crypto.randomUUID(),
+                updatedAt: serverTimestamp()
+            }).catch((error) => {
+                console.warn("CACA legacy Vampir lobby identity migration failed:", error);
+            });
+        }
+        gameSessionData = nextSession;
         recordGameLobbyCooldown(roomId, gameSessionData);
         renderGameCenter();
         reconcileUnoRosterChange(roomId, gameSessionData);
@@ -2516,6 +2535,7 @@ async function createGameSession() {
     setGameCenterStatus("Kalıcı oyun lobisi oluşturuluyor...");
     try {
         await setDoc(getGameSessionRef(), {
+            ...(selectedGame.id === "vampir-koylu" ? { sessionId: crypto.randomUUID() } : {}),
             gameId: selectedGame.id,
             gameName: selectedGame.name,
             status: "lobby",
@@ -2695,7 +2715,7 @@ async function leaveVampirKoyluMatchFromSession(roomId, session, uid) {
     }
 
     try {
-        return await forfeitVampirKoyluMatch(db, roomId, Number(session.round), uid);
+        return await forfeitVampirKoyluMatch(db, roomId, Number(session.round), session.sessionId, uid);
     } catch (error) {
         const wrapped = new Error(error?.message || "Vampir Köylü maçından çıkış başarısız.");
         wrapped.code = error?.code;

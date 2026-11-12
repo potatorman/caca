@@ -5,6 +5,7 @@ import {
 import { signTicket, verifyTicket } from "./ticket.js";
 import { UnoRoom } from "./UnoRoom.js";
 import { VampirKoyluRoom } from "./VampirKoyluRoom.js";
+import { getVampirKoyluDurableObjectName, isValidVampirKoyluSessionId } from "./session-identity.js";
 
 export { UnoRoom, VampirKoyluRoom };
 
@@ -31,6 +32,12 @@ function getBearerToken(request) {
     return header.startsWith("Bearer ") ? header.slice(7).trim() : "";
 }
 
+function validateSessionId(sessionId) {
+    if (!isValidVampirKoyluSessionId(sessionId)) {
+        throw new Error("Vampir Köylü oturum kimliği geçersiz.");
+    }
+}
+
 function validateRoomRound(roomId, round) {
     if (
         typeof roomId !== "string" ||
@@ -48,7 +55,7 @@ function sessionPlayers(session) {
         : (["playing", "results"].includes(session.status) ? session.playerIds || [] : []);
 }
 
-async function authorizeRoomUser(env, uid, roomId, round, gameId = "uno") {
+async function authorizeRoomUser(env, uid, roomId, round, gameId = "uno", sessionId = null) {
     const [sessionDoc, memberDoc] = await Promise.all([
         getFirestoreDocument(env, "rooms/" + roomId + "/gameSessions/active"),
         getFirestoreDocument(env, "rooms/" + roomId + "/members/" + uid)
@@ -60,6 +67,7 @@ async function authorizeRoomUser(env, uid, roomId, round, gameId = "uno") {
     if (
         session.gameId !== gameId ||
         Number(session.round) !== Number(round) ||
+        (gameId === "vampir-koylu" && session.sessionId !== sessionId) ||
         !["playing", "results"].includes(session.status)
     ) {
         throw new Error("Bu oyun turu artık aktif değil.");
@@ -76,10 +84,13 @@ async function authorizeRoomUser(env, uid, roomId, round, gameId = "uno") {
     };
 }
 
-function getRoomStub(env, gameId, roomId, round) {
+function getRoomStub(env, gameId, roomId, round, sessionId = null) {
     const binding = gameId === "vampir-koylu" ? env.VAMPIR_KOYLU_ROOMS : env.UNO_ROOMS;
     if (!binding) throw new Error("Bu oyun için Durable Object bağlantısı bulunamadı.");
-    const id = binding.idFromName(roomId + ":" + String(round));
+    const identity = gameId === "vampir-koylu"
+        ? getVampirKoyluDurableObjectName(roomId, round, sessionId)
+        : roomId + ":" + String(round);
+    const id = binding.idFromName(identity);
     return binding.get(id);
 }
 
@@ -87,11 +98,13 @@ async function issueTicket(request, env, url, origin, gameId) {
     const user = await authenticateFirebaseToken(getBearerToken(request), env);
     const body = await readJson(request);
     validateRoomRound(body.roomId, body.round);
-    const access = await authorizeRoomUser(env, user.uid, body.roomId, body.round, gameId);
+    if (gameId === "vampir-koylu") validateSessionId(body.sessionId);
+    const access = await authorizeRoomUser(env, user.uid, body.roomId, body.round, gameId, body.sessionId);
     const ticket = await signTicket({
         uid: user.uid,
         roomId: body.roomId,
         round: Number(body.round),
+        ...(gameId === "vampir-koylu" ? { sessionId: body.sessionId } : {}),
         role: access.role,
         gameId,
         exp: Math.floor(Date.now() / 1000) + 120
@@ -110,12 +123,13 @@ async function sendHttpAction(request, env, origin, gameId) {
     if (!["quit", "returnToLobby", "reconcile"].includes(body.action)) {
         return json({ error: "Desteklenmeyen oyun işlemi." }, 400, origin);
     }
-    const access = await authorizeRoomUser(env, user.uid, body.roomId, body.round, gameId);
+    if (gameId === "vampir-koylu") validateSessionId(body.sessionId);
+    const access = await authorizeRoomUser(env, user.uid, body.roomId, body.round, gameId, body.sessionId);
     if (access.role !== "player") {
         return json({ error: "Bu işlem yalnızca maç oyuncularına açık." }, 403, origin);
     }
 
-    const stub = getRoomStub(env, gameId, body.roomId, body.round);
+    const stub = getRoomStub(env, gameId, body.roomId, body.round, body.sessionId);
     const response = await stub.fetch("https://" + gameId + "-room.internal/action", {
         method: "POST",
         headers: {
@@ -123,7 +137,8 @@ async function sendHttpAction(request, env, origin, gameId) {
             "X-CACA-UID": user.uid,
             "X-CACA-ROLE": access.role,
             "X-CACA-ROOM-ID": body.roomId,
-            "X-CACA-ROUND": String(body.round)
+            "X-CACA-ROUND": String(body.round),
+            ...(gameId === "vampir-koylu" ? { "X-CACA-SESSION-ID": body.sessionId } : {})
         },
         body: JSON.stringify({ action: body.action })
     });
@@ -181,7 +196,8 @@ export default {
                 }
                 const ticket = await verifyTicket(url.searchParams.get("ticket"), env.CACA_TICKET_SECRET);
                 const gameId = ticket.gameId === "vampir-koylu" ? "vampir-koylu" : "uno";
-                const stub = getRoomStub(env, gameId, ticket.roomId, ticket.round);
+                if (gameId === "vampir-koylu") validateSessionId(ticket.sessionId);
+                const stub = getRoomStub(env, gameId, ticket.roomId, ticket.round, ticket.sessionId);
                 const internalRequest = new Request("https://" + gameId + "-room.internal/connect", {
                     method: "GET",
                     headers: {
@@ -189,7 +205,8 @@ export default {
                         "X-CACA-UID": ticket.uid,
                         "X-CACA-ROLE": ticket.role,
                         "X-CACA-ROOM-ID": ticket.roomId,
-                        "X-CACA-ROUND": String(ticket.round)
+                        "X-CACA-ROUND": String(ticket.round),
+                        ...(gameId === "vampir-koylu" ? { "X-CACA-SESSION-ID": ticket.sessionId } : {})
                     }
                 });
                 return await stub.fetch(internalRequest);
