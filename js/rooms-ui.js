@@ -2677,8 +2677,8 @@ async function saveGameLobbySettings() {
         $("gameBotSettingsStatus").textContent = "Oyuncu sınırı mevcut oyuncu sayısından düşük olamaz.";
         return;
     }
-    if (isVampir && (!Number.isInteger(targetPlayerCount) || targetPlayerCount < 5 || targetPlayerCount > 12)) {
-        $("gameBotSettingsStatus").textContent = "Hedef oyuncu sayısı 5–12 arasında olmalı.";
+    if (isVampir && (!Number.isInteger(targetPlayerCount) || targetPlayerCount < 5 || targetPlayerCount > 12 || targetPlayerCount > maxPlayers)) {
+        $("gameBotSettingsStatus").textContent = "Bot hedefi 5–12 arasında ve maksimum oyuncu sınırını aşmayacak şekilde olmalı.";
         return;
     }
 
