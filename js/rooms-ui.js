@@ -1495,63 +1495,51 @@ function renderGameCatalog() {
     if (!games.some((game) => game.id === selectedGameId)) selectedGameId = games[0]?.id || "";
     grid.replaceChildren();
 
-    // True pointy-side honeycomb: full-height rows with alternating half-height columns.
-    // Column heights follow the reference silhouette: 3, 5, 6, 7, 6, 5, 3.
-    const columnHeights = [3, 5, 6, 7, 6, 5, 3];
-    const rowStarts = [2, 1, 1, 0, 1, 1, 2];
-    const cells = [];
-    columnHeights.forEach((height, column) => {
-        for (let offset = 0; offset < height; offset++) {
-            cells.push({ column, row: rowStarts[column] + offset });
-        }
-    });
-
-    const gameSlots = [{ column: 2, row: 2 }, { column: 4, row: 2 }];
-    const placeholderSlots = [
-        { column: 3, row: 0 },
-        { column: 1, row: 3 },
-        { column: 5, row: 3 },
-        { column: 2, row: 5 },
-        { column: 4, row: 5 }
+    // Three clean rows. Alternate rows shift by half a hex width to create
+    // a honeycomb rhythm without building a full hive-shaped cluster.
+    const rows = [
+        { count: 4, offset: 0 },
+        { count: 3, offset: 1 },
+        { count: 4, offset: 0 }
     ];
-    cells.forEach((cell) => {
-        const gameIndex = gameSlots.findIndex((slot) => slot.column === cell.column && slot.row === cell.row);
-        if (gameIndex >= 0 && games[gameIndex]) {
-            const game = games[gameIndex];
-            const selected = game.id === selectedGameId;
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "game-catalog-card honeycomb-game-button";
-            button.dataset.gameId = game.id;
-            button.setAttribute("aria-pressed", String(selected));
-            button.classList.toggle("is-selected", selected);
-            button.style.gridColumn = String(cell.column + 1);
-            button.style.gridRow = String(cell.row + 1);
-            button.style.setProperty("--hex-y-offset", cell.column % 2 ? "43px" : "0px");
-            const name = document.createElement("strong");
-            name.className = "game-catalog-name";
-            name.textContent = game.name;
-            const range = document.createElement("span");
-            range.className = "game-catalog-player-count";
-            range.textContent = "Min. " + game.minPlayers + " · Maks. " + game.maxPlayers + " oyuncu";
-            button.append(name, range);
-            grid.appendChild(button);
-            return;
-        }
+    const placeholderCells = new Set(["0:2", "0:3", "1:1", "1:2", "1:3"]);
+    rows.forEach((row, rowIndex) => {
+        for (let column = 0; column < row.count; column++) {
+            const cellKey = rowIndex + ":" + column;
+            const game = rowIndex === 0 ? games[column] : null;
+            if (game) {
+                const selected = game.id === selectedGameId;
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "game-catalog-card honeycomb-game-button";
+                button.dataset.gameId = game.id;
+                button.setAttribute("aria-pressed", String(selected));
+                button.classList.toggle("is-selected", selected);
+                button.style.gridColumn = String(column + 1 + row.offset);
+                button.style.gridRow = String(rowIndex + 1);
+                const name = document.createElement("strong");
+                name.className = "game-catalog-name";
+                name.textContent = game.name;
+                const range = document.createElement("span");
+                range.className = "game-catalog-player-count";
+                range.textContent = "Min. " + game.minPlayers + " · Maks. " + game.maxPlayers + " oyuncu";
+                button.append(name, range);
+                grid.appendChild(button);
+                continue;
+            }
 
-        const tile = document.createElement("div");
-        const isPlaceholder = placeholderSlots.some((slot) => slot.column === cell.column && slot.row === cell.row);
-        tile.className = isPlaceholder ? "game-catalog-placeholder-tile" : "game-catalog-hex-cell";
-        tile.style.gridColumn = String(cell.column + 1);
-        tile.style.gridRow = String(cell.row + 1);
-        tile.style.setProperty("--hex-y-offset", cell.column % 2 ? "43px" : "0px");
-        tile.setAttribute("aria-hidden", "true");
-        if (isPlaceholder) {
-            const name = document.createElement("strong");
-            name.textContent = "Yakında";
-            tile.appendChild(name);
+            if (placeholderCells.has(cellKey)) {
+                const tile = document.createElement("div");
+                tile.className = "game-catalog-placeholder-tile";
+                tile.setAttribute("aria-hidden", "true");
+                tile.style.gridColumn = String(column + 1 + row.offset);
+                tile.style.gridRow = String(rowIndex + 1);
+                const name = document.createElement("strong");
+                name.textContent = "Yakında";
+                tile.appendChild(name);
+                grid.appendChild(tile);
+            }
         }
-        grid.appendChild(tile);
     });
 
     const selected = games.find((game) => game.id === selectedGameId);
