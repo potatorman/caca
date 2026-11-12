@@ -5498,6 +5498,15 @@ onAuthStateChanged(auth, async (user) => {
 
     if (!user) {
         stopMemberListener();
+        if (unsubscribeGameSession) unsubscribeGameSession();
+        unsubscribeGameSession = null;
+        gameCenterScopeListening = false;
+        activeRoomGame?.close();
+        activeRoomGame = null;
+        activeRoomGameKey = "";
+        gameSessionsById = new Map();
+        gameSessionData = null;
+        activeGameLobbyId = "";
 
         currentUser = null;
         jumpscareLibraryLoadedFor = null;
