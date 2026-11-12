@@ -6656,3 +6656,22 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .workspace-layout.is-games-workspace .games-view::after { animation: none; opacity: .16; }
 }
 
+
+
+/* Full-bleed Games backdrop: keep the dashboard navigation/header untouched. */
+.workspace-layout.is-games-workspace .games-view {
+    box-sizing: border-box;
+    width: 100vw;
+    max-width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    min-height: calc(100vh - 110px);
+}
+.workspace-layout.is-games-workspace .games-view::before,
+.workspace-layout.is-games-workspace .games-view::after {
+    inset: 0;
+}
+.workspace-layout.is-games-workspace .games-workspace {
+    width: min(100%, 1500px);
+    margin-inline: auto;
+}
