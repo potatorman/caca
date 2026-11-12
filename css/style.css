@@ -6880,3 +6880,44 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
         width: auto;
     }
 }
+
+
+/* Final Games create-lobby layout override (wins over legacy room styles). */
+.workspace-layout.is-games-workspace #gameCenterEmptyState {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: max(520px, calc(100dvh - 250px)) !important;
+    box-sizing: border-box;
+    padding-bottom: 24px !important;
+}
+.workspace-layout.is-games-workspace #gameCenterEmptyState .game-catalog-grid {
+    flex: 0 0 auto;
+}
+.workspace-layout.is-games-workspace #gameCenterEmptyState .game-create-controls {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    flex-wrap: nowrap !important;
+    gap: 14px !important;
+    width: 100%;
+    margin-top: auto !important;
+    padding-top: 24px !important;
+}
+.workspace-layout.is-games-workspace #gameCenterEmptyState .game-create-options {
+    display: flex !important;
+    align-items: flex-end !important;
+    flex-wrap: wrap;
+    gap: 18px;
+    width: 100%;
+}
+.workspace-layout.is-games-workspace #gameCenterEmptyState .game-create-button,
+.workspace-layout.is-games-workspace #gameCenterEmptyState > #createGameSessionButton {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    width: 100% !important;
+    min-height: 48px !important;
+    height: auto !important;
+    box-sizing: border-box;
+    margin: 0 !important;
+}
