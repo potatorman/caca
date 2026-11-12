@@ -6610,3 +6610,37 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
         grid-template-columns: repeat(3, minmax(150px, 1fr));
     }
 }
+
+
+/* Real honeycomb game selector: flat-sided hexagons, edge-to-edge cluster. */
+.game-catalog-grid {
+ display:grid !important; grid-template-columns:repeat(7, 81px) !important; grid-template-rows:repeat(7, 47px) !important;
+ grid-auto-flow:unset !important; gap:0 !important; width:max-content; max-width:none; min-height:376px;
+ margin:14px 0 0; padding:0; overflow:visible; align-items:stretch; justify-items:stretch;
+}
+.game-catalog-grid > .honeycomb-game-button, .game-catalog-grid > .game-catalog-placeholder-tile, .game-catalog-grid > .game-catalog-hex-cell {
+ position:relative; grid-column:calc(var(--hex-column) + 1); grid-row:calc(var(--hex-row) + 1);
+ width:108px; height:94px; min-height:0; margin:0; padding:0 15px; border:0; border-radius:0;
+ clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+ background:#345477; box-shadow:none; transform:none !important; overflow:hidden;
+}
+.game-catalog-grid > .honeycomb-game-button::before, .game-catalog-grid > .game-catalog-placeholder-tile::before, .game-catalog-grid > .game-catalog-hex-cell::before {
+ content:""; position:absolute; inset:2px; z-index:0; clip-path:inherit; background:linear-gradient(145deg,#142b47,#102038); transition:background .18s ease;
+}
+.game-catalog-grid > .honeycomb-game-button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; color:#eef6ff; cursor:pointer; text-align:center; transition:filter .18s ease; }
+.game-catalog-grid > .honeycomb-game-button .game-catalog-name, .game-catalog-grid > .honeycomb-game-button .game-catalog-player-count { position:relative; z-index:1; max-width:100%; text-align:center; }
+.game-catalog-grid > .honeycomb-game-button .game-catalog-name { color:#f1f7ff; font-size:13px; font-weight:850; line-height:1.15; }
+.game-catalog-grid > .honeycomb-game-button .game-catalog-player-count { color:#a9c4e3; font-size:9px; line-height:1.25; }
+.game-catalog-grid > .honeycomb-game-button:hover { background:#75aef2; filter:drop-shadow(0 0 9px rgba(62,137,238,.32)); }
+.game-catalog-grid > .honeycomb-game-button:hover::before { background:linear-gradient(145deg,#1d4269,#173454); }
+.game-catalog-grid > .honeycomb-game-button.is-selected { background:#ff7582; filter:drop-shadow(0 0 8px rgba(255,91,111,.28)); }
+.game-catalog-grid > .honeycomb-game-button.is-selected::before { background:linear-gradient(145deg,#214d79,#173654); }
+.game-catalog-grid > .honeycomb-game-button[data-game-id="vampir-koylu"] { background:#8569b4; }
+.game-catalog-grid > .honeycomb-game-button[data-game-id="vampir-koylu"]::before { background:linear-gradient(145deg,#302541,#211d32); }
+.game-catalog-grid > .honeycomb-game-button[data-game-id="vampir-koylu"].is-selected { background:#c18ce9; }
+.game-catalog-grid > .game-catalog-placeholder-tile { display:flex; align-items:center; justify-content:center; color:#8eafd4; background:#355779; opacity:.82; }
+.game-catalog-grid > .game-catalog-placeholder-tile::before { background:linear-gradient(145deg,#14263c,#101d30); }
+.game-catalog-grid > .game-catalog-placeholder-tile strong { position:relative; z-index:1; color:#86a8ce; font-size:11px; font-weight:700; }
+.game-catalog-grid > .game-catalog-hex-cell { background:rgba(75,116,162,.38); opacity:.68; pointer-events:none; }
+.game-catalog-grid > .game-catalog-hex-cell::before { background:linear-gradient(145deg,rgba(19,37,59,.9),rgba(13,27,44,.92)); }
+@media (max-width:900px) { .game-catalog-grid { transform:scale(.82); transform-origin:top left; margin-bottom:-65px; } }
