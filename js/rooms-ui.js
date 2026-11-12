@@ -1497,7 +1497,7 @@ function renderGameCatalog() {
     grid.replaceChildren(...games.map((game) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "game-catalog-choice";
+        button.className = "game-catalog-card game-catalog-choice";
         button.dataset.gameId = game.id;
         button.setAttribute("aria-pressed", String(game.id === selectedGameId));
         button.classList.toggle("is-selected", game.id === selectedGameId);
