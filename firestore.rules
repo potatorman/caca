@@ -722,7 +722,7 @@ service cloud.firestore {
               'gameId', 'gameName', 'status', 'round', 'hostId',
               'playerIds', 'readyIds', 'nextRoundPlayerIds',
               'nextRoundReadyIds', 'matchPlayerIds', 'spectatorIds', 'resultReturnIds',
-              'gameSettings', 'sessionId', 'createdAt', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+              'gameSettings', 'sessionId', 'maxPlayers', 'createdAt', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
             ])
             && data.gameId is string && data.gameId.size() >= 3 && data.gameId.size() <= 32
             && (!data.keys().hasAny(['sessionId']) || data.sessionId == null || (data.sessionId is string && data.sessionId.size() >= 16 && data.sessionId.size() <= 80 && data.sessionId.matches('^[A-Za-z0-9_-]+$')))
@@ -732,6 +732,15 @@ service cloud.firestore {
             && data.hostId is string
             && data.playerIds is list && data.playerIds.size() <= 20
             && data.playerIds.toSet().size() == data.playerIds.size()
+            && (
+              !data.keys().hasAny(['maxPlayers'])
+              || (
+                data.maxPlayers is int
+                && data.maxPlayers >= (data.gameId == 'vampir-koylu' ? 5 : 2)
+                && data.maxPlayers <= (data.gameId == 'uno' ? 10 : (data.gameId == 'vampir-koylu' ? 12 : 20))
+                && data.playerIds.size() <= data.maxPlayers
+              )
+            )
             && (
               !vampirBotFillEnabled(data)
               || data.playerIds.size() <= vampirTargetPlayerCount(data)
