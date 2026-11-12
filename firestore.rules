@@ -557,7 +557,27 @@ service cloud.firestore {
             && newList.hasAny([request.auth.uid]);
         }
 
-        // Vampir Köylü-specific self-service rules. These deliberately do not
+        function validVampirSessionId(value) {
+        return value is string
+          && value.size() >= 16
+          && value.size() <= 80
+          && value.matches('^[A-Za-z0-9_-]+$');
+      }
+
+      function canMigrateLegacyVampirSession() {
+        return resource.data.gameId == 'vampir-koylu'
+          && resource.data.status == 'lobby'
+          && request.resource.data.status == 'lobby'
+          && resource.data.get('sessionId', null) == null
+          && validVampirSessionId(request.resource.data.get('sessionId', null))
+          && request.auth.uid == resource.data.hostId
+          && request.resource.data.hostId == resource.data.hostId
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['sessionId', 'updatedAt'])
+          && request.resource.data.updatedAt is timestamp;
+      }
+
+      // Vampir Köylü-specific self-service rules. These deliberately do not
         // apply to UNO; UNO keeps its original membership and lifecycle rules.
         function canSelfToggleVampirReady() {
           return signedIn()
@@ -1035,8 +1055,10 @@ service cloud.firestore {
           && request.resource.data.gameId == resource.data.gameId
           && request.resource.data.gameName == resource.data.gameName
           && request.resource.data.createdAt == resource.data.createdAt
-          && request.resource.data.get('sessionId', null) == resource.data.get('sessionId', null)
+          && (request.resource.data.get('sessionId', null) == resource.data.get('sessionId', null) || canMigrateLegacyVampirSession())
           && (
+            canMigrateLegacyVampirSession()
+            || (
             // The settings write is host-only and intentionally evaluated first.
             (
               resource.data.gameId == 'vampir-koylu'
@@ -1537,6 +1559,7 @@ service cloud.firestore {
                 || spectators(resource.data).size() > spectators(request.resource.data).size()
                 || request.resource.data.hostId != resource.data.hostId
               )
+            )
             )
           );
 
