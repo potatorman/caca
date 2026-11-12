@@ -6153,3 +6153,256 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .game-catalog-card { min-height: 136px; padding: 12px; }
     .game-catalog-name { font-size: 16px; }
 }
+
+
+/* ==========================================================
+   CACA GAME ARENA — a new spatial system, not resized cards
+   ========================================================== */
+.game-center-panel {
+    padding: clamp(12px, 2.2vw, 26px);
+    background: rgba(3, 8, 18, .84);
+    backdrop-filter: blur(18px);
+}
+.game-center-panel .game-center-card {
+    width: min(1040px, 100%);
+    max-height: min(92dvh, 980px);
+    padding: clamp(18px, 3.2vw, 34px);
+    overflow: auto;
+    color: #eef5ff;
+    background:
+        radial-gradient(ellipse at 76% 8%, rgba(47, 111, 215, .18), transparent 34%),
+        linear-gradient(145deg, #0d1b31 0%, #0a1425 55%, #08111f 100%);
+    border: 1px solid rgba(101, 151, 218, .28);
+    border-radius: 22px;
+    box-shadow: 0 34px 100px rgba(0, 0, 0, .64);
+}
+.arena-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; padding-bottom:20px; }
+.arena-kicker,.arena-stage-label,.arena-section-kicker,.game-catalog-eyebrow { color:#79b5ff; font-size:9px; font-weight:850; letter-spacing:.2em; }
+.arena-kicker { display:flex; align-items:center; gap:9px; }
+.arena-kicker i,.arena-live-mark i { width:6px; height:6px; display:inline-block; border-radius:50%; background:#57d9b0; box-shadow:0 0 12px #57d9b0; }
+.arena-heading h3 { margin:9px 0 5px; color:#f3f8ff; font-size:clamp(25px,4vw,39px); font-weight:850; letter-spacing:-.06em; }
+.arena-heading p { margin:0; color:#9db2ce; font-size:12px; }
+.arena-heading-side { display:flex; align-items:center; gap:15px; }
+.arena-live-mark { display:flex; align-items:center; gap:8px; padding:8px 10px; color:#a8c4e7; background:rgba(83,132,196,.1); border:1px solid rgba(110,158,220,.18); border-radius:99px; font-size:8px; font-weight:850; letter-spacing:.13em; white-space:nowrap; }
+.arena-heading .icon-button { flex:0 0 auto; }
+.arena-stage { position:relative; display:flex; min-height:205px; align-items:center; justify-content:space-between; gap:20px; margin:0 0 28px; padding:clamp(22px,4vw,38px); overflow:hidden; isolation:isolate; background:linear-gradient(105deg,#132c4d 0%,#102442 46%,#0e1d34 100%); border:1px solid rgba(99,153,220,.26); border-radius:17px; }
+.arena-stage::before { content:""; position:absolute; inset:0; z-index:-2; opacity:.4; background-image:linear-gradient(rgba(137,180,231,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(137,180,231,.08) 1px,transparent 1px); background-size:28px 28px; mask-image:linear-gradient(90deg,black,transparent 85%); }
+.arena-stage::after { content:""; position:absolute; width:360px; height:360px; right:8%; top:-245px; border:1px solid rgba(123,178,244,.22); border-radius:50%; box-shadow:0 0 0 34px rgba(94,151,221,.035),0 0 0 70px rgba(94,151,221,.025),0 0 0 108px rgba(94,151,221,.018); }
+.arena-stage-copy { position:relative; z-index:2; }
+.arena-stage-copy strong { display:block; margin:10px 0 13px; color:#f2f7ff; font-size:clamp(25px,4vw,39px); line-height:.98; letter-spacing:-.065em; }
+.arena-stage-copy strong em { color:#75b7ff; font-style:normal; }
+.arena-stage-foot { color:#8faed2; font-size:8px; font-weight:800; letter-spacing:.17em; }
+.arena-stage-mark { position:relative; z-index:1; display:grid; width:150px; height:150px; flex:0 0 150px; place-items:center; color:#d9ebff; background:linear-gradient(145deg,rgba(112,170,242,.22),rgba(49,104,177,.04)); border:1px solid rgba(141,190,245,.3); border-radius:50%; box-shadow:0 0 0 14px rgba(100,157,225,.045),0 0 65px rgba(64,137,220,.17); }
+.arena-stage-mark span { font-size:58px; font-weight:900; letter-spacing:-.12em; }
+.arena-stage-mark i,.arena-stage-mark b { position:absolute; display:block; border:1px solid rgba(140,192,249,.4); border-radius:50%; transform:rotate(-28deg); }
+.arena-stage-mark i { width:205px; height:62px; }
+.arena-stage-mark b { width:62px; height:205px; }
+.arena-stage-orbit { position:absolute; border:1px solid rgba(119,174,238,.14); border-radius:50%; pointer-events:none; }
+.arena-stage-orbit-one { width:250px; height:250px; right:4%; top:-115px; }
+.arena-stage-orbit-two { width:320px; height:320px; right:1%; top:-150px; }
+.game-center-empty { display:block; padding:0; }
+.game-catalog-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:15px; margin:0 0 14px; }
+.game-catalog-heading strong { display:block; margin-top:7px; color:#edf5ff; font-size:18px; font-weight:850; letter-spacing:-.04em; }
+.game-catalog-heading p { margin:4px 0 0; color:#8fa6c4; font-size:11px; }
+.arena-game-count { color:#d9eaff; font-size:19px; font-weight:900; letter-spacing:-.06em; }
+.arena-game-count i { margin-left:4px; color:#7894b8; font-size:8px; font-style:normal; letter-spacing:.16em; }
+.game-catalog-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; margin:0; }
+.game-catalog-card.arena-game-choice { position:relative; display:grid; grid-template-columns:42% minmax(0,1fr); min-height:225px; gap:0; padding:0; overflow:hidden; text-align:left; isolation:isolate; background:#10213a; border:1px solid rgba(122,163,214,.24); border-radius:15px; box-shadow:0 12px 28px rgba(0,0,0,.18); transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease; }
+.game-catalog-card.arena-game-choice:hover:not(:disabled) { transform:translateY(-4px); border-color:rgba(129,184,247,.65); box-shadow:0 20px 38px rgba(0,0,0,.3); }
+.game-catalog-card.arena-game-choice.is-selected { border-color:#78b9ff; box-shadow:inset 0 0 0 1px rgba(120,185,255,.24),0 0 0 3px rgba(83,151,225,.1),0 18px 35px rgba(0,0,0,.24); }
+.game-catalog-card.arena-game-choice:focus-visible { outline:3px solid #8bc5ff; outline-offset:4px; }
+.game-catalog-art { position:relative; display:block; min-height:100%; overflow:hidden; background:linear-gradient(150deg,#173c68,#10233d); }
+.game-catalog-art::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(7,18,32,.2)),radial-gradient(circle at 50% 45%,rgba(109,176,255,.2),transparent 62%); }
+.game-catalog-card[data-game-id="vampir-koylu"] .game-catalog-art { background:linear-gradient(155deg,#172e50,#0c1a30); }
+.game-catalog-card[data-game-id="vampir-koylu"] .game-catalog-art::before { background:radial-gradient(circle at 62% 24%,rgba(135,177,235,.2),transparent 34%),linear-gradient(180deg,transparent 45%,rgba(5,12,25,.75)); }
+.game-catalog-content { display:flex; min-width:0; flex-direction:column; align-items:flex-start; padding:19px 17px 15px; }
+.game-catalog-card-top { display:flex; width:100%; align-items:center; justify-content:space-between; gap:8px; margin:0 0 17px; }
+.game-catalog-eyebrow { color:#83b9f2; font-size:7px; letter-spacing:.13em; }
+.game-catalog-status { padding:5px 7px; color:#8de2c3; background:rgba(58,181,140,.09); border:1px solid rgba(93,211,170,.18); border-radius:99px; font-size:7px; font-weight:850; letter-spacing:.06em; white-space:nowrap; }
+.game-catalog-name { display:block; color:#f1f6ff; font-size:clamp(18px,2vw,23px); font-weight:900; line-height:1.05; letter-spacing:-.055em; }
+.game-catalog-description { display:block; margin-top:9px; color:#a2b5cf; font-size:10px; line-height:1.6; }
+.game-catalog-details { display:flex; width:100%; align-items:center; justify-content:space-between; gap:7px; margin-top:auto; padding-top:13px; border-top:1px solid rgba(151,183,222,.14); }
+.game-catalog-player-count { color:#8ca8ca; font-size:8px; font-weight:850; letter-spacing:.1em; }
+.game-catalog-select-label { color:#8fc4ff; font-size:8px; font-weight:900; letter-spacing:.08em; white-space:nowrap; }
+.game-catalog-card.is-selected .game-catalog-select-label { color:#b8e8d9; }
+.game-catalog-art .uno-art-card { position:absolute; display:grid; width:62px; height:92px; place-items:center; border:4px solid #f5f8ff; border-radius:12px; color:white; font-size:31px; font-weight:950; text-shadow:0 2px 4px rgba(0,0,0,.28); box-shadow:0 14px 28px rgba(0,0,0,.3); }
+.uno-art-red { left:18%; top:27%; background:linear-gradient(145deg,#ff596d,#c51f4b); transform:rotate(-20deg); }
+.uno-art-blue { left:39%; top:18%; background:linear-gradient(145deg,#47b7ff,#2256c8); transform:rotate(8deg); }
+.uno-art-yellow { left:56%; top:30%; color:#17315b!important; background:linear-gradient(145deg,#ffe77b,#f3ad32); transform:rotate(23deg); }
+.uno-art-glow { position:absolute; width:160px; height:160px; left:20%; bottom:-115px; border-radius:50%; background:rgba(70,158,255,.3); filter:blur(22px); }
+.vampir-art-moon { position:absolute; top:15%; right:19%; width:58px; height:58px; border-radius:50%; background:linear-gradient(140deg,#d6eaff,#6d9ed8); box-shadow:0 0 32px rgba(126,177,236,.34); }
+.vampir-art-hill { position:absolute; bottom:-34px; left:-10%; width:125%; height:100px; border-radius:50% 50% 0 0; background:linear-gradient(160deg,#1a4168,#0a192e); }
+.vampir-art-tower { position:absolute; bottom:25px; left:40%; width:34px; height:83px; background:linear-gradient(90deg,#142943,#274b70); clip-path:polygon(50% 0,100% 22%,90% 100%,10% 100%,0 22%); }
+.vampir-art-window { position:absolute; bottom:63px; left:calc(40% + 12px); width:9px; height:13px; background:#f0c87c; box-shadow:0 0 12px #f0c87c; }
+.vampir-art-star { position:absolute; top:22%; left:19%; width:3px; height:3px; border-radius:50%; background:#e6f3ff; box-shadow:34px 23px 0 #b8d9ff,58px -10px 0 #d4e6ff,92px 33px 0 #c2dbfa; }
+.arena-create-row { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:16px; padding-top:15px; border-top:1px solid rgba(143,174,213,.13); }
+.game-catalog-note { margin:0; color:#8fa5c0; font-size:10px; line-height:1.5; }
+#gameCenterEmptyState > #createGameSessionButton { display:flex; min-height:44px; align-items:center; justify-content:center; gap:18px; padding:11px 17px; color:#07182b; background:linear-gradient(110deg,#a4d3ff,#69b4ff); border:1px solid rgba(191,222,255,.65); border-radius:9px; box-shadow:0 8px 24px rgba(66,148,231,.18); font-size:11px; font-weight:900; transition:transform .18s ease,filter .18s ease; }
+#gameCenterEmptyState > #createGameSessionButton:hover:not(:disabled) { transform:translateY(-2px); filter:brightness(1.06); }
+#gameCenterEmptyState > #createGameSessionButton:disabled { opacity:.48; cursor:not-allowed; }
+.game-center-status { min-height:18px; margin:14px 0 0; color:#a9c9ed; font-size:11px; line-height:1.55; }
+.game-center-status.error { color:#ff9eae; }
+.game-session-content { margin-top:8px; padding-top:19px; border-top:1px solid rgba(143,174,213,.15); }
+.arena-lobby-banner { position:relative; display:flex; align-items:center; gap:17px; padding:19px; overflow:hidden; background:linear-gradient(105deg,#16385e,#102744 62%,#10213a); border:1px solid rgba(113,169,232,.24); border-radius:14px; }
+.arena-lobby-banner::after { content:""; position:absolute; width:180px; height:180px; right:-50px; top:-105px; border:1px solid rgba(151,196,247,.2); border-radius:50%; box-shadow:0 0 0 25px rgba(151,196,247,.035),0 0 0 52px rgba(151,196,247,.025); }
+.arena-lobby-symbol { display:grid; width:54px; height:54px; flex:0 0 54px; place-items:center; color:#b9dcff; background:rgba(111,173,241,.14); border:1px solid rgba(151,196,247,.25); border-radius:13px; font-size:26px; }
+.arena-lobby-title { min-width:0; flex:1; }
+.arena-lobby-title h4 { margin:5px 0 4px; color:#f2f7ff; font-size:25px; font-weight:900; letter-spacing:-.055em; }
+.arena-lobby-title .game-session-summary { margin:0; color:#a2bbd8; font-size:10px; line-height:1.5; }
+.game-session-status { padding:7px 10px; color:#9be4c7; background:rgba(69,186,144,.1); border:1px solid rgba(95,212,170,.22); border-radius:99px; font-size:8px; font-weight:900; white-space:nowrap; }
+.game-session-status.is-playing { color:#a7ceff; background:rgba(84,151,229,.12); border-color:rgba(108,169,239,.25); }
+.game-session-status.is-starting { color:#f4d48d; background:rgba(223,173,72,.1); border-color:rgba(223,173,72,.25); }
+.game-session-status.is-results { color:#d5c2ff; background:rgba(147,117,218,.1); border-color:rgba(166,139,231,.25); }
+.arena-lobby-meta { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 3px 17px; }
+.game-session-hostline { display:flex; align-items:center; gap:9px; margin:0; padding:0; border:0; }
+.game-session-hostline span { color:#7895b8; font-size:8px; font-weight:850; letter-spacing:.13em; }
+.game-session-hostline strong { color:#dceaff; font-size:11px; }
+.game-bot-lobby-preview { margin:0; color:#a9c8ec; font-size:10px; }
+.arena-roster-layout { display:grid; grid-template-columns:1.4fr 1fr; gap:12px; }
+.game-session-list-section { min-width:0; padding:15px; background:rgba(16,34,58,.72); border:1px solid rgba(124,164,211,.17); border-radius:12px; }
+.game-session-list-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:11px; }
+.game-session-list-heading strong { color:#e5f0ff; font-size:11px; font-weight:850; }
+.game-session-list-heading > span { color:#86b8ee; font-size:10px; font-weight:900; }
+.game-session-member-list { display:grid; gap:7px; }
+.game-session-member { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 10px; background:rgba(107,151,205,.07); border:1px solid rgba(127,168,215,.12); border-radius:8px; }
+.game-session-member > span:first-child { color:#dceaff; font-size:10px; font-weight:700; }
+.game-session-member-state { color:#8fbae9; font-size:8px; font-weight:800; }
+.game-session-empty { color:#829bb9; font-size:10px; }
+.game-session-bot-seat { background:rgba(118,133,201,.08); border-style:dashed; }
+.game-session-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
+.game-session-actions button { min-height:40px; flex:1 1 145px; border-radius:9px; font-size:10px; font-weight:850; }
+.game-session-actions .primary-button { color:#07182b; background:linear-gradient(110deg,#a4d3ff,#69b4ff); border:1px solid rgba(191,222,255,.6); }
+.game-session-actions .secondary-button { color:#c5dcf7; background:rgba(104,150,205,.1); border:1px solid rgba(125,171,225,.24); }
+.game-session-actions .danger-button { color:#ffb4bf; background:rgba(194,70,93,.1); border:1px solid rgba(218,102,124,.25); }
+.game-engine-note { margin:13px 0 0; color:#7892b2; font-size:9px; line-height:1.55; }
+.game-lobby-settings-card { color:#eaf3ff; background:linear-gradient(150deg,#142a46,#0d1b30); border-color:rgba(120,169,226,.25); border-radius:14px; }
+.game-lobby-settings-heading h4 { color:#f2f7ff; }
+.game-lobby-settings-heading p,.game-bot-toggle small { color:#9bb1cd; }
+.game-bot-toggle { background:rgba(109,155,208,.08); border-color:rgba(122,169,221,.18); }
+.game-bot-toggle strong,.game-bot-target-field { color:#e2efff; }
+.game-bot-target-field select { color:#eaf3ff; background:#0b192b; border-color:rgba(127,171,222,.24); }
+
+/* UNO table: felt-blue arena, floating cards, compact player rail */
+.uno-overlay { padding:clamp(10px,2vw,24px); background:rgba(3,8,17,.9); backdrop-filter:blur(16px); }
+.uno-shell { width:min(1180px,100%); max-height:94dvh; overflow:auto; padding:clamp(17px,2.6vw,28px); color:#edf5ff; background:radial-gradient(ellipse at 50% 48%,rgba(46,122,197,.18),transparent 45%),linear-gradient(145deg,#0e2038,#091524); border:1px solid rgba(105,161,220,.27); border-radius:21px; box-shadow:0 30px 100px rgba(0,0,0,.62); }
+.uno-header { align-items:center; padding-bottom:15px; border-bottom:1px solid rgba(142,181,224,.16); }
+.uno-eyebrow { color:#80baff; font-size:8px; font-weight:900; letter-spacing:.2em; }
+.uno-header h2 { color:#f2f7ff; font-size:clamp(25px,4vw,36px); font-weight:950; letter-spacing:-.06em; }
+.uno-header-status { color:#9bb5d3; font-size:11px; }
+.uno-close { color:#d5e7fb; background:rgba(107,155,207,.1); border:1px solid rgba(136,180,229,.23); border-radius:10px; }
+.uno-board { gap:15px; }
+.uno-players { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+.uno-player { min-width:145px; padding:9px 11px; background:rgba(20,48,77,.78); border:1px solid rgba(122,170,218,.19); border-radius:10px; }
+.uno-player.is-current { background:rgba(38,91,139,.42); border-color:#80baff; box-shadow:0 0 0 2px rgba(111,178,242,.1),0 0 22px rgba(67,143,213,.12); }
+.uno-player-details strong { color:#edf5ff; font-size:10px; }
+.uno-player-details small { color:#89a7c9; font-size:8px; }
+.uno-player-turn { color:#a9d6ff; font-size:8px; }
+.uno-table { position:relative; min-height:300px; padding:26px; background:radial-gradient(ellipse at center,rgba(56,137,194,.28),transparent 65%),linear-gradient(135deg,#123d5b,#0c2a43 60%,#102b45); border:9px solid #1b4770; border-radius:48% / 38%; box-shadow:inset 0 0 0 2px rgba(142,201,245,.14),inset 0 0 45px rgba(0,0,0,.24),0 18px 35px rgba(0,0,0,.26); }
+.uno-turn-pill { color:#d9efff; background:rgba(7,21,37,.68); border:1px solid rgba(135,191,239,.25); border-radius:99px; font-size:9px; font-weight:900; }
+.uno-active-color,.uno-direction { color:#a8c7e5; font-size:9px; }
+.uno-message { color:#b7e9d4; font-size:10px; }
+.uno-hand-area { padding:15px; background:rgba(18,39,64,.72); border:1px solid rgba(117,164,211,.19); border-radius:13px; }
+.uno-hand-heading { color:#dbeaff; }
+.uno-hand-heading span { color:#8faecc; }
+.uno-hand-viewport { border-radius:10px; }
+.uno-card { border:3px solid rgba(245,249,255,.94); border-radius:11px; box-shadow:0 9px 20px rgba(0,0,0,.25); }
+.uno-card-red { background:linear-gradient(145deg,#ff6176,#bd264b); }
+.uno-card-yellow { color:#182b48; background:linear-gradient(145deg,#ffe77d,#edac32); }
+.uno-card-green { background:linear-gradient(145deg,#4ed8aa,#138c70); }
+.uno-card-blue { background:linear-gradient(145deg,#56baff,#2457c8); }
+.uno-card-wild { background:conic-gradient(#ed4359 0 25%,#f3d34b 0 50%,#38b987 0 75%,#398be5 0); }
+.uno-controls button { min-height:42px; border-radius:9px; font-size:10px; font-weight:900; }
+.uno-primary { color:#07182b; background:linear-gradient(110deg,#a7d5ff,#69b4ff); border:1px solid rgba(194,224,255,.55); }
+.uno-secondary { color:#d2e6fb; background:rgba(104,151,207,.12); border:1px solid rgba(126,174,225,.24); }
+.uno-color-card,.uno-result-card { color:#edf5ff; background:linear-gradient(150deg,#173453,#0c1a2c); border:1px solid rgba(132,181,232,.28); border-radius:17px; }
+.uno-color-card h3,.uno-result-card h2 { color:#f2f7ff; }
+.uno-color-card p,.uno-result-hint { color:#a0b7d2; }
+.uno-result-row { color:#e1efff; border-color:rgba(130,173,218,.2); }
+
+/* Vampir Köylü: midnight-blue village, moonlit phase stage and tactical panels */
+.vampir-overlay { padding:clamp(10px,2vw,24px); background:rgba(3,8,17,.91); backdrop-filter:blur(16px); }
+.vampir-shell { width:min(1220px,100%); max-height:94dvh; overflow:auto; padding:clamp(17px,2.6vw,28px); color:#eaf3ff; background:radial-gradient(ellipse at 82% 5%,rgba(83,126,193,.16),transparent 35%),linear-gradient(145deg,#0d1c31,#091423); border:1px solid rgba(113,159,216,.26); border-radius:21px; box-shadow:0 30px 100px rgba(0,0,0,.65); }
+.vampir-header { padding-bottom:15px; border-bottom:1px solid rgba(131,171,219,.16); }
+.vampir-eyebrow,.vampir-section-label { color:#83baff; font-size:8px; font-weight:900; letter-spacing:.19em; }
+.vampir-header h2 { color:#f0f6ff; font-size:clamp(25px,4vw,36px); font-weight:950; letter-spacing:-.06em; }
+.vampir-status { color:#9bb3d0; font-size:11px; }
+.vampir-close { color:#d9eaff; background:rgba(105,151,204,.1); border:1px solid rgba(128,174,224,.24); border-radius:10px; }
+.vampir-layout { gap:15px; }
+.vampir-sidebar { gap:13px; }
+.vampir-role-card,.vampir-player-panel,.vampir-phase-card,.vampir-action-card,.vampir-chat-note,.vampir-chat-card { color:#e9f3ff; background:linear-gradient(145deg,rgba(22,47,77,.94),rgba(13,29,49,.96)); border:1px solid rgba(120,165,215,.2); border-radius:13px; box-shadow:0 12px 26px rgba(0,0,0,.15); }
+.vampir-role-card { padding:18px; }
+.vampir-role-card > strong { color:#f3f8ff; font-size:27px; font-weight:900; letter-spacing:-.05em; }
+.vampir-role-card > p { color:#a9bfd9; font-size:11px; line-height:1.6; }
+.vampir-role-card.is-vampire { background:linear-gradient(145deg,#26344f,#14243b); border-color:rgba(131,157,211,.34); }
+.vampir-role-card.is-doctor { background:linear-gradient(145deg,#183d4a,#112b3b); }
+.vampir-role-card.is-villager { background:linear-gradient(145deg,#1b3c58,#11253c); }
+.vampir-player { padding:9px; background:rgba(101,148,200,.08); border:1px solid rgba(123,166,211,.16); border-radius:9px; }
+.vampir-player.is-you { background:rgba(73,133,194,.17); border-color:#75b6f3; }
+.vampir-player-details strong { color:#eaf4ff; font-size:10px; }
+.vampir-player-details small { color:#90abc9; font-size:8px; }
+.vampir-player-marker { color:#71d8b4; }
+.vampir-player.is-dead .vampir-player-marker { color:#7890ae; }
+.vampir-phase-card { position:relative; padding:clamp(20px,3vw,30px); overflow:hidden; background:radial-gradient(circle at 88% 15%,rgba(123,173,231,.22),transparent 28%),linear-gradient(120deg,#15395e,#102745 62%,#0e1e34); }
+.vampir-phase-card::after { content:""; position:absolute; right:8%; top:-70px; width:170px; height:170px; border:1px solid rgba(161,201,246,.22); border-radius:50%; box-shadow:0 0 0 22px rgba(161,201,246,.04),0 0 0 45px rgba(161,201,246,.025); }
+.vampir-phase-badge { color:#a9d3ff; background:rgba(99,160,224,.13); border:1px solid rgba(133,184,237,.26); border-radius:99px; font-size:8px; letter-spacing:.13em; }
+.vampir-day-count,.vampir-timer { color:#a8c3e2; font-size:9px; }
+.vampir-phase-title { color:#f0f7ff; font-size:clamp(26px,3.5vw,39px); font-weight:950; letter-spacing:-.06em; }
+.vampir-public-message { color:#a9c3e0; font-size:11px; line-height:1.6; }
+.vampir-action-card { padding:18px; }
+.vampir-target-button { color:#d9eaff; background:rgba(91,143,198,.1); border:1px solid rgba(122,171,220,.22); border-radius:9px; font-size:10px; }
+.vampir-target-button:hover:not(:disabled) { background:rgba(95,157,222,.2); border-color:#80baff; }
+.vampir-target-button.is-selected { color:#07182b; background:#91c8ff; border-color:#b9ddff; }
+.vampir-hint,.vampir-chat-heading > span,.vampir-chat-note p { color:#8faaca; font-size:9px; }
+.vampir-chat-card { padding:17px; }
+.vampir-chat-heading strong { color:#e8f3ff; }
+.vampir-chat-messages { background:rgba(5,15,27,.72); border:1px solid rgba(119,164,213,.14); border-radius:9px; }
+.vampir-chat-message > p { color:#dbeaff; background:rgba(57,99,145,.2); border:1px solid rgba(117,163,211,.13); border-radius:9px; }
+.vampir-chat-message.is-you > p { background:rgba(42,117,133,.2); border-color:rgba(94,189,183,.22); }
+.vampir-chat-form input { color:#eaf4ff; background:#091727; border:1px solid rgba(126,171,219,.25); border-radius:8px; }
+.vampir-primary { color:#07182b; background:linear-gradient(110deg,#a7d5ff,#69b4ff); border:1px solid rgba(194,224,255,.55); border-radius:9px; font-weight:900; }
+.vampir-result-card { color:#eaf3ff; background:linear-gradient(150deg,#173453,#0c1a2c); border:1px solid rgba(132,181,232,.28); border-radius:17px; }
+.vampir-result-card h2 { color:#f3f8ff; }
+.vampir-result-card > p { color:#a9bfd9; }
+.vampir-result-role { color:#e4f0ff; background:rgba(93,140,190,.14); border:1px solid rgba(128,172,217,.18); border-radius:8px; }
+.vampir-result-role strong { color:#91c8ff; }
+
+@media (max-width:760px) {
+    .game-center-panel { padding:0; }
+    .game-center-panel .game-center-card { width:100%; max-height:100dvh; min-height:100dvh; padding:17px 14px; border-radius:0; }
+    .arena-stage { min-height:165px; padding:21px; }
+    .arena-stage-mark { width:105px; height:105px; flex-basis:105px; }
+    .arena-stage-mark span { font-size:43px; }
+    .arena-stage-mark i { width:145px; height:45px; }
+    .arena-stage-mark b { width:45px; height:145px; }
+    .game-catalog-grid { grid-template-columns:1fr; gap:10px; }
+    .game-catalog-card.arena-game-choice { min-height:190px; grid-template-columns:37% minmax(0,1fr); }
+    .game-catalog-content { padding:15px 13px 12px; }
+    .game-catalog-card-top { margin-bottom:11px; }
+    .game-catalog-description { font-size:9px; }
+    .arena-create-row { align-items:stretch; flex-direction:column; }
+    #gameCenterEmptyState > #createGameSessionButton { width:100%; }
+    .arena-roster-layout { grid-template-columns:1fr; }
+    .arena-lobby-meta { align-items:flex-start; flex-direction:column; }
+    .vampir-layout { grid-template-columns:1fr; }
+}
+@media (max-width:460px) {
+    .arena-heading { gap:8px; }
+    .arena-heading-side { gap:7px; }
+    .arena-live-mark { display:none; }
+    .arena-stage-mark { width:82px; height:82px; flex-basis:82px; }
+    .arena-stage-mark span { font-size:34px; }
+    .arena-stage-mark i { width:116px; height:37px; }
+    .arena-stage-mark b { width:37px; height:116px; }
+    .arena-stage-foot { font-size:7px; }
+    .game-catalog-card.arena-game-choice { min-height:176px; grid-template-columns:34% minmax(0,1fr); }
+    .game-catalog-art .uno-art-card { width:42px; height:64px; border-width:3px; border-radius:8px; font-size:22px; }
+    .game-catalog-eyebrow { font-size:6px; }
+    .game-catalog-status { font-size:6px; padding:4px 5px; }
+    .game-catalog-name { font-size:17px; }
+    .game-catalog-details { gap:4px; }
+    .game-catalog-player-count,.game-catalog-select-label { font-size:7px; }
+    .uno-overlay,.vampir-overlay { padding:0; }
+    .uno-shell,.vampir-shell { width:100%; max-height:100dvh; min-height:100dvh; padding:14px 12px; border-radius:0; }
+    .uno-table { min-height:220px; border-width:6px; border-radius:28px; padding:12px 6px; }
+    .vampir-layout { gap:10px; }
+}
