@@ -6698,3 +6698,112 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     padding-top: 24px;
     padding-bottom: 0;
 }
+
+
+/* CACA global game lobby controls and unified navy/blue game tables. */
+.workspace-layout.is-games-workspace .game-create-controls {
+    display: grid;
+    grid-template-columns: minmax(150px, 210px) minmax(220px, 300px) minmax(180px, auto);
+    align-items: end;
+    gap: 12px;
+}
+.workspace-layout.is-games-workspace .game-max-players-field,
+.workspace-layout.is-games-workspace .game-password-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 7px;
+    margin: 0;
+    color: #a9c4e3;
+    font-size: 11px;
+    font-weight: 750;
+}
+.workspace-layout.is-games-workspace .game-password-field small {
+    color: #7899bd;
+    font-size: 10px;
+    font-weight: 550;
+}
+.workspace-layout.is-games-workspace .game-max-players-field select,
+.workspace-layout.is-games-workspace .game-password-field input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 42px;
+    padding: 0 12px;
+    color: #edf6ff;
+    background: #101f33;
+    border: 1px solid rgba(105, 158, 213, .38);
+    border-radius: 9px;
+    outline: none;
+    font: inherit;
+    font-size: 12px;
+}
+.workspace-layout.is-games-workspace .game-password-field input::placeholder { color: #6683a4; }
+.workspace-layout.is-games-workspace .game-max-players-field select:focus,
+.workspace-layout.is-games-workspace .game-password-field input:focus {
+    border-color: #69adf4;
+    box-shadow: 0 0 0 3px rgba(73, 151, 231, .15);
+}
+.workspace-layout.is-games-workspace .game-create-button {
+    min-height: 42px;
+    height: 42px;
+    padding: 0 18px;
+    border-radius: 9px;
+    white-space: nowrap;
+}
+.uno-shell {
+    color: #edf5ff;
+    background:
+        radial-gradient(ellipse at 50% 35%, rgba(35, 91, 145, .24), transparent 52%),
+        linear-gradient(145deg, #10243b 0%, #0b1728 58%, #091321 100%);
+    border-color: rgba(103, 157, 214, .34);
+}
+.uno-eyebrow { color: #82b9f0; }
+.uno-header-status { color: #a0bad7; }
+.uno-primary {
+    color: #f4f9ff;
+    background: linear-gradient(135deg, #287dc4, #18558f);
+    border-color: #579cde;
+}
+.uno-secondary { background: rgba(66, 123, 184, .16); border-color: rgba(111, 165, 220, .32); }
+.uno-close { background: rgba(66, 123, 184, .14); border-color: rgba(111, 165, 220, .3); }
+.vampir-shell {
+    color: #edf5ff;
+    background:
+        radial-gradient(circle at 82% 8%, rgba(39, 91, 145, .25), transparent 36%),
+        linear-gradient(145deg, #10243b, #0a1728 72%);
+    border-color: rgba(103, 157, 214, .36);
+}
+.vampir-eyebrow { color: #91c5f5; }
+.vampir-header h2 { color: #f2f7ff; }
+.vampir-status { color: #a3bbd6; }
+.vampir-close {
+    color: #eaf4ff;
+    background: rgba(66, 123, 184, .14);
+    border-color: rgba(111, 165, 220, .3);
+}
+.vampir-close:hover:not(:disabled) { background: rgba(49, 119, 190, .3); }
+.uno-primary, .uno-secondary, .uno-close,
+.vampir-shell button:not(.vampir-card),
+.vampir-shell input, .vampir-shell select, .vampir-shell textarea {
+    box-sizing: border-box;
+}
+.uno-primary, .uno-secondary,
+.vampir-shell button:not(.vampir-close) {
+    min-height: 40px;
+    border-radius: 9px;
+    font-weight: 800;
+}
+@media (max-width: 760px) {
+    .workspace-layout.is-games-workspace .game-create-controls {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .workspace-layout.is-games-workspace .game-create-button {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+}
+@media (max-width: 440px) {
+    .workspace-layout.is-games-workspace .game-create-controls { grid-template-columns: 1fr; }
+    .workspace-layout.is-games-workspace .game-create-button { grid-column: auto; }
+}
