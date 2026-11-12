@@ -6538,3 +6538,75 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 .workspace-layout.is-games-workspace .game-center-card {
     width: 100%;
 }
+
+
+/* Honeycomb preview: keep real games aligned; stagger only the second row. */
+.game-catalog-grid {
+    grid-template-columns: repeat(3, minmax(170px, 210px));
+    grid-auto-rows: 96px;
+    column-gap: 22px;
+    row-gap: 12px;
+    align-items: start;
+}
+.game-catalog-grid > .honeycomb-game-button {
+    align-self: start;
+    transform: none !important;
+}
+.game-catalog-grid > .honeycomb-game-button:hover {
+    transform: translateY(-3px) !important;
+}
+.game-catalog-grid > .game-catalog-placeholder-tile {
+    display: flex;
+    min-width: 0;
+    height: 76px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+    padding: 13px 17px;
+    color: #9eb8d6;
+    background: linear-gradient(145deg, rgba(19,43,72,.62), rgba(16,35,59,.52));
+    border: 1px dashed rgba(105,157,215,.25);
+    border-radius: 13px;
+    opacity: .72;
+}
+.game-catalog-placeholder-tile strong {
+    color: #a9c5e4;
+    font-size: 12px;
+    font-weight: 750;
+}
+.game-catalog-placeholder-tile span {
+    color: #7893b2;
+    font-size: 9px;
+    font-weight: 600;
+}
+.game-catalog-grid > .game-catalog-placeholder-tile:nth-child(3),
+.game-catalog-grid > .game-catalog-placeholder-tile:nth-child(4),
+.game-catalog-grid > .game-catalog-placeholder-tile:nth-child(5) {
+    transform: translateY(22px);
+}
+.game-catalog-grid > .game-catalog-placeholder-tile:nth-child(6) {
+    grid-column: 1;
+}
+.game-catalog-grid > .game-catalog-placeholder-tile:nth-child(7) {
+    grid-column: 3;
+}
+.game-create-controls {
+    display: flex;
+    align-items: end;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 22px;
+}
+.game-create-controls .game-max-players-field {
+    margin: 0;
+    min-height: 40px;
+}
+.game-create-controls .game-create-button {
+    min-height: 40px;
+    margin: 0;
+}
+@media (max-width: 900px) {
+    .game-catalog-grid {
+        grid-template-columns: repeat(3, minmax(150px, 1fr));
+    }
+}
