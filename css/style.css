@@ -6478,3 +6478,12 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
  .honeycomb-game-button .game-catalog-name { font-size:12px; }
  .honeycomb-game-button .game-catalog-player-count { font-size:9px; }
 }
+
+.game-catalog-note { display:none !important; }
+.arena-create-row { margin-top:0; padding-top:0; border:0; }
+.game-max-players-field { display:flex; align-items:center; gap:12px; width:max-content; max-width:100%; margin-top:22px; color:#a9bdd6; font-size:11px; font-weight:700; }
+.game-max-players-field select { min-height:34px; padding:0 30px 0 10px; color:#eaf4ff; background:#10243d; border:1px solid rgba(111,164,222,.3); border-radius:8px; font:inherit; font-size:11px; }
+@media (max-width:680px) {
+ .game-max-players-field { width:100%; justify-content:space-between; }
+ .game-max-players-field select { flex:0 0 130px; }
+}
