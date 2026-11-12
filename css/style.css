@@ -6615,14 +6615,14 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 /* Real honeycomb game selector: flat-sided hexagons, edge-to-edge cluster. */
 .game-catalog-grid {
  display:grid !important; grid-template-columns:repeat(7, 81px) !important; grid-template-rows:repeat(7, 47px) !important;
- grid-auto-flow:unset !important; gap:0 !important; width:max-content; max-width:none; min-height:376px;
+ grid-auto-flow:unset !important; gap:0 !important; width:max-content; max-width:none; min-height:400px;
  margin:14px 0 0; padding:0; overflow:visible; align-items:stretch; justify-items:stretch;
 }
 .game-catalog-grid > .honeycomb-game-button, .game-catalog-grid > .game-catalog-placeholder-tile, .game-catalog-grid > .game-catalog-hex-cell {
  position:relative; grid-column:calc(var(--hex-column) + 1); grid-row:calc(var(--hex-row) + 1);
  width:108px; height:94px; min-height:0; margin:0; padding:0 15px; border:0; border-radius:0;
  clip-path:polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
- background:#345477; box-shadow:none; transform:none !important; overflow:hidden;
+ background:#345477; box-shadow:none; transform:translateY(var(--hex-y-offset, 0px)) !important; overflow:hidden;
 }
 .game-catalog-grid > .honeycomb-game-button::before, .game-catalog-grid > .game-catalog-placeholder-tile::before, .game-catalog-grid > .game-catalog-hex-cell::before {
  content:""; position:absolute; inset:2px; z-index:0; clip-path:inherit; background:linear-gradient(145deg,#142b47,#102038); transition:background .18s ease;
