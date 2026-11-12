@@ -19,6 +19,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(userId)/rooms/$(roomId);
     }
 
+    function gameLobbyLockPath(userId) {
+      return /databases/$(database)/documents/users/$(userId)/gameState/activeLobby;
+    }
+
     function banPath(roomId, userId) {
       return /databases/$(database)/documents/rooms/$(roomId)/bans/$(userId);
     }
@@ -183,6 +187,28 @@ service cloud.firestore {
             )
           );
       }
+      // One active global lobby per account. The lock and lobby are committed together.
+      match /gameState/{stateId} {
+        allow get: if signedIn() && request.auth.uid == userId && stateId == 'activeLobby';
+        allow list: if false;
+        allow create: if signedIn()
+          && request.auth.uid == userId
+          && stateId == 'activeLobby'
+          && request.resource.data.keys().hasOnly(['lobbyId', 'gameId', 'createdAt'])
+          && request.resource.data.lobbyId is string
+          && request.resource.data.gameId is string
+          && request.resource.data.createdAt is timestamp
+          && existsAfter(/databases/$(database)/documents/rooms/global/gameSessions/$(request.resource.data.lobbyId))
+          && getAfter(/databases/$(database)/documents/rooms/global/gameSessions/$(request.resource.data.lobbyId)).data.hostId == userId;
+        allow update: if false;
+        allow delete: if signedIn()
+          && request.auth.uid == userId
+          && stateId == 'activeLobby'
+          && exists(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId))
+          && get(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId)).data.hostId == userId
+          && !existsAfter(/databases/$(database)/documents/rooms/global/gameSessions/$(resource.data.lobbyId));
+      }
+
       // Each user owns a private library of exactly three compressed images.
       match /jumpscares/{libraryId} {
         allow get: if signedIn()
@@ -1075,6 +1101,9 @@ service cloud.firestore {
         allow create: if sessionId.size() >= 16 && sessionId.size() <= 80 && sessionId.matches('^[A-Za-z0-9_-]+$')
           && isRoomMember(roomId)
           && validGameSession(request.resource.data)
+          && !exists(gameLobbyLockPath(request.auth.uid))
+          && existsAfter(gameLobbyLockPath(request.auth.uid))
+          && getAfter(gameLobbyLockPath(request.auth.uid)).data.lobbyId == sessionId
           && request.resource.data.status == 'lobby'
           && request.resource.data.hostId == request.auth.uid
           && request.resource.data.playerIds.size() == 1
