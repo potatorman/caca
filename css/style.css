@@ -5991,3 +5991,165 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 @media (prefers-reduced-motion: reduce) {
     .game-catalog-card, .uno-card, .vampir-target-button { transition: none !important; animation: none !important; }
 }
+
+
+/* Games refresh: compact blue UI aligned with the CACA room interface */
+.game-center-panel {
+    background: rgba(5, 11, 21, .84);
+    backdrop-filter: blur(12px);
+}
+.game-center-panel .room-management-card,
+.game-center-panel .game-center-card {
+    width: min(900px, 100%);
+    max-height: min(88dvh, 760px);
+    padding: clamp(18px, 2.4vw, 28px);
+    color: #e7f0ff;
+    background: linear-gradient(145deg, #111e30, #0b1524);
+    border: 1px solid #2c4564;
+    border-radius: 14px;
+    box-shadow: 0 26px 80px rgba(0,0,0,.48);
+}
+.game-center-panel .room-management-heading {
+    margin-bottom: 17px;
+    padding-bottom: 15px;
+    border-color: #2a3d56;
+}
+.game-center-panel .room-management-heading .small-label { color: #7fb4ff; }
+.game-center-panel .room-management-heading h3 {
+    margin: 5px 0 4px;
+    color: #f0f6ff;
+    font-family: inherit;
+    font-size: clamp(25px, 3.6vw, 35px);
+    font-weight: 850;
+    letter-spacing: -.045em;
+}
+.game-center-panel .room-management-heading p { color: #9aacc4; font-size: 11px; }
+.game-center-panel .icon-button {
+    color: #dceaff;
+    background: #1b2d44;
+    border: 1px solid #385372;
+    border-radius: 9px;
+}
+.game-center-intro {
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 12px 15px;
+    background: #172a42;
+    border: 1px solid #2d4b6d;
+    border-radius: 10px;
+}
+.game-center-intro-mark {
+    flex-basis: 34px;
+    width: 34px;
+    height: 34px;
+    color: #071626;
+    background: #79b5ff;
+    border-radius: 9px;
+    font-size: 18px;
+}
+.game-center-intro strong { color: #edf5ff; font-size: 12px; }
+.game-center-intro p { color: #9eb2cc; font-size: 10px; }
+.game-center-empty { padding: 0; background: transparent; border: 0; }
+.game-catalog-heading { align-items: end; margin-bottom: 10px; }
+.game-catalog-heading strong {
+    color: #edf4ff;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+}
+.game-catalog-heading p { color: #92a7c2; font-size: 10px; }
+.game-catalog-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0 0 10px;
+}
+.game-catalog-card {
+    min-height: 150px;
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 14px 15px;
+    color: #e4efff;
+    background: linear-gradient(145deg, #172a42, #122239);
+    border: 1px solid #2d496b;
+    border-radius: 10px;
+    transition: border-color .16s ease, background .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+.game-catalog-card::after { display: none; }
+.game-catalog-card:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background: linear-gradient(145deg, #1c3553, #152944);
+    border-color: #5a91cf;
+    box-shadow: 0 9px 22px rgba(0,0,0,.2);
+}
+.game-catalog-card.is-selected {
+    background: linear-gradient(145deg, #1d3858, #172c46);
+    border: 1px solid #77b5ff;
+    box-shadow: inset 0 0 0 1px rgba(119,181,255,.2), 0 0 0 2px rgba(82,151,225,.12);
+}
+.game-catalog-card-top { justify-content: flex-start; gap: 9px; }
+.game-catalog-icon {
+    width: 35px;
+    height: 35px;
+    background: #263e5b;
+    border: 1px solid #3a587b;
+    border-radius: 9px;
+    font-size: 19px;
+}
+.game-catalog-card[data-game-id="uno"] .game-catalog-icon { background: #293e5a; }
+.game-catalog-card[data-game-id="vampir-koylu"] .game-catalog-icon { background: #2c3655; }
+.game-catalog-status {
+    margin-left: auto;
+    padding: 4px 7px;
+    color: #a9d5ff;
+    background: #203b59;
+    border: 1px solid #365b80;
+    border-radius: 5px;
+    font-size: 8px;
+}
+.game-catalog-name {
+    color: #f0f6ff;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -.025em;
+}
+.game-catalog-description {
+    max-width: 420px;
+    color: #9db0c9;
+    font-size: 10px;
+    line-height: 1.5;
+}
+.game-catalog-details {
+    margin-top: auto;
+    padding-top: 8px;
+    border-color: #2c425e;
+}
+.game-catalog-player-count { color: #91a8c5; font-size: 9px; }
+.game-catalog-select-label { color: #83bdff; font-size: 8px; }
+.game-catalog-placeholder { display: none !important; }
+.game-catalog-note { margin: 8px 0 12px; color: #8198b6; font-size: 9px; }
+#gameCenterEmptyState > #createGameSessionButton {
+    min-height: 40px;
+    padding: 0 17px;
+    color: #071626;
+    background: #78b6ff;
+    border: 1px solid #91c5ff;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 850;
+}
+#gameCenterEmptyState > #createGameSessionButton:hover:not(:disabled) { background: #9acaff; }
+.game-center-status { color: #a6c8ee; }
+.game-center-status.error { color: #ff9eae; }
+@media (max-width: 620px) {
+    .game-center-panel .room-management-card,
+    .game-center-panel .game-center-card {
+        max-height: 100dvh;
+        padding: 18px 14px max(18px, env(safe-area-inset-bottom));
+        border-radius: 0;
+    }
+    .game-catalog-grid { grid-template-columns: 1fr; gap: 8px; }
+    .game-catalog-card { min-height: 136px; padding: 12px; }
+    .game-catalog-name { font-size: 16px; }
+}
