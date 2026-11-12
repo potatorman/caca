@@ -1526,7 +1526,19 @@ function renderGameCatalog() {
         description.className = "game-catalog-description";
         description.textContent = game.description || "Bu oyun yakında eklenecek.";
 
-        card.append(top, name, description);
+        const details = document.createElement("span");
+        details.className = "game-catalog-details";
+        const players = document.createElement("span");
+        players.className = "game-catalog-player-count";
+        players.textContent = Number.isFinite(game.minPlayers) && Number.isFinite(game.maxPlayers)
+            ? `${game.minPlayers}–${game.maxPlayers} oyuncu`
+            : "Çok oyunculu";
+        const selection = document.createElement("span");
+        selection.className = "game-catalog-select-label";
+        selection.textContent = isSelected ? "SEÇİLDİ ✓" : "OYUNU SEÇ →";
+        details.append(players, selection);
+
+        card.append(top, name, description, details);
         grid.appendChild(card);
     });
 
