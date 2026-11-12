@@ -13,6 +13,7 @@ import {
     doc,
     getDoc,
     setDoc,
+    updateDoc,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
@@ -28,8 +29,50 @@ const loginTab = $("loginTab");
 const registerTab = $("registerTab");
 
 const authMessage = $("authMessage");
+const globalChatInviteDialog = $("globalChatInviteDialog");
+const globalChatInviteJoin = $("globalChatInviteJoin");
+const globalChatInviteDecline = $("globalChatInviteDecline");
 
 let registrationInProgress = false;
+let invitePromptUserId = "";
+let inviteChoiceInProgress = false;
+
+function maybeShowGlobalChatInvite(user, profile) {
+    if (!user || profile?.globalChatPrompted === true || !globalChatInviteDialog) return;
+    if (invitePromptUserId === user.uid || globalChatInviteDialog.open) return;
+
+    invitePromptUserId = user.uid;
+    globalChatInviteDialog.showModal();
+}
+
+async function saveGlobalChatInviteChoice(shouldJoin) {
+    const user = auth.currentUser;
+    if (!user || inviteChoiceInProgress) return;
+
+    inviteChoiceInProgress = true;
+    globalChatInviteJoin.disabled = true;
+    globalChatInviteDecline.disabled = true;
+
+    try {
+        await updateDoc(doc(db, "users", user.uid), {
+            globalChatOptIn: shouldJoin,
+            globalChatPrompted: true
+        });
+
+        globalChatInviteDialog.close();
+        invitePromptUserId = "";
+        if (shouldJoin) document.dispatchEvent(new CustomEvent("caca:open-global-chat"));
+    } catch (error) {
+        console.error("CACA global chat invitation choice failed:", error);
+    } finally {
+        inviteChoiceInProgress = false;
+        globalChatInviteJoin.disabled = false;
+        globalChatInviteDecline.disabled = false;
+    }
+}
+
+globalChatInviteJoin?.addEventListener("click", () => saveGlobalChatInviteChoice(true));
+globalChatInviteDecline?.addEventListener("click", () => saveGlobalChatInviteChoice(false));
 
 // USERNAME
 
@@ -211,6 +254,8 @@ registerForm.addEventListener("submit", async (event) => {
                 username: username,
                 usernameLower: username.toLowerCase(),
                 nickname: username,
+                globalChatOptIn: false,
+                globalChatPrompted: false,
                 createdAt: serverTimestamp()
             }
         );
@@ -218,6 +263,10 @@ registerForm.addEventListener("submit", async (event) => {
         registerForm.reset();
 
         showLoggedIn(username);
+        maybeShowGlobalChatInvite(newUser, {
+            globalChatOptIn: false,
+            globalChatPrompted: false
+        });
 
     } catch (error) {
 
@@ -309,6 +358,7 @@ onAuthStateChanged(auth, async (user) => {
             profile.avatarId || DEFAULT_AVATAR_ID,
             profile.avatarData || null
         );
+        maybeShowGlobalChatInvite(user, profile);
 
     } catch (error) {
 

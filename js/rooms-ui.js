@@ -111,6 +111,10 @@ let currentAvatarId = DEFAULT_AVATAR_ID;
 let currentAvatarData = null;
 let activeRoomCode = "";
 let activeRoomId = null;
+let isGlobalChatActive = false;
+let globalChatOptedIn = false;
+let suspendedRoomName = "";
+const GLOBAL_CHAT_ID = "__caca_global_chat__";
 let openingRoomId = null;
 let roomOpenRequestVersion = 0;
 
@@ -315,6 +319,10 @@ function stopMemberListener() {
 
     messageRenderVersion += 1;
     activeRoomId = null;
+    isGlobalChatActive = false;
+    $("roomView")?.classList.remove("is-global-chat");
+    $("globalChatNavButton")?.classList.remove("active");
+    if ($("leaveGlobalChatButton")) $("leaveGlobalChatButton").hidden = true;
     activeRoomOwnerId = null;
     currentRoomMemberRecord = null;
     activeRoomMembers = [];
@@ -501,6 +509,7 @@ document.addEventListener("click", (event) => {
 });
 
 function startMessageEdit(messageId, originalText, bubble) {
+    const messageReference = getActiveMessageReference(messageId);
     const editor = document.createElement("form");
     editor.className = "message-edit-form";
 
@@ -565,7 +574,7 @@ function startMessageEdit(messageId, originalText, bubble) {
         cancelButton.disabled = true;
         try {
             await updateDoc(
-                doc(db, "rooms", activeRoomId, "messages", messageId),
+                messageReference,
                 { text: nextText, editedAt: serverTimestamp() }
             );
             showChatStatus("Mesaj güncellendi.", true);
@@ -587,11 +596,11 @@ function startMessageEdit(messageId, originalText, bubble) {
 }
 
 async function deleteChatMessage(messageId) {
-    if (!currentUser || !activeRoomId) return;
+    if (!currentUser || (!activeRoomId && !isGlobalChatActive)) return;
     if (!window.confirm("Bu mesajı kalıcı olarak silmek istiyor musun?")) return;
 
     try {
-        await deleteDoc(doc(db, "rooms", activeRoomId, "messages", messageId));
+        await deleteDoc(getActiveMessageReference(messageId));
         showChatStatus("Mesaj silindi.", true);
     } catch (error) {
         console.error("CACA message delete failed:", error);
@@ -746,6 +755,24 @@ function showChatStatus(message, success = false) {
     }
 }
 
+function isActiveMessageContext(chatId) {
+    return chatId === GLOBAL_CHAT_ID
+        ? isGlobalChatActive
+        : (!isGlobalChatActive && activeRoomId === chatId);
+}
+
+function getChatMessagesCollection(chatId) {
+    return chatId === GLOBAL_CHAT_ID
+        ? collection(db, "globalChatMessages")
+        : collection(db, "rooms", chatId, "messages");
+}
+
+function getActiveMessageReference(messageId) {
+    if (isGlobalChatActive) return doc(db, "globalChatMessages", messageId);
+    if (!activeRoomId) throw new Error("Aktif sohbet bulunamadı.");
+    return doc(db, "rooms", activeRoomId, "messages", messageId);
+}
+
 function formatMessageTime(timestamp) {
     if (!timestamp || typeof timestamp.toDate !== "function") {
         return "Şimdi";
@@ -768,7 +795,7 @@ function listenToMessages(roomId) {
     showChatStatus("");
 
     const messagesQuery = query(
-        collection(db, "rooms", roomId, "messages"),
+        getChatMessagesCollection(roomId),
         orderBy("createdAt", "desc"),
         limit(100)
     );
@@ -778,7 +805,7 @@ function listenToMessages(roomId) {
     unsubscribeMessages = onSnapshot(
         messagesQuery,
         async (snapshot) => {
-            if (activeRoomId !== roomId) return;
+            if (!isActiveMessageContext(roomId)) return;
 
             const renderVersion = ++messageRenderVersion;
             const wasNearBottom =
@@ -801,7 +828,9 @@ function listenToMessages(roomId) {
                 title.textContent = "İlk mesajı sen gönder";
 
                 const hint = document.createElement("span");
-                hint.textContent = "Bu odadaki sohbet burada başlayacak.";
+                hint.textContent = roomId === GLOBAL_CHAT_ID
+                    ? "CACA'nın global sohbeti burada başlayacak."
+                    : "Bu odadaki sohbet burada başlayacak.";
 
                 empty.append(icon, title, hint);
                 messagesList.appendChild(empty);
@@ -834,7 +863,7 @@ function listenToMessages(roomId) {
 
             // Ignore stale asynchronous profile reads after room changes
             // or a newer message snapshot.
-            if (activeRoomId !== roomId || renderVersion !== messageRenderVersion) {
+            if (!isActiveMessageContext(roomId) || renderVersion !== messageRenderVersion) {
                 return;
             }
 
@@ -916,7 +945,7 @@ function listenToMessages(roomId) {
                     content.appendChild(editedLabel);
                 }
 
-                const canDelete = isMine || activeRoomOwnerId === currentUser?.uid;
+                const canDelete = isMine || (!isGlobalChatActive && activeRoomOwnerId === currentUser?.uid);
                 if (canDelete) {
                     const actions = document.createElement("div");
                     actions.className = "message-actions";
@@ -3834,8 +3863,8 @@ chatInput.addEventListener("input", handleChatInput);
 $("chatForm").addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    if (!currentUser || !activeRoomId) {
-        showChatStatus("Önce bir odaya katılmalısın.");
+    if (!currentUser || (!activeRoomId && !isGlobalChatActive)) {
+        showChatStatus("Önce bir sohbete katılmalısın.");
         return;
     }
 
@@ -3855,7 +3884,7 @@ $("chatForm").addEventListener("submit", async (event) => {
 
     try {
         await addDoc(
-            collection(db, "rooms", activeRoomId, "messages"),
+            getChatMessagesCollection(isGlobalChatActive ? GLOBAL_CHAT_ID : activeRoomId),
             {
                 text,
                 senderId: currentUser.uid,
@@ -5229,6 +5258,132 @@ async function unbanMember(userId, username) {
     }
 }
 
+// GLOBAL COMMUNITY CHAT
+
+function setGlobalChatNavigationActive(isActive) {
+    const button = $("globalChatNavButton");
+    if (!button) return;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+}
+
+function showPrivateRoomChat(roomId) {
+    if (!roomId || roomId !== activeRoomId) return;
+
+    isGlobalChatActive = false;
+    $("roomView").classList.remove("is-global-chat");
+    $("roomView").hidden = false;
+    $("dashboardView").hidden = true;
+    $("backToDashboard").hidden = false;
+    $("activeRoomName").textContent = suspendedRoomName || $("activeRoomName").textContent;
+    $("activeRoomName").previousElementSibling.textContent = "ACTIVE ROOM";
+    $("activeRoomCode").textContent = activeRoomCode || "";
+    $("activeRoomCode").parentElement.hidden = false;
+    $("leaveGlobalChatButton").hidden = true;
+    $("leaveRoomButton").hidden = false;
+    $("chatPanelTitle").textContent = "Genel sohbet";
+    $("chatPanelSubtitle").textContent = "Bu odadaki herkesle konuş";
+    setGlobalChatNavigationActive(false);
+    setMembersPanelOpen(true);
+
+    document.querySelectorAll(".room-list-item").forEach((item) => {
+        item.classList.toggle("active", item.dataset.roomId === roomId);
+    });
+    listenToMessages(roomId);
+}
+
+async function openGlobalChat() {
+    if (!currentUser) return;
+
+    try {
+        if (!globalChatOptedIn) {
+            await updateDoc(doc(db, "users", currentUser.uid), {
+                globalChatOptIn: true,
+                globalChatPrompted: true
+            });
+            globalChatOptedIn = true;
+        }
+
+        if (!isGlobalChatActive && activeRoomId) {
+            suspendedRoomName = $("activeRoomName").textContent;
+        }
+
+        setWorkspaceTab("chats");
+        isGlobalChatActive = true;
+        $("roomView").classList.add("is-global-chat");
+        $("dashboardView").hidden = true;
+        $("roomView").hidden = false;
+        $("backToDashboard").hidden = true;
+        $("activeRoomName").textContent = "Global Chat";
+        $("activeRoomName").previousElementSibling.textContent = "CACA COMMUNITY";
+        $("activeRoomCode").parentElement.hidden = true;
+        $("leaveGlobalChatButton").hidden = false;
+        $("leaveRoomButton").hidden = true;
+        $("chatPanelTitle").textContent = "Global Chat";
+        $("chatPanelSubtitle").textContent = "CACA topluluğuyla konuş";
+        setMembersPanelOpen(false);
+        setGlobalChatNavigationActive(true);
+
+        document.querySelectorAll(".room-list-item").forEach((item) => {
+            item.classList.remove("active");
+        });
+        listenToMessages(GLOBAL_CHAT_ID);
+    } catch (error) {
+        console.error("CACA global chat open failed:", error);
+        showChatStatus(
+            error.code === "permission-denied"
+                ? "Global Chat erişimi reddedildi. Firestore Rules ayarlarını kontrol et."
+                : "Global Chat açılamadı: " + (error.message || "Bilinmeyen hata")
+        );
+    }
+}
+
+async function leaveGlobalChat() {
+    if (!currentUser || !isGlobalChatActive) return;
+
+    const button = $("leaveGlobalChatButton");
+    button.disabled = true;
+
+    try {
+        await updateDoc(doc(db, "users", currentUser.uid), {
+            globalChatOptIn: false,
+            globalChatPrompted: true
+        });
+        globalChatOptedIn = false;
+
+        if (unsubscribeMessages) {
+            unsubscribeMessages();
+            unsubscribeMessages = null;
+        }
+        messageRenderVersion += 1;
+        isGlobalChatActive = false;
+        $("roomView").classList.remove("is-global-chat");
+        $("leaveGlobalChatButton").hidden = true;
+        setGlobalChatNavigationActive(false);
+
+        if (activeRoomId) {
+            showPrivateRoomChat(activeRoomId);
+        } else {
+            $("roomView").hidden = true;
+            $("dashboardView").hidden = false;
+            showChatStatus("");
+        }
+    } catch (error) {
+        console.error("CACA global chat leave failed:", error);
+        showChatStatus(
+            error.code === "permission-denied"
+                ? "Global Chat'tan ayrılma tercihi kaydedilemedi."
+                : "Global Chat'tan ayrılamadı: " + (error.message || "Bilinmeyen hata")
+        );
+    } finally {
+        button.disabled = false;
+    }
+}
+
+$("globalChatNavButton").addEventListener("click", openGlobalChat);
+$("leaveGlobalChatButton").addEventListener("click", leaveGlobalChat);
+document.addEventListener("caca:open-global-chat", openGlobalChat);
+
 // OPEN ROOM
 
 async function openRoom(roomId) {
@@ -5236,7 +5391,10 @@ async function openRoom(roomId) {
 
     // Clicking the room that is already visible must not reread its documents
     // or recreate its realtime listeners.
-    if (roomId === activeRoomId && !$("roomView").hidden) return;
+    if (roomId === activeRoomId && !$("roomView").hidden) {
+        if (isGlobalChatActive) showPrivateRoomChat(roomId);
+        return;
+    }
 
     // Prevent rapid double-clicks from issuing duplicate Firestore reads.
     if (openingRoomId === roomId) return;
@@ -5304,6 +5462,18 @@ async function openRoom(roomId) {
         leaveButton.title = isOwner
             ? "Odayı, üyelikleri, davet kodunu ve ban kayıtlarını kalıcı olarak siler."
             : "Bu odadan ayrıl.";
+
+        // Restore the private-room toolbar after leaving Global Chat.
+        isGlobalChatActive = false;
+        $("roomView").classList.remove("is-global-chat");
+        $("backToDashboard").hidden = false;
+        $("activeRoomCode").parentElement.hidden = false;
+        $("leaveGlobalChatButton").hidden = true;
+        $("leaveRoomButton").hidden = false;
+        $("activeRoomName").previousElementSibling.textContent = "ACTIVE ROOM";
+        $("chatPanelTitle").textContent = "Genel sohbet";
+        $("chatPanelSubtitle").textContent = "Bu odadaki herkesle konuş";
+        setGlobalChatNavigationActive(false);
 
         // Show room and close account settings before opening the chat.
         $("settingsView").hidden = true;
@@ -5621,6 +5791,7 @@ onAuthStateChanged(auth, async (user) => {
         selectedJumpscareSlot = "slot1";
         lastSeenPersonalPrankEventId = null;
         currentUsername = "";
+        globalChatOptedIn = false;
         currentAvatarId = DEFAULT_AVATAR_ID;
         currentAvatarData = null;
         publicProfileCache.clear();
@@ -5652,6 +5823,7 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         const profile = profileSnapshot.data();
+        globalChatOptedIn = profile.globalChatOptIn === true;
         currentUsername = profile.nickname || profile.username;
         currentAvatarId = AVATARS[profile.avatarId]
             ? profile.avatarId

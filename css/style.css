@@ -7310,3 +7310,155 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .game-lobby-settings-danger-zone { align-items: flex-start; flex-direction: column; }
     .game-lobby-settings-danger-zone > button { width: 100%; }
 }
+
+
+/* GLOBAL COMMUNITY CHAT */
+.global-chat-nav-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 58px;
+    padding: 10px 12px;
+    color: #dce9fb;
+    background: linear-gradient(110deg, rgba(27, 55, 91, .76), rgba(19, 35, 56, .72));
+    border: 1px solid #2b4a70;
+    border-radius: 11px;
+    text-align: left;
+    transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+.global-chat-nav-button:hover {
+    background: linear-gradient(110deg, rgba(39, 76, 125, .9), rgba(23, 44, 70, .9));
+    border-color: #4779b7;
+    transform: translateY(-1px);
+}
+.global-chat-nav-button.active {
+    color: #f4f8ff;
+    background: linear-gradient(110deg, #1d3c65, #172b47);
+    border-color: #4b88d4;
+    box-shadow: inset 3px 0 #5a9dff, 0 8px 22px rgba(0, 0, 0, .14);
+}
+.global-chat-nav-button svg {
+    flex: 0 0 23px;
+    width: 23px;
+    height: 23px;
+    fill: none;
+    stroke: #79b5ff;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.global-chat-nav-button > span {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+}
+.global-chat-nav-button strong {
+    color: inherit;
+    font-size: 12px;
+    font-weight: 750;
+}
+.global-chat-nav-button small {
+    color: #8ea6c5;
+    font-size: 10px;
+}
+.global-chat-nav-button > i {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 50%;
+    background: #55c795;
+    box-shadow: 0 0 10px rgba(85, 199, 149, .55);
+}
+#roomView.is-global-chat > :not(.room-toolbar):not(#roomChatLayout) {
+    display: none !important;
+}
+#roomView.is-global-chat .room-toolbar .back-button,
+#roomView.is-global-chat .invite-code-box,
+#roomView.is-global-chat .room-toolbar-actions > button:not(#leaveGlobalChatButton) {
+    display: none !important;
+}
+#roomView.is-global-chat .room-toolbar {
+    min-height: 63px;
+    margin-bottom: 16px;
+}
+#roomView.is-global-chat .room-heading-copy h2 {
+    max-width: 420px;
+    font-size: 22px;
+}
+#roomView.is-global-chat .room-chat-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+#roomView.is-global-chat #roomMembersPanel {
+    display: none !important;
+}
+#roomView.is-global-chat .chat-panel {
+    border-color: #2b4464;
+    box-shadow: 0 18px 46px rgba(0, 0, 0, .12);
+}
+.global-chat-leave-button {
+    min-height: 37px;
+    padding: 0 13px;
+    border-color: #59404b;
+    color: #e8cad2;
+    background: #29212a;
+}
+.global-chat-leave-button:hover {
+    border-color: #8a5365;
+    color: #fff0f3;
+    background: #3b2933;
+}
+.global-chat-invite-dialog {
+    width: min(390px, calc(100vw - 32px));
+    max-width: none;
+    padding: 0;
+    overflow: visible;
+    color: #edf4ff;
+    background: transparent;
+    border: 0;
+}
+.global-chat-invite-dialog::backdrop {
+    background: rgba(3, 8, 16, .78);
+    backdrop-filter: blur(7px);
+}
+.global-chat-invite-card {
+    padding: 28px;
+    background: linear-gradient(145deg, #172942, #101a29);
+    border: 1px solid #355477;
+    border-radius: 17px;
+    box-shadow: 0 26px 90px rgba(0, 0, 0, .48);
+}
+.global-chat-invite-card h2 {
+    margin: 0;
+    color: #f2f7ff;
+    font-size: 19px;
+    font-weight: 750;
+    letter-spacing: -.35px;
+    text-align: center;
+}
+.global-chat-invite-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 23px;
+}
+.global-chat-invite-actions button {
+    min-height: 42px;
+    margin: 0;
+    border-radius: 9px;
+    font-size: 12px;
+}
+.global-chat-invite-actions button:disabled {
+    opacity: .6;
+    cursor: wait;
+}
+@media (max-width: 620px) {
+    .global-chat-nav-button {
+        min-height: 52px;
+    }
+    .global-chat-invite-card {
+        padding: 23px 19px;
+    }
+}

@@ -115,8 +115,12 @@ service cloud.firestore {
           'username',
           'usernameLower',
           'nickname',
+          'globalChatOptIn',
+          'globalChatPrompted',
           'createdAt'
         ])
+        && request.resource.data.globalChatOptIn is bool
+        && request.resource.data.globalChatPrompted is bool
         && request.resource.data.username is string
         && request.resource.data.username.matches('^[A-Za-z0-9_]{3,20}$')
         && request.resource.data.usernameLower is string
@@ -129,8 +133,18 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'nickname',
           'avatarId',
-          'avatarData'
+          'avatarData',
+          'globalChatOptIn',
+          'globalChatPrompted'
         ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['globalChatOptIn'])
+          || request.resource.data.globalChatOptIn is bool
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['globalChatPrompted'])
+          || request.resource.data.globalChatPrompted is bool
+        )
         && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['nickname'])
           || validNickname(request.resource.data.nickname)
@@ -240,6 +254,49 @@ service cloud.firestore {
           && request.auth.uid == userId
           && libraryId == 'library';
       }
+    }
+
+    // Community messages use a dedicated collection, separate from private rooms and game sessions.
+    match /globalChatMessages/{messageId} {
+      function canUseGlobalChat() {
+        return signedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('globalChatOptIn', false) == true;
+      }
+
+      allow read: if canUseGlobalChat();
+
+      allow create: if canUseGlobalChat()
+        && request.resource.data.keys().hasOnly([
+          'text',
+          'senderId',
+          'senderName',
+          'senderAvatarId',
+          'createdAt'
+        ])
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 1
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.senderName is string
+        && request.resource.data.senderName.size() >= 1
+        && request.resource.data.senderName.size() <= 24
+        && request.resource.data.senderAvatarId is string
+        && request.resource.data.createdAt is timestamp;
+
+      allow update: if canUseGlobalChat()
+        && resource.data.senderId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'text',
+          'editedAt'
+        ])
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 1
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.editedAt is timestamp;
+
+      allow delete: if canUseGlobalChat()
+        && resource.data.senderId == request.auth.uid;
     }
 
     match /rooms/{roomId} {

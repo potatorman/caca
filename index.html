@@ -160,6 +160,11 @@
 
                     <div class="workspace-layout">
                         <aside class="room-sidebar">
+                            <button id="globalChatNavButton" class="global-chat-nav-button" type="button" aria-pressed="false">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 10.7 8.5-7 8.5 7v9.1a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M9 21v-7h6v7"/></svg>
+                                <span><strong>Global Sohbet</strong><small>CACA topluluğu</small></span>
+                                <i aria-hidden="true"></i>
+                            </button>
                             <div class="sidebar-section-heading">
                                 <div>
                                     <span class="small-label">WORKSPACE</span>
@@ -225,7 +230,7 @@
                                         <button id="membersToggleButton" class="members-toggle-button" type="button" aria-controls="roomMembersPanel" aria-expanded="true">Üyeler <span aria-hidden="true">▥</span></button>
                                         <button id="roomManagementButton" class="room-management-button" type="button" hidden>Yönetim Paneli</button>
                                         <button id="adminPanelButton" class="room-management-button admin-panel-button" type="button" hidden>Admin Panel</button>
-                                        
+                                        <button id="leaveGlobalChatButton" class="danger-button global-chat-leave-button" type="button" hidden>Global Chat'tan ayrıl</button>
                                         <button id="leaveRoomButton" class="danger-button" type="button">Odadan çık</button>
                                     </div>
                                 </div>
@@ -568,8 +573,8 @@
                                     <section class="chat-panel">
                                         <div class="chat-panel-heading">
                                             <div>
-                                                <strong>Genel sohbet</strong>
-                                                <span>Bu odadaki herkesle konuş</span>
+                                                <strong id="chatPanelTitle">Genel sohbet</strong>
+                                                <span id="chatPanelSubtitle">Bu odadaki herkesle konuş</span>
                                             </div>
                                             <span class="chat-live-indicator"><i></i> Canlı</span>
                                         </div>
@@ -860,6 +865,16 @@
             </div>
         </section>
     </main>
+
+    <dialog id="globalChatInviteDialog" class="global-chat-invite-dialog" aria-labelledby="globalChatInviteTitle">
+        <div class="global-chat-invite-card">
+            <h2 id="globalChatInviteTitle">Global Chata katılmak istermisin</h2>
+            <div class="global-chat-invite-actions">
+                <button id="globalChatInviteJoin" class="primary-button" type="button">Katıl</button>
+                <button id="globalChatInviteDecline" class="secondary-button" type="button">Şimdi değil</button>
+            </div>
+        </div>
+    </dialog>
 
     <!-- AUTH SYSTEM -->
     <script type="module" src="./js/app.js"></script>
