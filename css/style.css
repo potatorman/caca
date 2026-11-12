@@ -6941,3 +6941,226 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 .workspace-layout.is-games-workspace #gameCenterEmptyState:not([hidden]) {
     display: flex !important;
 }
+
+
+/* Active game room — rebuilt navy/blue CACA lobby interface */
+.game-room-redesign {
+    --room-ink: #f1f6ff;
+    --room-muted: #91a9c8;
+    --room-blue: #78baff;
+    margin-top: 18px;
+    padding: clamp(14px, 2.2vw, 24px);
+    color: var(--room-ink);
+    background:
+        radial-gradient(ellipse at 100% 0%, rgba(58, 128, 204, .15), transparent 38%),
+        linear-gradient(145deg, #10233c 0%, #0b192b 58%, #0a1727 100%);
+    border: 1px solid rgba(112, 165, 224, .25);
+    border-radius: 18px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .2), inset 0 1px rgba(255,255,255,.035);
+}
+.game-room-topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 3px 2px 19px;
+    border-bottom: 1px solid rgba(139, 180, 229, .14);
+}
+.game-room-heading { min-width: 0; }
+.game-room-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #80baff;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .17em;
+}
+.game-room-eyebrow i, .game-room-controls-label i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #65b5ff;
+    box-shadow: 0 0 12px rgba(101,181,255,.8);
+}
+.game-room-heading h4 {
+    margin: 8px 0 5px;
+    color: #f4f8ff;
+    font-size: clamp(24px, 4vw, 34px);
+    font-weight: 900;
+    line-height: 1.08;
+    letter-spacing: -.045em;
+}
+.game-room-heading .game-session-summary {
+    max-width: 660px;
+    margin: 0;
+    color: var(--room-muted);
+    font-size: 11px;
+    line-height: 1.65;
+}
+.game-room-topbar > .game-session-status {
+    margin-top: 7px;
+    padding: 8px 12px;
+    font-size: 9px;
+    letter-spacing: .015em;
+}
+.game-room-info-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: 66px;
+    margin: 15px 0;
+    padding: 11px 14px;
+    background: rgba(83, 137, 198, .075);
+    border: 1px solid rgba(121, 169, 222, .13);
+    border-radius: 12px;
+}
+.game-room-host { display: flex; align-items: center; gap: 11px; }
+.game-room-info-icon {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    place-items: center;
+    color: #a8d4ff;
+    background: rgba(87, 157, 226, .13);
+    border: 1px solid rgba(120, 180, 239, .2);
+    border-radius: 10px;
+    font-size: 17px;
+}
+.game-room-host > span:last-child { display: grid; gap: 3px; }
+.game-room-host small {
+    color: #7897bb;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .14em;
+}
+.game-room-host strong { color: #e7f1ff; font-size: 12px; font-weight: 800; }
+.game-room-info-strip .game-bot-lobby-preview {
+    color: #a9cfff;
+    font-size: 10px;
+    line-height: 1.5;
+    text-align: right;
+}
+.game-room-rosters {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(220px, .85fr);
+    gap: 12px;
+}
+.game-room-roster {
+    min-width: 0;
+    padding: 14px;
+    background: rgba(5, 16, 30, .48);
+    border: 1px solid rgba(119, 163, 211, .17);
+    border-radius: 13px;
+}
+.game-room-roster-players { border-top: 2px solid rgba(104, 177, 248, .65); }
+.game-room-roster-spectators { border-top: 2px solid rgba(139, 158, 190, .42); }
+.game-room-roster-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.game-room-roster-heading > div { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.game-room-roster-heading strong { color: #e5f0ff; font-size: 11px; font-weight: 850; }
+.game-room-roster-mark {
+    color: #78baff;
+    font-size: 8px;
+    font-weight: 950;
+    letter-spacing: .08em;
+}
+.game-room-count {
+    display: grid;
+    min-width: 27px;
+    height: 25px;
+    padding: 0 7px;
+    place-items: center;
+    color: #b8dcff;
+    background: rgba(74, 144, 214, .13);
+    border: 1px solid rgba(109, 170, 229, .2);
+    border-radius: 7px;
+    font-size: 9px;
+    font-weight: 900;
+}
+.game-room-redesign .game-session-member-list { gap: 7px; }
+.game-room-redesign .game-session-member {
+    min-height: 42px;
+    padding: 9px 11px;
+    background: rgba(83, 133, 188, .075);
+    border: 1px solid rgba(125, 166, 211, .12);
+    border-radius: 9px;
+}
+.game-room-redesign .game-session-member > span:first-child {
+    color: #dceaff;
+    font-size: 10px;
+    font-weight: 750;
+}
+.game-room-redesign .game-session-member-state { color: #8ebdf0; font-size: 9px; }
+.game-room-redesign .game-session-empty { color: #829bb9; font-size: 10px; }
+.game-room-redesign .game-session-bot-seat {
+    background: rgba(108, 132, 195, .08);
+    border: 1px dashed rgba(151, 166, 219, .27);
+}
+.game-room-controls {
+    margin-top: 16px;
+    padding: 14px;
+    background: rgba(4, 14, 27, .36);
+    border: 1px solid rgba(119, 163, 211, .13);
+    border-radius: 13px;
+}
+.game-room-controls-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 11px;
+    color: #7897bb;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .16em;
+}
+.game-room-controls-label i { width: 5px; height: 5px; }
+.game-room-redesign .game-session-actions { gap: 8px; margin: 0; }
+.game-room-redesign .game-session-actions button {
+    min-height: 41px;
+    flex: 1 1 155px;
+    padding: 0 14px;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 850;
+    transition: transform .15s ease, filter .15s ease, background .15s ease;
+}
+.game-room-redesign .game-session-actions button:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.game-room-redesign .game-session-actions .primary-button {
+    color: #07182b;
+    background: linear-gradient(110deg, #a8d6ff, #70baff);
+    border: 1px solid rgba(191, 222, 255, .62);
+    box-shadow: 0 5px 16px rgba(65, 145, 222, .13);
+}
+.game-room-redesign .game-session-actions .secondary-button {
+    color: #c9e0fb;
+    background: rgba(104, 150, 205, .1);
+    border: 1px solid rgba(125, 171, 225, .24);
+}
+.game-room-redesign .game-session-actions .danger-button {
+    color: #ffb9c3;
+    background: rgba(194, 70, 93, .1);
+    border: 1px solid rgba(218, 102, 124, .25);
+}
+.game-room-redesign .game-engine-note {
+    margin: 12px 2px 0;
+    color: #718ba9;
+    font-size: 9px;
+    line-height: 1.6;
+}
+@media (max-width: 620px) {
+    .game-room-redesign { padding: 13px; border-radius: 14px; }
+    .game-room-topbar { align-items: flex-start; gap: 9px; }
+    .game-room-topbar > .game-session-status { max-width: 118px; white-space: normal; text-align: center; }
+    .game-room-rosters { grid-template-columns: minmax(0, 1fr); }
+    .game-room-info-strip { align-items: flex-start; flex-direction: column; }
+    .game-room-info-strip .game-bot-lobby-preview { text-align: left; }
+    .game-room-redesign .game-session-actions button { flex-basis: 100%; }
+}
