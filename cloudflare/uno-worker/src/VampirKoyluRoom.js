@@ -18,6 +18,7 @@ import {
     getFirestoreDocument,
     patchFirestoreDocument
 } from "./firebase.js";
+import { shouldRefreshUnconnectedRoster } from "./match-roster.js";
 
 const MIN_PLAYERS = 5;
 const MAX_PLAYERS = 12;
@@ -172,9 +173,9 @@ export class VampirKoyluRoom extends DurableObject {
         if (broadcast) this.broadcastState(match);
     }
 
-    async loadMatch(createIfMissing = true) {
+    async loadMatch(createIfMissing = true, refreshExisting = false) {
         const existing = await this.ctx.storage.get("match");
-        if (existing || !createIfMissing) return existing || null;
+        if ((existing && !refreshExisting) || !createIfMissing) return existing || null;
 
         const { roomId, round } = await this.getIdentity();
         const sessionDoc = await getFirestoreDocument(
@@ -249,6 +250,7 @@ export class VampirKoyluRoom extends DurableObject {
             finishedAt: null,
             returnedIds: [],
             firebaseResultSynced: false,
+            hasAcceptedConnection: false,
             createdAt: now
         };
 
@@ -306,17 +308,48 @@ export class VampirKoyluRoom extends DurableObject {
         let match;
         try {
             match = await this.loadMatch(true);
-            const sessionDoc = await getFirestoreDocument(
+            let sessionDoc = await getFirestoreDocument(
                 this.env,
                 "rooms/" + match.roomId + "/gameSessions/active"
             );
-            const session = sessionDoc?.data;
+            let session = sessionDoc?.data;
             if (!session || Number(session.round) !== match.round) {
                 throw new Error("Vampir Köylü turu artık etkin değil.");
             }
 
-            const currentPlayers = getSessionPlayers(session);
-            const spectators = uniqueIds(session.spectatorIds);
+            let currentPlayers = getSessionPlayers(session);
+            let spectators = uniqueIds(session.spectatorIds);
+            if (shouldRefreshUnconnectedRoster({
+                role,
+                uid,
+                sessionPlayers: currentPlayers,
+                matchPlayerIds: match.playerIds,
+                sessionStatus: session.status,
+                matchStatus: match.status,
+                hasAcceptedConnection: match.hasAcceptedConnection === true,
+                activeSocketCount: this.ctx.getWebSockets().length
+            })) {
+                console.warn("CACA Vampir Köylü refreshing unconnected match roster", {
+                    roomId: match.roomId,
+                    round: match.round,
+                    sessionPlayerCount: currentPlayers.length,
+                    matchHumanPlayerCount: uniqueIds(match.humanPlayerIds).length
+                });
+                // No player has received a role yet, so rebuild from the frozen
+                // Firestore roster before admitting the first valid player.
+                match = await this.loadMatch(true, true);
+                sessionDoc = await getFirestoreDocument(
+                    this.env,
+                    "rooms/" + match.roomId + "/gameSessions/active"
+                );
+                session = sessionDoc?.data;
+                if (!session || session.status !== "playing" || Number(session.round) !== match.round) {
+                    throw new Error("Vampir Köylü turu artık etkin değil.");
+                }
+                currentPlayers = getSessionPlayers(session);
+                spectators = uniqueIds(session.spectatorIds);
+            }
+
             const validPlayer = role === "player" &&
                 currentPlayers.includes(uid) &&
                 match.playerIds.includes(uid);
@@ -333,6 +366,11 @@ export class VampirKoyluRoom extends DurableObject {
                 reason: String(error?.message || "Vampir Köylü bağlantısı kurulamadı.").slice(0, 240)
             });
             return new Response(error.message || "Vampir Köylü bağlantısı kurulamadı.", { status: 403 });
+        }
+
+        if (match.hasAcceptedConnection !== true) {
+            match.hasAcceptedConnection = true;
+            await this.ctx.storage.put("match", match);
         }
 
         const pair = new WebSocketPair();
