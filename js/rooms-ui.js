@@ -2260,7 +2260,7 @@ function reconcileVampirKoyluRosterChange(roomId, sessionData) {
         !currentUser
     ) return;
 
-    const roundKey = roomId + ":" + String(sessionData.round);
+    const roundKey = roomId + ":" + String(sessionData.round) + ":" + String(sessionData.sessionId || "");
     const currentIds = Array.isArray(sessionData.matchPlayerIds)
         ? sessionData.matchPlayerIds
         : [];
