@@ -6489,3 +6489,15 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 }
 
 .game-center-panel .game-center-card { width:100%; max-width:none; max-height:none; min-height:0; overflow:visible; padding:0; color:#edf5ff; background:transparent; border:0; border-radius:0; box-shadow:none; }
+
+/* Games is a page in the dashboard, never a modal overlay. */
+.game-center-panel {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    display: block !important;
+    place-items: initial !important;
+    padding: 0 !important;
+    backdrop-filter: none !important;
+}
+.game-center-panel[hidden] { display: none !important; }
