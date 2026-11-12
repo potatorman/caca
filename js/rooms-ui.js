@@ -1407,11 +1407,11 @@ function getGameSessionRef(roomId = activeRoomId) {
 }
 
 // Player limits come from the game registry; unknown games use these defaults.
-function getGameLimits(gameId) {
+function getGameLimits(gameId, session = null) {
     const game = getGameDefinition(gameId);
     return {
         minPlayers: Number(game?.minPlayers) || 2,
-        maxPlayers: Number(game?.maxPlayers) || 20
+        maxPlayers: Math.min(Number(game?.maxPlayers) || 20, Math.max(Number(game?.minPlayers) || 2, Number(session?.maxPlayers) || Number(game?.maxPlayers) || 20))
     };
 }
 
@@ -1431,7 +1431,7 @@ function getVampirLobbySettings(session) {
 function isLobbyReadyToStart(session) {
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
     const ready = Array.isArray(session.readyIds) ? session.readyIds : [];
-    const { maxPlayers } = getGameLimits(session.gameId);
+    const { maxPlayers } = getGameLimits(session.gameId, session);
     if (session.gameId === "vampir-koylu") {
         const settings = getVampirLobbySettings(session);
         const minRealPlayers = settings.botFillEnabled ? 1 : 5;
@@ -1440,7 +1440,7 @@ function isLobbyReadyToStart(session) {
             players.length <= maxPlayers &&
             players.every((id) => ready.includes(id));
     }
-    const { minPlayers } = getGameLimits(session.gameId);
+    const { minPlayers } = getGameLimits(session.gameId, session);
     return players.length >= minPlayers &&
         players.length <= maxPlayers &&
         players.every((id) => ready.includes(id));
@@ -1513,6 +1513,18 @@ function renderGameCatalog() {
         grid.appendChild(button);
     });
     const selected = games.find((game) => game.id === selectedGameId);
+    const maxSelect = $("gameMaxPlayersSelect");
+    if (maxSelect && selected) {
+        const previous = Number(maxSelect.value);
+        maxSelect.replaceChildren();
+        for (let count = selected.minPlayers; count <= selected.maxPlayers; count++) {
+            const option = document.createElement("option");
+            option.value = String(count);
+            option.textContent = count + " oyuncu";
+            maxSelect.appendChild(option);
+        }
+        maxSelect.value = String(Number.isInteger(previous) && previous >= selected.minPlayers && previous <= selected.maxPlayers ? previous : selected.maxPlayers);
+    }
     const cooldown = Math.max(0, getGameLobbyCooldownUntil() - Date.now());
     createButton.disabled = !selected || cooldown > 0 || !activeRoomId;
     createButton.textContent = cooldown > 0
@@ -1627,7 +1639,7 @@ function renderGameCenter() {
     const isStarting = session.status === "starting";
     const isResults = session.status === "results";
     const gameDefinition = getGameDefinition(session.gameId);
-    const { minPlayers, maxPlayers } = getGameLimits(session.gameId);
+    const { minPlayers, maxPlayers } = getGameLimits(session.gameId, session);
     const isLobbyPlayer = players.includes(currentUser?.uid);
     const isMatchPlayer = matchPlayers.includes(currentUser?.uid);
     const isSpectator = spectators.includes(currentUser?.uid);
@@ -2083,7 +2095,7 @@ async function joinGameAsSpectator() {
                 return "already-listed";
             }
 
-            const { maxPlayers } = getGameLimits(session.gameId);
+            const { maxPlayers } = getGameLimits(session.gameId, session);
             if (players.length + spectators.length >= maxPlayers) return "full";
 
             transaction.update(ref, {
@@ -2576,6 +2588,7 @@ async function createGameSession() {
             ...(selectedGame.id === "vampir-koylu" ? { sessionId: crypto.randomUUID() } : {}),
             gameId: selectedGame.id,
             gameName: selectedGame.name,
+            maxPlayers: Math.min(selectedGame.maxPlayers, Math.max(selectedGame.minPlayers, Number($("gameMaxPlayersSelect")?.value) || selectedGame.maxPlayers)),
             status: "lobby",
             round: 1,
             hostId: currentUser.uid,
@@ -2617,7 +2630,7 @@ async function joinGameSession() {
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
     const queuedPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
-    const baseLimits = getGameLimits(session.gameId);
+    const baseLimits = getGameLimits(session.gameId, session);
     const lobbySettings = session.gameId === "vampir-koylu"
         ? getVampirLobbySettings(session)
         : null;
