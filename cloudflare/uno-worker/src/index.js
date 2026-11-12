@@ -62,7 +62,7 @@ function sessionPlayers(session) {
 async function authorizeRoomUser(env, uid, roomId, lobbyId, round, gameId = "uno", sessionId = null) {
     const [sessionDoc, memberDoc] = await Promise.all([
         getFirestoreDocument(env, "rooms/" + roomId + "/gameSessions/" + lobbyId),
-        getFirestoreDocument(env, "rooms/" + roomId + "/members/" + uid)
+        roomId === "global" ? Promise.resolve({ uid }) : getFirestoreDocument(env, "rooms/" + roomId + "/members/" + uid)
     ]);
     if (!memberDoc) throw new Error("Bu odanın üyesi değilsin.");
     if (!sessionDoc) throw new Error("Oyun lobisi bulunamadı.");
