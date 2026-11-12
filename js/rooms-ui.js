@@ -291,7 +291,7 @@ function stopMemberListener() {
     activeRoomGame?.close();
     activeRoomGame = null;
     activeRoomGameKey = "";
-    gameSessionStartInProgress = false;
+    gameSessionStartInProgress.clear();
     clearGameSessionCountdown();
     gameSpectatorJoinInProgress = false;
 
