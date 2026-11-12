@@ -2713,6 +2713,20 @@ async function createGameSession() {
         activeGameLobbyId = lobbyId;
         const lobbyRef = getGameSessionRef(GAME_SCOPE_ID, lobbyId);
         const lockRef = doc(db, "users", currentUser.uid, "gameState", "activeLobby");
+        const existingLock = await getDoc(lockRef);
+        if (existingLock.exists()) {
+            const lockedLobbyId = existingLock.data().lobbyId;
+            const lockedLobby = await getDoc(getGameSessionRef(GAME_SCOPE_ID, lockedLobbyId));
+            if (lockedLobby.exists()) {
+                activeGameLobbyId = lockedLobbyId;
+                gameSessionData = { ...lockedLobby.data(), lobbyId: lockedLobbyId };
+                gameSessionsById.set(lockedLobbyId, gameSessionData);
+            }
+            hasOwnedActiveGameLobby = true;
+            setGameCenterStatus("Zaten aktif bir lobin var. Yeni lobi açmadan önce mevcut lobini kapat.", true);
+            renderGameCenter();
+            return;
+        }
         const createBatch = writeBatch(db);
         createBatch.set(lockRef, { lobbyId, gameId: selectedGame.id, createdAt: serverTimestamp() });
         createBatch.set(lobbyRef, {
