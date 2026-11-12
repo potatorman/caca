@@ -1542,18 +1542,6 @@ function renderGameCatalog() {
         grid.appendChild(card);
     });
 
-    const placeholder = document.createElement("div");
-    placeholder.className = "game-catalog-placeholder";
-    const placeholderIcon = document.createElement("span");
-    placeholderIcon.className = "game-catalog-placeholder-icon";
-    placeholderIcon.textContent = "+";
-    const placeholderName = document.createElement("strong");
-    placeholderName.textContent = "Yeni oyunlar";
-    const placeholderStatus = document.createElement("span");
-    placeholderStatus.textContent = "YAKINDA";
-    placeholder.append(placeholderIcon, placeholderName, placeholderStatus);
-    grid.appendChild(placeholder);
-
     const selectedGame = GAME_REGISTRY.find((game) =>
         game.id === selectedGameId && game.lobbyEnabled !== false
     );
