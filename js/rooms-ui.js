@@ -2759,7 +2759,7 @@ async function createGameSession() {
             true
         );
     } finally {
-        button.disabled = false;
+        renderGameCatalog();
     }
 }
 
