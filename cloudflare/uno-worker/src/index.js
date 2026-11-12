@@ -5,6 +5,7 @@ import {
 import { signTicket, verifyTicket } from "./ticket.js";
 import { UnoRoom } from "./UnoRoom.js";
 import { VampirKoyluRoom } from "./VampirKoyluRoom.js";
+import { getVampirKoyluDurableObjectName, isValidVampirKoyluSessionId } from "./session-identity.js";
 
 export { UnoRoom, VampirKoyluRoom };
 
@@ -32,7 +33,7 @@ function getBearerToken(request) {
 }
 
 function validateSessionId(sessionId) {
-    if (typeof sessionId !== "string" || !/^[A-Za-z0-9_-]{16,80}$/.test(sessionId)) {
+    if (!isValidVampirKoyluSessionId(sessionId)) {
         throw new Error("Vampir Köylü oturum kimliği geçersiz.");
     }
 }
@@ -86,7 +87,9 @@ async function authorizeRoomUser(env, uid, roomId, round, gameId = "uno", sessio
 function getRoomStub(env, gameId, roomId, round, sessionId = null) {
     const binding = gameId === "vampir-koylu" ? env.VAMPIR_KOYLU_ROOMS : env.UNO_ROOMS;
     if (!binding) throw new Error("Bu oyun için Durable Object bağlantısı bulunamadı.");
-    const identity = roomId + ":" + String(round) + (gameId === "vampir-koylu" ? ":" + sessionId : "");
+    const identity = gameId === "vampir-koylu"
+        ? getVampirKoyluDurableObjectName(roomId, round, sessionId)
+        : roomId + ":" + String(round);
     const id = binding.idFromName(identity);
     return binding.get(id);
 }
