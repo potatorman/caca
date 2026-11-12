@@ -2410,6 +2410,7 @@ function listenToGameCenter(roomId) {
     gameSessionsById = new Map();
     activeGameLobbyId = "";
     gameSessionData = null;
+    let firstGameSessionSnapshot = true;
     unsubscribeGameSession = onSnapshot(
         collection(db, "rooms", roomId, "gameSessions"),
         (snapshot) => {
@@ -2469,9 +2470,10 @@ function listenToGameCenter(roomId) {
                 }
             }
             renderGameCenter();
-            if (gameSessionData && !snapshot.metadata.fromCache) {
+            if (firstGameSessionSnapshot) {
+                firstGameSessionSnapshot = false;
                 const gamesView = $("gamesView");
-                if (gamesView && !gamesView.hidden) {
+                if (gameSessionData && gamesView && !gamesView.hidden) {
                     $("gameSessionContent")?.scrollIntoView({ behavior: "auto", block: "start" });
                 }
             }
