@@ -6487,3 +6487,5 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
  .game-max-players-field { width:100%; justify-content:space-between; }
  .game-max-players-field select { flex:0 0 130px; }
 }
+
+.game-center-panel .game-center-card { width:100%; max-width:none; max-height:none; min-height:0; overflow:visible; padding:0; color:#edf5ff; background:transparent; border:0; border-radius:0; box-shadow:none; }
