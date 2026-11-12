@@ -2,7 +2,8 @@ import {
     authenticateFirebaseToken,
     getFirestoreDocument,
     patchFirestoreDocument,
-    deleteFirestoreDocument
+    deleteFirestoreDocument,
+    firestoreTimestamp
 } from "./firebase.js";
 import { signTicket, verifyTicket } from "./ticket.js";
 import { UnoRoom } from "./UnoRoom.js";
@@ -201,7 +202,7 @@ async function manageLobby(request, env, origin) {
         const verifier = await deriveLobbyPassword(password, salt);
         await patchFirestoreDocument(env, secretPath, {
             salt: base64(salt), verifier: base64(verifier), iterations: PASSWORD_ITERATIONS,
-            updatedAt: new Date().toISOString()
+            updatedAt: firestoreTimestamp()
         });
         await patchFirestoreDocument(env, path, { hasPassword: true });
         return json({ ok: true, hasPassword: true }, 200, origin);
