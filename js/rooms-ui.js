@@ -1494,7 +1494,7 @@ function renderGameCatalog() {
     const games = GAME_REGISTRY.filter((game) => game.lobbyEnabled !== false);
     if (!games.some((game) => game.id === selectedGameId)) selectedGameId = games[0]?.id || "";
     grid.replaceChildren();
-    games.forEach((game, index) => {
+    games.forEach((game) => {
         const selected = game.id === selectedGameId;
         const button = document.createElement("button");
         button.type = "button";
@@ -1502,7 +1502,6 @@ function renderGameCatalog() {
         button.dataset.gameId = game.id;
         button.setAttribute("aria-pressed", String(selected));
         button.classList.toggle("is-selected", selected);
-        button.style.setProperty("--honeycomb-index", String(index));
         const name = document.createElement("strong");
         name.className = "game-catalog-name";
         name.textContent = game.name;
@@ -1512,6 +1511,28 @@ function renderGameCatalog() {
         button.append(name, range);
         grid.appendChild(button);
     });
+
+    // Temporary, non-interactive tiles make the intended three-row honeycomb
+    // composition visible while the catalog still contains only two real games.
+    const placeholders = [
+        "Yakında yeni oyunlar",
+        "Yakında yeni oyunlar",
+        "Yakında yeni oyunlar",
+        "Yakında yeni oyunlar",
+        "Yakında yeni oyunlar"
+    ];
+    placeholders.forEach((label) => {
+        const tile = document.createElement("div");
+        tile.className = "game-catalog-placeholder-tile";
+        tile.setAttribute("aria-hidden", "true");
+        const name = document.createElement("strong");
+        name.textContent = label;
+        const detail = document.createElement("span");
+        detail.textContent = "Oyun alanı";
+        tile.append(name, detail);
+        grid.appendChild(tile);
+    });
+
     const selected = games.find((game) => game.id === selectedGameId);
     const maxSelect = $("gameMaxPlayersSelect");
     if (maxSelect && selected) {
@@ -1605,14 +1626,16 @@ function renderGameCenter() {
     const content = $("gameSessionContent");
     if (!emptyState || !content) return;
 
-    emptyState.hidden = Boolean(session);
+    // Keep the game picker visible when returning to Games, even if this room
+    // already has an active session. The session panel can render beneath it.
+    emptyState.hidden = false;
     content.hidden = !session;
+    renderGameCatalog();
     if (!session) {
         renderOpenGameLobbies();
         $("gameLobbySettingsPanel").hidden = true;
         $("gameLobbySettingsButton").hidden = true;
         $("gameBotLobbyPreview").hidden = true;
-        renderGameCatalog();
         return;
     }
 
