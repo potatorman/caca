@@ -1457,6 +1457,7 @@ service cloud.firestore {
             // During UNO results, a removed player can queue themselves for the next lobby.
             || (
               resource.data.gameId == 'uno'
+              && roomId != 'global'
               && resource.data.status == 'results'
               && request.resource.data.status == 'results'
               && !resource.data.playerIds.hasAny([request.auth.uid])
