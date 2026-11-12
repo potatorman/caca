@@ -19,6 +19,7 @@ import {
     patchFirestoreDocument
 } from "./firebase.js";
 import { shouldRefreshUnconnectedRoster } from "./match-roster.js";
+import { isValidVampirKoyluSessionId, matchesVampirKoyluSession } from "./session-identity.js";
 
 const MIN_PLAYERS = 5;
 const MAX_PLAYERS = 12;
@@ -903,7 +904,7 @@ export class VampirKoyluRoom extends DurableObject {
     async cancelBeforeStart(uid, session) {
         const { roomId, round, sessionId } = await this.getIdentity();
         const sessionPath = "rooms/" + roomId + "/gameSessions/active";
-        if (session.sessionId !== sessionId) throw new Error("Vampir Köylü lobisi artık etkin değil.");
+        if (!matchesVampirKoyluSession(session, { sessionId, round })) throw new Error("Vampir Köylü lobisi artık etkin değil.");
         const players = uniqueIds(session.playerIds);
         const matchPlayers = getSessionPlayers(session);
         if (!players.includes(uid) || !matchPlayers.includes(uid)) {
