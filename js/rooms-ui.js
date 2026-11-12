@@ -2640,6 +2640,7 @@ function openGameLobbySettings() {
     $("gameBotTargetCount").value = String(settings.targetPlayerCount);
     $("gameBotSettingsStatus").textContent = "";
     $("gameLobbySettingsTitle").textContent = `${session.gameName || "Oyun"} · Lobi Ayarları`;
+    $("gameLobbySettingsEyebrow").textContent = isVampir ? "VAMPİR KÖYLÜ" : "GENEL LOBİ AYARLARI";
     $("gameLobbySettingsPanel").hidden = false;
     if (isVampir) updateGameBotSettingsPreview();
     else $("saveGameLobbySettingsButton").disabled = false;
