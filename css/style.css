@@ -6532,19 +6532,48 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 
 
 
-/* Games arena: a full-area honeycomb field; game choices stay simple for now. */
+/* Games arena: seamless honeycomb with a moving highlight confined to its borders. */
 .workspace-layout.is-games-workspace .games-view {
     position: relative;
     isolation: isolate;
     min-height: calc(100vh - 110px);
-    background-color: #0c1420;
-    background-image:
-        radial-gradient(ellipse at 34% 18%, rgba(30, 78, 126, .16), transparent 54%),
-        linear-gradient(145deg, rgba(9, 17, 29, .2), rgba(11, 23, 38, .08)),
-        url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22216%22%20height%3D%22126%22%20viewBox%3D%220%200%20216%20126%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%23426b91%22%20stroke-width%3D%222.2%22%20stroke-linejoin%3D%22round%22%20opacity%3D%22.62%22%3E%3Cpath%20d%3D%22M36%200%2072%2021v42L36%2084%200%2063V21Z%22%2F%3E%3Cpath%20d%3D%22M144%200%20180%2021v42l-36%2021-36-21V21Z%22%2F%3E%3Cpath%20d%3D%22m90%2063%2036%2021v42l-36%2021-36-21V84Z%22%2F%3E%3Cpath%20d%3D%22m198%2063%2036%2021v42l-36%2021-36-21V84Z%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
-    background-size: 100% 100%, 100% 100%, 216px 126px;
-    background-position: center, center, 0 0;
-    background-repeat: no-repeat, no-repeat, repeat;
+    overflow: hidden;
+    background:
+        radial-gradient(ellipse at 34% 16%, rgba(32, 77, 119, .14), transparent 58%),
+        #0b1420;
+}
+.workspace-layout.is-games-workspace .games-view::before,
+.workspace-layout.is-games-workspace .games-view::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.workspace-layout.is-games-workspace .games-view::before {
+    z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2272%22%20height%3D%2263%22%20viewBox%3D%220%200%2072%2063%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%23527da5%22%20stroke-width%3D%221.6%22%20stroke-linejoin%3D%22round%22%20opacity%3D%22.58%22%3E%3Cpath%20d%3D%22M18%200%2036%2010.5v21L18%2042%200%2031.5v-21Z%20M54%200%2072%2010.5v21L54%2042%2036%2031.5v-21Z%20M36%2031.5%2054%2042v21L36%2084%2018%2073.5v-21Z%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+    background-size: 72px 63px;
+    background-position: 0 0;
+    background-repeat: repeat;
+}
+.workspace-layout.is-games-workspace .games-view::after {
+    z-index: 0;
+    opacity: .82;
+    background: linear-gradient(112deg,
+        transparent 0%,
+        rgba(89, 157, 224, .04) 38%,
+        rgba(157, 211, 255, .78) 49%,
+        rgba(103, 177, 244, .22) 53%,
+        transparent 63%);
+    background-size: 260% 100%;
+    background-position: 180% 0;
+    animation: games-honeycomb-border-sheen 13s ease-in-out infinite;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2272%22%20height%3D%2263%22%20viewBox%3D%220%200%2072%2063%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%222.8%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%200%2036%2010.5v21L18%2042%200%2031.5v-21Z%20M54%200%2072%2010.5v21L54%2042%2036%2031.5v-21Z%20M36%2031.5%2054%2042v21L36%2084%2018%2073.5v-21Z%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2272%22%20height%3D%2263%22%20viewBox%3D%220%200%2072%2063%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%222.8%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%200%2036%2010.5v21L18%2042%200%2031.5v-21Z%20M54%200%2072%2010.5v21L54%2042%2036%2031.5v-21Z%20M36%2031.5%2054%2042v21L36%2084%2018%2073.5v-21Z%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+    -webkit-mask-size: 72px 63px;
+    mask-size: 72px 63px;
+    -webkit-mask-repeat: repeat;
+    mask-repeat: repeat;
 }
 .workspace-layout.is-games-workspace .games-workspace {
     position: relative;
@@ -6577,19 +6606,19 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     padding: 13px 16px;
     color: #eaf4ff;
     text-align: left;
-    background: rgba(17, 38, 61, .9);
+    background: rgba(17, 38, 61, .94);
     border: 1px solid rgba(100, 151, 202, .42);
     border-radius: 10px;
     cursor: pointer;
     transition: background .18s ease, border-color .18s ease, transform .18s ease;
 }
 .workspace-layout.is-games-workspace .game-catalog-choice:hover {
-    background: rgba(27, 56, 86, .96);
+    background: rgba(27, 56, 86, .98);
     border-color: rgba(126, 181, 235, .8);
     transform: translateY(-2px);
 }
 .workspace-layout.is-games-workspace .game-catalog-choice.is-selected {
-    background: rgba(29, 70, 112, .96);
+    background: rgba(29, 70, 112, .98);
     border-color: #6caeff;
     box-shadow: 0 0 0 1px rgba(108, 174, 255, .2);
 }
@@ -6597,7 +6626,7 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     border-color: rgba(157, 124, 205, .62);
 }
 .workspace-layout.is-games-workspace .game-catalog-choice[data-game-id="vampir-koylu"].is-selected {
-    background: rgba(54, 43, 77, .96);
+    background: rgba(54, 43, 77, .98);
     border-color: #b391e5;
 }
 .workspace-layout.is-games-workspace .game-catalog-choice strong {
@@ -6619,10 +6648,14 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 }
 .workspace-layout.is-games-workspace .game-max-players-field { margin: 0; }
 .workspace-layout.is-games-workspace .game-create-button { min-height: 38px; margin: 0; }
+@keyframes games-honeycomb-border-sheen {
+    0%, 12% { background-position: 180% 0; }
+    78%, 100% { background-position: -180% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .workspace-layout.is-games-workspace .games-view::after { animation: none; opacity: .16; }
+}
 @media (max-width: 680px) {
-    .workspace-layout.is-games-workspace .games-view {
-        background-size: 100% 100%, 100% 100%, 162px 94px;
-    }
     .workspace-layout.is-games-workspace .game-catalog-choice {
         flex-basis: min(190px, 100%);
     }
