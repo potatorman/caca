@@ -34,10 +34,15 @@ service cloud.firestore {
     }
 
     function isRoomMember(roomId) {
-      return signedIn()
-        && exists(memberPath(roomId, request.auth.uid))
-        && get(memberPath(roomId, request.auth.uid)).data.get('role', 'member')
-          in ['owner', 'member', 'admin'];
+      // The reserved global scope is used only by game documents; it has no chat-room membership.
+      return signedIn() && (
+        roomId == 'global'
+        || (
+          exists(memberPath(roomId, request.auth.uid))
+          && get(memberPath(roomId, request.auth.uid)).data.get('role', 'member')
+            in ['owner', 'member', 'admin']
+        )
+      );
     }
 
     function isActiveAdminRecord(memberData) {
