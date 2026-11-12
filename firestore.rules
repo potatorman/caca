@@ -764,6 +764,7 @@ service cloud.firestore {
             && (!data.keys().hasAny(['sessionId']) || data.sessionId == null || (data.sessionId is string && data.sessionId.size() >= 16 && data.sessionId.size() <= 80 && data.sessionId.matches('^[A-Za-z0-9_-]+$')))
             && data.gameName is string && data.gameName.size() >= 2 && data.gameName.size() <= 40
             && data.status in ['lobby', 'starting', 'playing', 'results']
+            && (!data.keys().hasAny(['hasPassword']) || data.hasPassword is bool)
             && data.round is int && data.round >= 1
             && data.hostId is string
             && data.playerIds is list && data.playerIds.size() <= 20
