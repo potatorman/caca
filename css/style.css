@@ -6931,3 +6931,13 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 .workspace-layout.is-games-workspace #gameSessionContent {
     scroll-margin-top: 18px;
 }
+
+
+/* Explicit hidden-state rules must win over the layout display overrides. */
+.workspace-layout.is-games-workspace #gameCenterEmptyState[hidden],
+.workspace-layout.is-games-workspace #gameSessionContent[hidden] {
+    display: none !important;
+}
+.workspace-layout.is-games-workspace #gameCenterEmptyState:not([hidden]) {
+    display: flex !important;
+}
