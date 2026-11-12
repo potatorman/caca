@@ -1412,7 +1412,7 @@ let hasOwnedActiveGameLobby = false;
 async function callLobbyWorker(payload) {
     if (!currentUser) throw new Error("Yeniden giriş yapmalısın.");
     const token = await currentUser.getIdToken();
-    const response = await fetch(String(UNO_WORKER_URL).replace(/\\/+$/, "") + "/api/lobby/manage", {
+    const response = await fetch(String(UNO_WORKER_URL).replace(/\/+$/, "") + "/api/lobby/manage", {
         method: "POST",
         headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
         body: JSON.stringify(payload)
