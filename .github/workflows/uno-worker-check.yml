@@ -3,7 +3,7 @@ name: CACA UNO Worker checks
 on:
   push:
     branches:
-      - cloudflare-uno-migration
+      - main
   pull_request:
     branches:
       - main

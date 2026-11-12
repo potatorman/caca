@@ -23,7 +23,7 @@ async function getCurrentIdToken(uid) {
     return user.getIdToken();
 }
 
-async function workerRequest(roomId, round, uid, action) {
+async function workerRequest(roomId, lobbyId, round, uid, action) {
     const baseUrl = configuredWorkerUrl();
     const token = await getCurrentIdToken(uid);
     const response = await fetch(baseUrl + "/api/uno/action", {
@@ -32,7 +32,7 @@ async function workerRequest(roomId, round, uid, action) {
             Authorization: "Bearer " + token,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify({ roomId, round: Number(round), action })
+        body: JSON.stringify({ roomId, lobbyId, round: Number(round), action })
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -43,20 +43,20 @@ async function workerRequest(roomId, round, uid, action) {
     return payload;
 }
 
-export async function forfeitMatch(db, roomId, round, uid) {
-    return workerRequest(roomId, round, uid, "quit");
+export async function forfeitMatch(db, roomId, lobbyId, round, uid) {
+    return workerRequest(roomId, lobbyId, round, uid, "quit");
 }
 
-export async function returnToLobby(db, roomId, round, uid) {
-    return workerRequest(roomId, round, uid, "returnToLobby");
+export async function returnToLobby(db, roomId, lobbyId, round, uid) {
+    return workerRequest(roomId, lobbyId, round, uid, "returnToLobby");
 }
 
-export async function reconcileMatchPlayers(db, roomId, round, uid) {
-    const result = await workerRequest(roomId, round, uid, "reconcile");
+export async function reconcileMatchPlayers(db, roomId, lobbyId, round, uid) {
+    const result = await workerRequest(roomId, lobbyId, round, uid, "reconcile");
     return Boolean(result.reconciled);
 }
 
-export async function connectToMatch(db, roomId, round, uid, handlers = {}) {
+export async function connectToMatch(db, roomId, lobbyId, round, uid, handlers = {}) {
     const baseUrl = configuredWorkerUrl();
     let socket = null;
     let closed = false;
@@ -87,7 +87,7 @@ export async function connectToMatch(db, roomId, round, uid, handlers = {}) {
                 Authorization: "Bearer " + token,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ roomId, round: Number(round) })
+            body: JSON.stringify({ roomId, lobbyId, round: Number(round) })
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload.webSocketUrl) {

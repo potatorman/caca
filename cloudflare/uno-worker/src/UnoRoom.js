@@ -119,10 +119,10 @@ export class UnoRoom extends DurableObject {
         const existing = await this.ctx.storage.get("match");
         if (existing || !createIfMissing) return existing || null;
 
-        const { roomId, round } = await this.getIdentity();
+        const { roomId, lobbyId, round } = await this.getIdentity();
         const sessionDoc = await getFirestoreDocument(
             this.env,
-            "rooms/" + roomId + "/gameSessions/active"
+            "rooms/" + roomId + "/gameSessions/" + lobbyId
         );
         if (!sessionDoc) throw new Error("Firebase oyun lobisi bulunamadı.");
 
@@ -155,6 +155,7 @@ export class UnoRoom extends DurableObject {
 
         const match = {
             roomId,
+            lobbyId,
             round,
             status: "playing",
             playerIds: [...players],
@@ -189,17 +190,19 @@ export class UnoRoom extends DurableObject {
 
     async setIdentity(headers) {
         const roomId = headers.get("X-CACA-ROOM-ID") || "";
+        const lobbyId = headers.get("X-CACA-LOBBY-ID") || "";
         const round = Number(headers.get("X-CACA-ROUND"));
         if (!/^[A-Za-z0-9_-]{1,128}$/.test(roomId) ||
+            (lobbyId !== "active" && !/^[A-Za-z0-9_-]{16,80}$/.test(lobbyId)) ||
             !Number.isInteger(round) || round < 1) {
             throw new Error("UNO oda veya tur bilgisi geçersiz.");
         }
         const current = await this.ctx.storage.get("identity");
-        if (current && (current.roomId !== roomId || current.round !== round)) {
+        if (current && (current.roomId !== roomId || current.lobbyId !== lobbyId || current.round !== round)) {
             throw new Error("UNO oda kimliği bu Durable Object ile eşleşmiyor.");
         }
-        await this.ctx.storage.put("identity", { roomId, round });
-        return { roomId, round };
+        await this.ctx.storage.put("identity", { roomId, lobbyId, round });
+        return { roomId, lobbyId, round };
     }
 
     async getIdentity() {
@@ -276,7 +279,7 @@ export class UnoRoom extends DurableObject {
             match = await this.loadMatch(true);
             const sessionDoc = await getFirestoreDocument(
                 this.env,
-                "rooms/" + match.roomId + "/gameSessions/active"
+                "rooms/" + match.roomId + "/gameSessions/" + match.lobbyId
             );
             const session = sessionDoc?.data;
             if (!session || Number(session.round) !== match.round) {
@@ -348,10 +351,10 @@ export class UnoRoom extends DurableObject {
             // A room moderator may remove a member while their WebSocket is still
             // open. Re-check the single authoritative session roster before every
             // action so an already-connected removed player cannot keep moving.
-            const { roomId, round } = await this.getIdentity();
+            const { roomId, lobbyId, round } = await this.getIdentity();
             const sessionDoc = await getFirestoreDocument(
                 this.env,
-                "rooms/" + roomId + "/gameSessions/active"
+                "rooms/" + roomId + "/gameSessions/" + lobbyId
             );
             const session = sessionDoc?.data;
             if (
@@ -600,7 +603,7 @@ export class UnoRoom extends DurableObject {
 
     async syncFinishedResult(match) {
         if (match.status !== "results" || match.firebaseResultSynced) return;
-        const sessionPath = "rooms/" + match.roomId + "/gameSessions/active";
+        const sessionPath = "rooms/" + match.roomId + "/gameSessions/" + match.lobbyId;
         const sessionDoc = await getFirestoreDocument(this.env, sessionPath);
         if (!sessionDoc || Number(sessionDoc.data.round) !== match.round) {
             throw new Error("UNO sonucu Firebase oyun lobisine yazılamadı: tur değişmiş.");
@@ -621,7 +624,7 @@ export class UnoRoom extends DurableObject {
 
         await patchFirestoreDocument(
             this.env,
-            "rooms/" + match.roomId + "/unoResults/" + String(match.round),
+            "rooms/" + match.roomId + "/unoResults/" + match.lobbyId + "_" + String(match.round),
             {
                 gameId: "uno",
                 round: match.round,
@@ -668,8 +671,8 @@ export class UnoRoom extends DurableObject {
     }
 
     async cancelBeforeDeal(uid, session) {
-        const { roomId } = await this.getIdentity();
-        const path = "rooms/" + roomId + "/gameSessions/active";
+        const { roomId, lobbyId } = await this.getIdentity();
+        const path = "rooms/" + roomId + "/gameSessions/" + lobbyId;
         const players = uniqueIds(session.playerIds);
         const matchPlayers = getSessionPlayers(session);
         if (!players.includes(uid) || !matchPlayers.includes(uid)) {
@@ -711,8 +714,8 @@ export class UnoRoom extends DurableObject {
     }
 
     async quitPlayer(uid) {
-        const { roomId, round } = await this.getIdentity();
-        const sessionPath = "rooms/" + roomId + "/gameSessions/active";
+        const { roomId, lobbyId, round } = await this.getIdentity();
+        const sessionPath = "rooms/" + roomId + "/gameSessions/" + lobbyId;
         const sessionDoc = await getFirestoreDocument(this.env, sessionPath);
         if (!sessionDoc || Number(sessionDoc.data.round) !== round ||
             sessionDoc.data.gameId !== "uno" || sessionDoc.data.status !== "playing") {
@@ -818,13 +821,13 @@ export class UnoRoom extends DurableObject {
     }
 
     async reconcileRoster(uid) {
-        const { roomId, round } = await this.getIdentity();
+        const { roomId, lobbyId, round } = await this.getIdentity();
         const match = await this.loadMatch(false);
         if (!match || match.status !== "playing") return { reconciled: false };
 
         const sessionDoc = await getFirestoreDocument(
             this.env,
-            "rooms/" + roomId + "/gameSessions/active"
+            "rooms/" + roomId + "/gameSessions/" + lobbyId
         );
         if (!sessionDoc || Number(sessionDoc.data.round) !== round ||
             sessionDoc.data.status !== "playing") return { reconciled: false };
@@ -869,7 +872,7 @@ export class UnoRoom extends DurableObject {
     }
 
     async returnToLobby(uid) {
-        const { roomId, round } = await this.getIdentity();
+        const { roomId, lobbyId, round } = await this.getIdentity();
         const match = await this.loadMatch(false);
         if (!match || match.status !== "results") {
             throw new Error("UNO sonuçları henüz hazır değil.");
@@ -879,7 +882,7 @@ export class UnoRoom extends DurableObject {
         }
         await this.syncFinishedResult(match);
 
-        const sessionPath = "rooms/" + roomId + "/gameSessions/active";
+        const sessionPath = "rooms/" + roomId + "/gameSessions/" + lobbyId;
         const sessionDoc = await getFirestoreDocument(this.env, sessionPath);
         if (!sessionDoc || Number(sessionDoc.data.round) !== round ||
             sessionDoc.data.status !== "results") {
@@ -903,7 +906,7 @@ export class UnoRoom extends DurableObject {
             });
             await patchFirestoreDocument(
                 this.env,
-                "rooms/" + roomId + "/unoResults/" + String(round),
+                "rooms/" + roomId + "/unoResults/" + lobbyId + "_" + String(round),
                 { resultReturnIds: returned }
             );
             await this.ctx.storage.put("match", match);
@@ -945,7 +948,7 @@ export class UnoRoom extends DurableObject {
         });
         await patchFirestoreDocument(
             this.env,
-            "rooms/" + roomId + "/unoResults/" + String(round),
+            "rooms/" + roomId + "/unoResults/" + lobbyId + "_" + String(round),
             {
                 resultReturnIds: returned,
                 returnedAt: timestampNow(),

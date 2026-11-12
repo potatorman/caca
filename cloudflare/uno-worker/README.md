@@ -11,12 +11,13 @@ room lobby, profiles, invitations and chat remain on Firebase.
 - Live state delivery over WebSockets
 - Match exits, roster repair, result acknowledgements and return-to-lobby coordination
 
-Firebase continues to own accounts and persistent room membership. Cloudflare stores the
-active match in one SQLite-backed Durable Object per room and round. UNO results are recorded
-in `rooms/{roomId}/unoResults/{round}`. Vampir Köylü keeps its hidden role map and private actions
-inside its Durable Object. Both games update `gameSessions/active` when needed.
-The legacy `unoMatches` documents are not used by the new client and are not automatically
-deleted.
+Firebase continues to own accounts, persistent room membership and the room game-lobby index.
+Every lobby has its own document at `rooms/{roomId}/gameSessions/{lobbyId}`. Both game engines
+carry that `lobbyId` through signed tickets, WebSocket routing and a dedicated Durable Object
+identity. UNO result documents use `{lobbyId}_{round}` keys so separate tables never overwrite
+each other. Vampir Köylü also retains a per-lobby session nonce for stale-session protection.
+The old `gameSessions/active` document remains readable as a migration-only lobby; newly created
+lobbies always use unique IDs. The legacy `unoMatches` documents are not automatically deleted.
 
 ## Connect GitHub to Cloudflare
 
@@ -81,8 +82,7 @@ Open `https://YOUR-WORKER-URL/health`. The Worker should answer with `ok: true` 
 ## Tests
 
 The repository includes an automated GitHub Actions check that runs the deck/rules-engine tests
-and Wrangler's dry-run deployment check. The local `npm test` command is optional; Node.js is
-not needed on the user's PC to run the deployed website or host a game.
+and Wrangler's dry-run deployment check. Run `powershell -ExecutionPolicy Bypass -File .\scripts\test-multi-lobby.ps1` from the repository root to run the Worker tests, browser-module syntax checks and Wrangler dry run locally. Node.js 22+ is only needed for this optional local test run; it is not needed to use the deployed website.
 
 ## Important
 
@@ -92,12 +92,9 @@ client shows a setup error and does not fall back to Firestore gameplay.
 
 ## Workers Builds connection used for the migration
 
-During migration testing, the Workers Builds production branch is
-`cloudflare-uno-migration`. Keep the root directory at `/cloudflare/uno-worker`, leave the
-build command empty and use `npx wrangler deploy` as the deploy command.
-
-After this migration PR is merged, change the Workers Builds production branch to `main`.
-That makes the Worker follow the same production branch as the live website.
+The Workers Builds production branch should be `main`. Keep the root directory at
+`/cloudflare/uno-worker`, leave the build command empty and use `npx wrangler deploy` as the
+deploy command. Every commit pushed to `main` then publishes the Worker from this directory.
 
 ## Production deployment
 

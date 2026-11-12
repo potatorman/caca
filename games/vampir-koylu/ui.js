@@ -556,7 +556,7 @@ export async function openVampirKoyluGame({
         );
     });
 
-    connectToMatch(db, roomId, round, session.sessionId, uid, {
+    connectToMatch(db, roomId, session.lobbyId, round, session.sessionId, uid, {
         onState(nextState) {
             if (closed) return;
             state = nextState;

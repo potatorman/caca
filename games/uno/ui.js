@@ -494,7 +494,7 @@ export async function openUnoGame({
     });
 
     setStatus("Cloudflare UNO sunucusuna bağlanılıyor…");
-    connectToMatch(db, roomId, round, uid, {
+    connectToMatch(db, roomId, session.lobbyId, round, uid, {
         onState(nextState) {
             if (closed) return;
             state = nextState;

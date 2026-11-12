@@ -536,7 +536,7 @@ service cloud.firestore {
             )
           );
       }
-      // One fixed game session per room. All members can read it to watch.
+      // Every game lobby is an independent document. Members can list them to discover open tables.
       match /gameSessions/{sessionId} {
         function onlyRemovesSelf(oldList, newList) {
           return oldList.hasAll(newList)
@@ -796,7 +796,9 @@ service cloud.firestore {
         }
 
         function currentUnoMatchPath() {
-          return /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round);
+          return sessionId == 'active'
+            ? /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+            : /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(sessionId + '_' + string(resource.data.round));
         }
 
         function resultReturns(data) {
@@ -1053,7 +1055,7 @@ service cloud.firestore {
               )
             );
         }
-        allow get: if sessionId == 'active'
+        allow get: if sessionId == 'active' || (sessionId.size() >= 16 && sessionId.size() <= 80 && sessionId.matches('^[A-Za-z0-9_-]+$'))
           && (
             isRoomMember(roomId)
             || (
@@ -1063,9 +1065,9 @@ service cloud.firestore {
               && resource.data.playerIds.hasAny([request.auth.uid])
             )
           );
-        allow list: if false;
+        allow list: if isRoomMember(roomId);
 
-        allow create: if sessionId == 'active'
+        allow create: if sessionId.size() >= 16 && sessionId.size() <= 80 && sessionId.matches('^[A-Za-z0-9_-]+$')
           && isRoomMember(roomId)
           && validGameSession(request.resource.data)
           && request.resource.data.status == 'lobby'
@@ -1083,7 +1085,7 @@ service cloud.firestore {
           && request.resource.data.countdownEndsAt == null
           && request.resource.data.finishedAt == null;
 
-        allow update: if sessionId == 'active'
+        allow update: if (sessionId == 'active' || (sessionId.size() >= 16 && sessionId.size() <= 80 && sessionId.matches('^[A-Za-z0-9_-]+$')))
           && isRoomMember(roomId)
           && validGameSession(request.resource.data)
           && request.resource.data.gameId == resource.data.gameId
@@ -1389,10 +1391,10 @@ service cloud.firestore {
                   resource.data.gameId == 'uno'
                   && matchPlayers(resource.data).hasAny([request.auth.uid])
                   && get(
-                    /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+                    /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(sessionId + '_' + string(resource.data.round))
                   ).data.status == 'results'
                   && get(
-                    /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(resource.data.round)
+                    /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(sessionId + '_' + string(resource.data.round))
                   ).data.winnerId == request.auth.uid
                 )
               )
@@ -1597,7 +1599,7 @@ service cloud.firestore {
             )
           );
 
-        allow delete: if sessionId == 'active'
+        allow delete: if (sessionId == 'active' || (sessionId.size() >= 16 && sessionId.size() <= 80 && sessionId.matches('^[A-Za-z0-9_-]+$')))
           && isRoomMember(roomId)
           && (
             request.auth.uid == resource.data.hostId
@@ -1613,16 +1615,22 @@ service cloud.firestore {
         allow list, create, update, delete: if false;
       }
 
-      // UNO matches are isolated from the persistent gameSessions/active document.
+      // UNO match documents include the lobby id in their key so concurrent tables cannot collide.
       // Public match state contains counts and the top card; hands and draw cards
       // live in separate private subcollections.
-      match /unoMatches/{roundId} {
-        function activeSessionPath() {
-          return /databases/$(database)/documents/rooms/$(roomId)/gameSessions/active;
+      match /unoMatches/{matchId} {
+        function matchPath() {
+          return /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(matchId);
         }
 
-        function matchPath() {
-          return /databases/$(database)/documents/rooms/$(roomId)/unoMatches/$(roundId);
+        function currentLobbyId() {
+          return exists(matchPath())
+            ? get(matchPath()).data.get('lobbyId', 'active')
+            : request.resource.data.get('lobbyId', 'active');
+        }
+
+        function activeSessionPath() {
+          return /databases/$(database)/documents/rooms/$(roomId)/gameSessions/$(currentLobbyId());
         }
 
         function activeSessionData() {
@@ -1637,14 +1645,14 @@ service cloud.firestore {
           return getAfter(matchPath()).data;
         }
 
-        // A finished UNO match can only be removed after the shared lobby has
-        // advanced. No participant can delete the result while others still need it.
+        // A finished UNO match can only be removed after its own lobby has advanced.
+        // No participant can delete another lobby's result.
         function canCleanCurrentUnoRound() {
           return isRoomMember(roomId)
             && activeSessionData().gameId == 'uno'
             && activeSessionData().status in ['lobby', 'starting', 'playing', 'results']
             && currentMatch().roomId == roomId
-            && roundId == string(currentMatch().round)
+            && matchId == currentMatch().lobbyId + '_' + string(currentMatch().round)
             && currentMatch().status == 'results'
             && currentMatch().round < activeSessionData().round
             && (
@@ -1792,6 +1800,16 @@ service cloud.firestore {
           return data.roomId == roomId
             && data.round is int
             && data.round >= 1
+            && (
+              data.get('lobbyId', 'active') == 'active'
+              ? matchId == string(data.round)
+              : (
+                data.lobbyId is string
+                && data.lobbyId.size() >= 16
+                && data.lobbyId.size() <= 80
+                && matchId == data.lobbyId + '_' + string(data.round)
+              )
+            )
             && data.status in ['playing', 'results']
             && data.playerIds is list
             && data.playerIds.size() >= 2

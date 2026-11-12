@@ -122,6 +122,8 @@ let unsubscribePranks = null;
 let unsubscribePersonalPranks = null;
 let unsubscribeGameSession = null;
 let gameSessionData = null;
+let gameSessionsById = new Map();
+let activeGameLobbyId = "";
 let activeRoomGame = null;
 let observedUnoRosterRoundKey = "";
 let observedUnoRosterIds = [];
@@ -133,9 +135,10 @@ let roomGameOpenGeneration = 0;
 let gameSessionResultsTimer = null;
 let gameSessionResultsTimerKey = "";
 let selectedGameId = GAME_REGISTRY.find((game) => game.lobbyEnabled !== false)?.id || "";
-let gameSessionStartInProgress = false;
+const gameSessionStartInProgress = new Set();
 let gameSessionCountdownTimer = null;
 let gameSessionCountdownEndAt = null;
+const backgroundGameCountdownTimers = new Map();
 let gameLobbyCooldownTimer = null;
 let activeRoomOwnerId = null;
 let currentRoomMemberRecord = null;
@@ -1402,8 +1405,9 @@ $("sendPersonalJumpscareButton").addEventListener("click", sendPersonalJumpscare
 
 // ROOM GAME CENTER — persistent lobby with independent match cycles.
 
-function getGameSessionRef(roomId = activeRoomId) {
-    return doc(db, "rooms", roomId, "gameSessions", "active");
+function getGameSessionRef(roomId = activeRoomId, lobbyId = activeGameLobbyId || gameSessionData?.lobbyId) {
+    if (!lobbyId) throw new Error("Önce bir oyun lobisi seçmelisin.");
+    return doc(db, "rooms", roomId, "gameSessions", lobbyId);
 }
 
 // Player limits come from the game registry; unknown games use these defaults.
@@ -1535,38 +1539,83 @@ function renderGameCatalog() {
         : !activeRoomId ? "Önce bir sohbet odasına gir" : `${selected?.name || "Oyun"} lobisi oluştur`;
 }
 
+function selectGameLobby(lobbyId) {
+    if (!lobbyId || !gameSessionsById.has(lobbyId)) return;
+    if (activeGameLobbyId === lobbyId) return;
+    const previousSession = gameSessionData;
+    if (previousSession?.status === "starting" && activeRoomId) {
+        const previousRoomId = activeRoomId;
+        const endAt = previousSession.countdownEndsAt?.toMillis?.();
+        if (Number.isFinite(endAt) && !backgroundGameCountdownTimers.has(previousSession.lobbyId)) {
+            const timer = setTimeout(() => {
+                backgroundGameCountdownTimers.delete(previousSession.lobbyId);
+                void completeGameStartCountdown(previousRoomId, previousSession.lobbyId, endAt);
+            }, Math.max(0, endAt - Date.now()) + 600);
+            backgroundGameCountdownTimers.set(previousSession.lobbyId, { endAt, timer });
+        }
+    }
+    activeGameLobbyId = lobbyId;
+    gameSessionData = gameSessionsById.get(lobbyId) || null;
+    clearGameSessionCountdown();
+    clearGameSessionResultsTimer();
+    roomGameOpenGeneration += 1;
+    openingRoomGameKey = "";
+    activeRoomGame?.close();
+    activeRoomGame = null;
+    activeRoomGameKey = "";
+    renderGameCenter();
+    syncGameSessionCountdown(activeRoomId, gameSessionData);
+    syncGameSessionResultsReset(activeRoomId, gameSessionData);
+    if (gameSessionData) maybeStartGameWhenReady(activeRoomId, gameSessionData);
+    if (gameSessionData?.status === "playing") joinGameAsSpectator();
+    if (["playing", "results"].includes(gameSessionData?.status)) {
+        void openRoomGame(gameSessionData, { automatic: true });
+    }
+}
+
 function renderOpenGameLobbies() {
     const list = $("openGameLobbiesList");
     const count = $("openGameLobbyCount");
     if (!list || !count) return;
     list.replaceChildren();
-    if (!gameSessionData || !activeRoomId || gameSessionData.status === "results") {
-        count.textContent = "0";
+    const sessions = [...gameSessionsById.values()]
+        .filter((session) => ["lobby", "starting", "playing", "results"].includes(session.status))
+        .sort((a, b) => String(a.createdAt?.seconds || 0).localeCompare(String(b.createdAt?.seconds || 0)));
+    count.textContent = String(sessions.length);
+    if (!activeRoomId || !sessions.length) {
         const empty = document.createElement("p");
         empty.className = "open-lobbies-empty";
         empty.textContent = activeRoomId
-            ? "Bu odada şu anda açık lobi yok."
-            : "Açık lobileri görmek için önce bir sohbet odasına gir.";
+            ? "Bu odada henüz oyun lobisi yok. İlk lobiyi sen oluştur."
+            : "Oyun lobilerini görmek için önce bir sohbet odasına gir.";
         list.appendChild(empty);
         return;
     }
-    const game = getGameDefinition(gameSessionData.gameId);
-    const players = Array.isArray(gameSessionData.playerIds) ? gameSessionData.playerIds : [];
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "open-game-lobby";
-    const title = document.createElement("strong");
-    title.textContent = gameSessionData.gameName || game?.name || "Oyun";
-    const playerCount = document.createElement("span");
-    playerCount.textContent = players.length + "/" + (gameSessionData.maxPlayers || game?.maxPlayers || "?");
-    item.append(title, playerCount);
-    item.addEventListener("click", () => {
-        $("gameSessionContent").hidden = false;
-        $("gameCenterEmptyState").hidden = true;
-        $("gameSessionContent").scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    list.appendChild(item);
-    count.textContent = "1";
+    for (const session of sessions) {
+        const game = getGameDefinition(session.gameId);
+        const players = Array.isArray(session.playerIds) ? session.playerIds : [];
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "open-game-lobby";
+        item.classList.toggle("is-active", session.lobbyId === activeGameLobbyId);
+        item.dataset.lobbyId = session.lobbyId;
+        const title = document.createElement("strong");
+        title.textContent = session.gameName || game?.name || "Oyun";
+        const details = document.createElement("span");
+        const state = session.status === "playing" ? " · Maçta" :
+            session.status === "starting" ? " · Başlıyor" :
+            session.status === "results" ? " · Sonuçlar" : " · Açık";
+        details.textContent = players.length + "/" +
+            (session.maxPlayers || game?.maxPlayers || "?") + state;
+        item.append(title, details);
+        item.addEventListener("click", () => {
+            selectGameLobby(session.lobbyId);
+            $("gameSessionContent").hidden = false;
+            $("gameCenterEmptyState").hidden = true;
+            $("gameSessionContent").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        list.appendChild(item);
+    }
 }
 function renderGameMemberList(containerId, memberIds, statusForMember = null) {
     const container = $(containerId);
@@ -1828,12 +1877,13 @@ function clearGameSessionResultsTimer() {
     gameSessionResultsTimerKey = "";
 }
 
-async function returnUnoToLobbyFromResults(roomId, expectedRound) {
+async function returnUnoToLobbyFromResults(roomId, lobbyId, expectedRound) {
     if (!currentUser) throw new Error("Oturum bulunamadı.");
 
     const result = await returnUnoToLobby(
         db,
         roomId,
+        lobbyId,
         expectedRound,
         currentUser.uid
     );
@@ -1850,12 +1900,13 @@ async function returnUnoToLobbyFromResults(roomId, expectedRound) {
     return result;
 }
 
-async function returnVampirKoyluToLobbyFromResults(roomId, expectedRound, sessionId) {
+async function returnVampirKoyluToLobbyFromResults(roomId, lobbyId, expectedRound, sessionId) {
     if (!currentUser) throw new Error("Oturum bulunamadı.");
 
     const result = await returnVampirKoyluToLobby(
         db,
         roomId,
+        lobbyId,
         expectedRound,
         sessionId,
         currentUser.uid
@@ -1883,7 +1934,7 @@ function syncGameSessionResultsReset(roomId, sessionData) {
     }
 
     const round = Number(sessionData.round) || 1;
-    const resetKey = roomId + ":" + sessionData.gameId + ":" + round;
+    const resetKey = roomId + ":" + sessionData.lobbyId + ":" + sessionData.gameId + ":" + round;
     if (gameSessionResultsTimer && gameSessionResultsTimerKey === resetKey) return;
 
     clearGameSessionResultsTimer();
@@ -1900,7 +1951,7 @@ function syncGameSessionResultsReset(roomId, sessionData) {
 
         try {
             await runTransaction(db, async (transaction) => {
-                const ref = getGameSessionRef(roomId);
+                const ref = getGameSessionRef(roomId, sessionData.lobbyId);
                 const snapshot = await transaction.get(ref);
                 if (!snapshot.exists()) return;
 
@@ -1936,7 +1987,7 @@ function syncGameSessionResultsReset(roomId, sessionData) {
         } catch (error) {
             console.warn("CACA automatic results reset failed:", error);
             if (activeRoomId === roomId && gameSessionData?.status === "results" &&
-                Number(gameSessionData.round) === round) {
+                gameSessionData.lobbyId === sessionData.lobbyId && Number(gameSessionData.round) === round) {
                 setGameCenterStatus(
                     "Lobi otomatik sıfırlanamadı: " + (error.message || "Bilinmeyen hata"),
                     true
@@ -1951,11 +2002,11 @@ function syncGameSessionResultsReset(roomId, sessionData) {
     }, delay);
 }
 
-async function completeGameStartCountdown(roomId, expectedEndAt, retry = 0) {
-    if (activeRoomId !== roomId || gameSessionData?.status !== "starting") return;
+async function completeGameStartCountdown(roomId, lobbyId, expectedEndAt, retry = 0) {
+    if (activeRoomId !== roomId) return;
     try {
         await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef(roomId);
+            const ref = getGameSessionRef(roomId, lobbyId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) return;
             const latest = snapshot.data();
@@ -1990,13 +2041,12 @@ async function completeGameStartCountdown(roomId, expectedEndAt, retry = 0) {
         if (
             error.code === "permission-denied" &&
             retry < 20 &&
-            activeRoomId === roomId &&
-            gameSessionData?.status === "starting"
+            activeRoomId === roomId
         ) {
-            setTimeout(() => completeGameStartCountdown(roomId, expectedEndAt, retry + 1), 1000);
+            setTimeout(() => completeGameStartCountdown(roomId, lobbyId, expectedEndAt, retry + 1), 1000);
             return;
         }
-        if (activeRoomId === roomId) {
+        if (activeRoomId === roomId && activeGameLobbyId === lobbyId) {
             console.warn("CACA game countdown completion failed:", error);
             setGameCenterStatus("Oyun başlatılamadı: " + (error.message || "Bilinmeyen hata"), true);
         }
@@ -2033,7 +2083,7 @@ function syncGameSessionCountdown(roomId, sessionData) {
         }
         if (remainingMs <= -500) {
             clearGameSessionCountdown();
-            completeGameStartCountdown(roomId, endAt);
+            completeGameStartCountdown(roomId, sessionData.lobbyId, endAt);
         }
     };
     gameSessionCountdownTimer = setInterval(tick, 150);
@@ -2043,14 +2093,14 @@ function syncGameSessionCountdown(roomId, sessionData) {
 async function maybeStartGameWhenReady(roomId, sessionData) {
     if (
         sessionData?.status !== "lobby" ||
-        gameSessionStartInProgress ||
+        gameSessionStartInProgress.has(sessionData.lobbyId) ||
         !isLobbyReadyToStart(sessionData)
     ) return;
 
-    gameSessionStartInProgress = true;
+    gameSessionStartInProgress.add(sessionData.lobbyId);
     try {
         await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef(roomId);
+            const ref = getGameSessionRef(roomId, sessionData.lobbyId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) return;
             const latest = snapshot.data();
@@ -2070,20 +2120,21 @@ async function maybeStartGameWhenReady(roomId, sessionData) {
             }
         }
     } finally {
-        gameSessionStartInProgress = false;
+        gameSessionStartInProgress.delete(sessionData.lobbyId);
     }
 }
 
 let gameSpectatorJoinInProgress = false;
 
 async function joinGameAsSpectator() {
-    if (!currentUser || !activeRoomId || gameSpectatorJoinInProgress) return;
+    if (!currentUser || !activeRoomId || gameSpectatorJoinInProgress || !gameSessionData?.lobbyId) return;
     gameSpectatorJoinInProgress = true;
     const roomId = activeRoomId;
+    const lobbyId = gameSessionData.lobbyId;
     const uid = currentUser.uid;
     try {
         const result = await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef(roomId);
+            const ref = getGameSessionRef(roomId, lobbyId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) return "missing";
             const session = snapshot.data();
@@ -2124,7 +2175,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
     if (!currentUser || !activeRoomId || !sessionData) return;
 
     const roomId = activeRoomId;
-    const gameKey = roomId + ":" + sessionData.gameId + ":" + String(sessionData.round) +
+    const gameKey = roomId + ":" + String(sessionData.lobbyId || activeGameLobbyId) + ":" + sessionData.gameId + ":" + String(sessionData.round) +
         (sessionData.gameId === "vampir-koylu" ? ":" + String(sessionData.sessionId || "") : "");
 
     const isUserEligible = (latest) => {
@@ -2180,7 +2231,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
         // the latest snapshot and cancel any request belonging to an old round.
         const latest = gameSessionData;
         const latestKey = latest
-            ? roomId + ":" + latest.gameId + ":" + String(latest.round) +
+            ? roomId + ":" + String(latest.lobbyId || activeGameLobbyId) + ":" + latest.gameId + ":" + String(latest.round) +
                 (latest.gameId === "vampir-koylu" ? ":" + String(latest.sessionId || "") : "")
             : "";
         if (
@@ -2201,16 +2252,16 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
             onReturnToLobby: Array.isArray(latest.matchPlayerIds) &&
                 latest.matchPlayerIds.includes(currentUser.uid)
                 ? latest.gameId === "uno"
-                    ? () => returnUnoToLobbyFromResults(roomId, latest.round)
+                    ? () => returnUnoToLobbyFromResults(roomId, latest.lobbyId, latest.round)
                     : latest.gameId === "vampir-koylu"
-                        ? () => returnVampirKoyluToLobbyFromResults(roomId, latest.round, latest.sessionId)
+                        ? () => returnVampirKoyluToLobbyFromResults(roomId, latest.lobbyId, latest.round, latest.sessionId)
                         : null
                 : null
         });
 
         const current = gameSessionData;
         const currentKey = current
-            ? roomId + ":" + current.gameId + ":" + String(current.round) +
+            ? roomId + ":" + String(current.lobbyId || activeGameLobbyId) + ":" + current.gameId + ":" + String(current.round) +
                 (current.gameId === "vampir-koylu" ? ":" + String(current.sessionId || "") : "")
             : "";
         if (
@@ -2245,7 +2296,7 @@ function reconcileUnoRosterChange(roomId, sessionData) {
         !currentUser
     ) return;
 
-    const roundKey = roomId + ":" + String(sessionData.round);
+    const roundKey = roomId + ":" + sessionData.lobbyId + ":" + String(sessionData.round);
     const currentIds = Array.isArray(sessionData.matchPlayerIds)
         ? sessionData.matchPlayerIds
         : [];
@@ -2261,7 +2312,7 @@ function reconcileUnoRosterChange(roomId, sessionData) {
         currentIds.every((id) => previousIds.includes(id));
     if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) return;
 
-    reconcileUnoMatchPlayers(db, roomId, sessionData.round, currentUser.uid)
+    reconcileUnoMatchPlayers(db, roomId, sessionData.lobbyId, sessionData.round, currentUser.uid)
         .catch((error) => {
             console.warn("CACA UNO roster reconciliation failed:", error);
             if (activeRoomId === roomId) {
@@ -2278,7 +2329,7 @@ function reconcileVampirKoyluRosterChange(roomId, sessionData) {
         !currentUser
     ) return;
 
-    const roundKey = roomId + ":" + String(sessionData.round) + ":" + String(sessionData.sessionId || "");
+    const roundKey = roomId + ":" + sessionData.lobbyId + ":" + String(sessionData.round) + ":" + String(sessionData.sessionId || "");
     const currentIds = Array.isArray(sessionData.matchPlayerIds)
         ? sessionData.matchPlayerIds
         : [];
@@ -2294,7 +2345,7 @@ function reconcileVampirKoyluRosterChange(roomId, sessionData) {
         currentIds.every((id) => previousIds.includes(id));
     if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) return;
 
-    reconcileVampirKoyluMatchPlayers(db, roomId, sessionData.round, sessionData.sessionId, currentUser.uid)
+    reconcileVampirKoyluMatchPlayers(db, roomId, sessionData.lobbyId, sessionData.round, sessionData.sessionId, currentUser.uid)
         .catch((error) => {
             console.warn("Vampir Köylü roster eşitlemesi başarısız:", error);
             if (activeRoomId === roomId) {
@@ -2313,70 +2364,89 @@ function listenToGameCenter(roomId) {
     clearGameSessionCountdown();
     clearGameSessionResultsTimer();
     if (unsubscribeGameSession) unsubscribeGameSession();
+    for (const entry of backgroundGameCountdownTimers.values()) clearTimeout(entry.timer);
+    backgroundGameCountdownTimers.clear();
     activeRoomGame?.close();
     activeRoomGame = null;
     activeRoomGameKey = "";
-    unsubscribeGameSession = onSnapshot(getGameSessionRef(roomId), (snapshot) => {
-        if (activeRoomId !== roomId) return;
-        const nextSession = snapshot.exists() ? snapshot.data() : null;
-        if (
-            nextSession?.gameId === "vampir-koylu" &&
-            ["lobby", "starting", "playing", "results"].includes(nextSession.status) &&
-            !nextSession.sessionId &&
-            currentUser?.uid === nextSession.hostId
-        ) {
-            // One-time migration for a lobby created before session isolation existed.
-            const migration = {
-                sessionId: crypto.randomUUID(),
-                updatedAt: serverTimestamp()
-            };
-            if (nextSession.status === "results") {
-                // A fresh Durable Object has no old result state to acknowledge.
-                // Move the abandoned legacy result screen into a clean next lobby.
-                Object.assign(migration, {
-                    status: "lobby",
-                    round: (Number(nextSession.round) || 1) + 1,
-                    readyIds: [],
-                    matchPlayerIds: [],
-                    spectatorIds: [],
-                    nextRoundPlayerIds: [],
-                    nextRoundReadyIds: [],
-                    resultReturnIds: [],
-                    startedAt: null,
-                    countdownEndsAt: null,
-                    finishedAt: null
-                });
-            }
-            void updateDoc(getGameSessionRef(roomId), migration).catch((error) => {
-                console.warn("CACA legacy Vampir lobby identity migration failed:", error);
+    gameSessionsById = new Map();
+    activeGameLobbyId = "";
+    gameSessionData = null;
+    unsubscribeGameSession = onSnapshot(
+        collection(db, "rooms", roomId, "gameSessions"),
+        (snapshot) => {
+            if (activeRoomId !== roomId) return;
+            const next = new Map();
+            snapshot.forEach((item) => {
+                const data = item.data();
+                next.set(item.id, { ...data, lobbyId: item.id });
             });
-        }
-        gameSessionData = nextSession;
-        recordGameLobbyCooldown(roomId, gameSessionData);
-        renderGameCenter();
-        reconcileUnoRosterChange(roomId, gameSessionData);
-        reconcileVampirKoyluRosterChange(roomId, gameSessionData);
-        syncGameSessionCountdown(roomId, gameSessionData);
-        syncGameSessionResultsReset(roomId, gameSessionData);
-        if (gameSessionData) maybeStartGameWhenReady(roomId, gameSessionData);
-
-        if (["playing", "results"].includes(gameSessionData?.status)) {
-            const matchPlayers = Array.isArray(gameSessionData.matchPlayerIds)
-                ? gameSessionData.matchPlayerIds
-                : [];
-            const spectators = Array.isArray(gameSessionData.spectatorIds)
-                ? gameSessionData.spectatorIds
-                : [];
-            const persistentPlayers = Array.isArray(gameSessionData.playerIds)
-                ? gameSessionData.playerIds
-                : [];
-            const canSeeCurrentGame = gameSessionData.status === "playing"
-                ? matchPlayers.includes(currentUser?.uid) || spectators.includes(currentUser?.uid)
-                : persistentPlayers.includes(currentUser?.uid) ||
-                    matchPlayers.includes(currentUser?.uid) ||
-                    spectators.includes(currentUser?.uid);
-            if (canSeeCurrentGame) {
-                void openRoomGame(gameSessionData, { automatic: true });
+            gameSessionsById = next;
+            for (const [id, entry] of backgroundGameCountdownTimers) {
+                const current = next.get(id);
+                const endAt = current?.countdownEndsAt?.toMillis?.();
+                if (current?.status !== "starting" || endAt !== entry.endAt) {
+                    clearTimeout(entry.timer);
+                    backgroundGameCountdownTimers.delete(id);
+                }
+            }
+            for (const session of next.values()) {
+                if (session.status !== "starting" || session.lobbyId === activeGameLobbyId) continue;
+                const endAt = session.countdownEndsAt?.toMillis?.();
+                if (!Number.isFinite(endAt) || backgroundGameCountdownTimers.has(session.lobbyId)) continue;
+                const timer = setTimeout(() => {
+                    backgroundGameCountdownTimers.delete(session.lobbyId);
+                    void completeGameStartCountdown(roomId, session.lobbyId, endAt);
+                }, Math.max(0, endAt - Date.now()) + 600);
+                backgroundGameCountdownTimers.set(session.lobbyId, { endAt, timer });
+            }
+            if (!next.has(activeGameLobbyId)) {
+                activeGameLobbyId = next.keys().next().value || "";
+            }
+            gameSessionData = activeGameLobbyId ? next.get(activeGameLobbyId) || null : null;
+            for (const session of next.values()) {
+                if (session.gameId === "vampir-koylu" &&
+                    ["lobby", "starting", "playing", "results"].includes(session.status) &&
+                    !session.sessionId && currentUser?.uid === session.hostId) {
+                    void updateDoc(getGameSessionRef(roomId, session.lobbyId), {
+                        sessionId: crypto.randomUUID(),
+                        updatedAt: serverTimestamp()
+                    }).catch((error) => console.warn("CACA legacy Vampir lobby identity migration failed:", error));
+                }
+            }
+            renderGameCenter();
+            if (!gameSessionData) {
+                clearGameSessionCountdown();
+                clearGameSessionResultsTimer();
+                roomGameOpenGeneration += 1;
+                openingRoomGameKey = "";
+                activeRoomGame?.close();
+                activeRoomGame = null;
+                activeRoomGameKey = "";
+                return;
+            }
+            const selected = gameSessionData;
+            recordGameLobbyCooldown(roomId, selected);
+            reconcileUnoRosterChange(roomId, selected);
+            reconcileVampirKoyluRosterChange(roomId, selected);
+            syncGameSessionCountdown(roomId, selected);
+            syncGameSessionResultsReset(roomId, selected);
+            for (const session of next.values()) maybeStartGameWhenReady(roomId, session);
+            if (["playing", "results"].includes(selected.status)) {
+                const matchPlayers = Array.isArray(selected.matchPlayerIds) ? selected.matchPlayerIds : [];
+                const spectators = Array.isArray(selected.spectatorIds) ? selected.spectatorIds : [];
+                const persistentPlayers = Array.isArray(selected.playerIds) ? selected.playerIds : [];
+                const canSeeCurrentGame = selected.status === "playing"
+                    ? matchPlayers.includes(currentUser?.uid) || spectators.includes(currentUser?.uid)
+                    : persistentPlayers.includes(currentUser?.uid) || matchPlayers.includes(currentUser?.uid) || spectators.includes(currentUser?.uid);
+                if (canSeeCurrentGame) void openRoomGame(selected, { automatic: true });
+                else {
+                    roomGameOpenGeneration += 1;
+                    openingRoomGameKey = "";
+                    activeRoomGame?.close();
+                    activeRoomGame = null;
+                    activeRoomGameKey = "";
+                }
             } else {
                 roomGameOpenGeneration += 1;
                 openingRoomGameKey = "";
@@ -2384,27 +2454,16 @@ function listenToGameCenter(roomId) {
                 activeRoomGame = null;
                 activeRoomGameKey = "";
             }
-        } else if (!gameSessionData || gameSessionData.status === "lobby") {
-            roomGameOpenGeneration += 1;
-            openingRoomGameKey = "";
-            activeRoomGame?.close();
-            activeRoomGame = null;
-            activeRoomGameKey = "";
+            if ($("gameCenterPanel") && !$("gameCenterPanel").hidden && selected.status === "playing") joinGameAsSpectator();
+        },
+        (error) => {
+            if (activeRoomId !== roomId) return;
+            console.warn("CACA game center listener failed:", error);
+            setGameCenterStatus(error.code === "permission-denied"
+                ? "Oyun lobileri okunamadı. Firestore Rules güncel olmalı."
+                : "Oyun lobileri yüklenemedi: " + (error.message || "Bilinmeyen hata"), true);
         }
-
-        if ($("gameCenterPanel") && !$("gameCenterPanel").hidden && gameSessionData?.status === "playing") {
-            joinGameAsSpectator();
-        }
-    }, (error) => {
-        if (activeRoomId !== roomId) return;
-        console.warn("CACA game center listener failed:", error);
-        setGameCenterStatus(
-            error.code === "permission-denied"
-                ? "Oyun lobisi okunamadı. Firestore Rules güncel olmalı."
-                : "Oyun lobisi yüklenemedi: " + (error.message || "Bilinmeyen hata"),
-            true
-        );
-    });
+    );
 }
 
 const gamePanel = $("gameCenterPanel");
@@ -2527,6 +2586,7 @@ async function saveGameLobbySettings() {
     if (!currentUser || !activeRoomId || !session) return;
 
     const roomId = activeRoomId;
+    const lobbyId = session.lobbyId;
     const uid = currentUser.uid;
     const botFillEnabled = $("gameBotFillToggle").checked;
     const targetPlayerCount = Number($("gameBotTargetCount").value);
@@ -2549,7 +2609,7 @@ async function saveGameLobbySettings() {
     $("gameBotSettingsStatus").textContent = "Ayarlar kaydediliyor…";
     try {
         await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef(roomId);
+            const ref = getGameSessionRef(roomId, lobbyId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) throw new Error("Oyun lobisi artık mevcut değil.");
             const latest = snapshot.data();
@@ -2592,11 +2652,6 @@ async function createGameSession() {
         setGameCenterStatus("Önce lobi oluşturulabilen bir oyun seçmelisin.", true);
         return;
     }
-    if (gameSessionData) {
-        setGameCenterStatus("Bu odada zaten açık bir oyun lobisi var.");
-        renderGameCenter();
-        return;
-    }
     const cooldownRemaining = getGameLobbyCooldownUntil() - Date.now();
     if (cooldownRemaining > 0) {
         setGameCenterStatus(`Yeni lobi oluşturmak için ${Math.ceil(cooldownRemaining / 1000)} saniye beklemelisin.`);
@@ -2604,11 +2659,14 @@ async function createGameSession() {
         return;
     }
     const button = $("createGameSessionButton");
+    const previousLobbyId = activeGameLobbyId;
     button.disabled = true;
     setGameCenterStatus("Kalıcı oyun lobisi oluşturuluyor...");
     try {
-        await setDoc(getGameSessionRef(), {
-            ...(selectedGame.id === "vampir-koylu" ? { sessionId: crypto.randomUUID() } : {}),
+        const lobbyId = crypto.randomUUID().replace(/-/g, "");
+        activeGameLobbyId = lobbyId;
+        await setDoc(getGameSessionRef(activeRoomId, lobbyId), {
+            ...(selectedGame.id === "vampir-koylu" ? { sessionId: crypto.randomUUID().replace(/-/g, "") } : {}),
             gameId: selectedGame.id,
             gameName: selectedGame.name,
             maxPlayers: Math.min(selectedGame.maxPlayers, Math.max(selectedGame.minPlayers, Number($("gameMaxPlayersSelect")?.value) || selectedGame.maxPlayers)),
@@ -2631,8 +2689,11 @@ async function createGameSession() {
             finishedAt: null,
             updatedAt: serverTimestamp()
         });
-        setGameCenterStatus("Kalıcı lobi kuruldu. Oyuncular katılabilir.");
+        activeGameLobbyId = lobbyId;
+        gameSessionData = gameSessionsById.get(lobbyId) || gameSessionData;
+        setGameCenterStatus("Yeni oyun lobisi kuruldu. Oyuncular katılabilir.");
     } catch (error) {
+        activeGameLobbyId = previousLobbyId;
         console.error("CACA game session create failed:", error);
         setGameCenterStatus(
             error.code === "permission-denied"
@@ -2650,6 +2711,7 @@ async function joinGameSession() {
 
     const uid = currentUser.uid;
     const session = gameSessionData;
+    const lobbyId = session.lobbyId;
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
     const queuedPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
@@ -2675,7 +2737,7 @@ async function joinGameSession() {
         const button = $("joinGameSessionButton");
         if (button) button.disabled = true;
         try {
-            await updateDoc(getGameSessionRef(), {
+            await updateDoc(getGameSessionRef(activeRoomId, lobbyId), {
                 nextRoundPlayerIds: arrayUnion(uid),
                 updatedAt: serverTimestamp()
             });
@@ -2694,7 +2756,7 @@ async function joinGameSession() {
         return;
     }
     try {
-        await updateDoc(getGameSessionRef(), {
+        await updateDoc(getGameSessionRef(activeRoomId, lobbyId), {
             playerIds: arrayUnion(uid),
             updatedAt: serverTimestamp()
         });
@@ -2710,6 +2772,7 @@ async function toggleGameReady() {
     if (!currentUser || !activeRoomId || gameReadyToggleInProgress) return;
 
     const roomId = activeRoomId;
+    const lobbyId = gameSessionData?.lobbyId;
     const uid = currentUser.uid;
     const button = $("readyGameSessionButton");
     gameReadyToggleInProgress = true;
@@ -2717,7 +2780,7 @@ async function toggleGameReady() {
 
     try {
         const result = await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef(roomId);
+            const ref = getGameSessionRef(roomId, lobbyId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) return { state: "missing" };
 
@@ -2775,7 +2838,7 @@ async function leaveUnoMatchFromSession(roomId, session, uid) {
     }
 
     try {
-        return await forfeitUnoMatch(db, roomId, Number(session.round), uid);
+        return await forfeitUnoMatch(db, roomId, session.lobbyId, Number(session.round), uid);
     } catch (error) {
         const wrapped = new Error(error?.message || "UNO maçından çıkış başarısız.");
         wrapped.code = error?.code;
@@ -2789,7 +2852,7 @@ async function leaveVampirKoyluMatchFromSession(roomId, session, uid) {
     }
 
     try {
-        return await forfeitVampirKoyluMatch(db, roomId, Number(session.round), session.sessionId, uid);
+        return await forfeitVampirKoyluMatch(db, roomId, session.lobbyId, Number(session.round), session.sessionId, uid);
     } catch (error) {
         const wrapped = new Error(error?.message || "Vampir Köylü maçından çıkış başarısız.");
         wrapped.code = error?.code;
@@ -2806,6 +2869,7 @@ async function leaveGameLobby() {
 
     const uid = currentUser.uid;
     const initialSession = gameSessionData;
+    const lobbyId = initialSession.lobbyId;
     const leaveButton = $("leaveGameSessionButton");
     if (leaveButton) leaveButton.disabled = true;
 
@@ -2863,7 +2927,7 @@ async function leaveGameLobby() {
 
     try {
         const result = await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef();
+            const ref = getGameSessionRef(activeRoomId, lobbyId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) return { left: false };
 
@@ -3004,7 +3068,7 @@ async function finishGameMatch() {
 
     try {
         await runTransaction(db, async (transaction) => {
-            const ref = getGameSessionRef();
+            const ref = getGameSessionRef(activeRoomId, session.lobbyId);
             const snapshot = await transaction.get(ref);
             if (!snapshot.exists()) return;
             const latest = snapshot.data();
@@ -3040,7 +3104,7 @@ async function closeGameSession() {
     if (gameSessionData.hostId !== currentUser.uid && !canCurrentUserKickMembers()) return;
     if (!window.confirm("Bu odanın kalıcı oyun lobisini tamamen kapatmak istiyor musun?")) return;
     try {
-        await deleteDoc(getGameSessionRef());
+        await deleteDoc(getGameSessionRef(activeRoomId, gameSessionData.lobbyId));
         setGameCenterStatus("Kalıcı oyun lobisi kapatıldı.");
     } catch (error) {
         setGameCenterStatus("Lobi kapatılamadı: " + (error.message || "Bilinmeyen hata"), true);
@@ -4936,9 +5000,9 @@ async function manageMember(member, action) {
             );
         }
 
-        const gameSessionRef = doc(db, "rooms", activeRoomId, "gameSessions", "active");
-        const gameSessionSnapshot = await getDoc(gameSessionRef);
-        if (gameSessionSnapshot.exists()) {
+        const gameSessionSnapshots = await getDocs(collection(db, "rooms", activeRoomId, "gameSessions"));
+        for (const gameSessionSnapshot of gameSessionSnapshots.docs) {
+            const gameSessionRef = gameSessionSnapshot.ref;
             const gameSession = gameSessionSnapshot.data();
             const participantFields = {};
             const players = Array.isArray(gameSession.playerIds) ? gameSession.playerIds : [];
@@ -5187,7 +5251,7 @@ async function deleteActiveRoom() {
             getDocs(collection(db, "rooms", roomId, "bans")),
             getDocs(collection(db, "rooms", roomId, "messages")),
             getDoc(doc(db, "rooms", roomId, "pranks", "active")),
-            getDoc(doc(db, "rooms", roomId, "gameSessions", "active"))
+            getDocs(collection(db, "rooms", roomId, "gameSessions"))
         ]);
 
         // Remove other members and their personal room-list entries.
@@ -5222,9 +5286,7 @@ async function deleteActiveRoom() {
         if (activePrankSnapshot.exists()) {
             referencesToDelete.push(activePrankSnapshot.ref);
         }
-        if (gameSessionSnapshot.exists()) {
-            referencesToDelete.push(gameSessionSnapshot.ref);
-        }
+        gameSessionSnapshot.forEach((sessionDoc) => referencesToDelete.push(sessionDoc.ref));
         // Keep batches small so security-rule document lookups stay
         // comfortably below Firestore's per-request access-call limits.
         for (let index = 0; index < referencesToDelete.length; index += 10) {
@@ -5274,112 +5336,78 @@ async function deleteActiveRoom() {
 async function removeSelfFromActiveGame(roomId) {
     if (!currentUser || !roomId) return;
     try {
-        const activeSessionRef = doc(db, "rooms", roomId, "gameSessions", "active");
-        const activeSessionSnapshot = await getDoc(activeSessionRef);
-        if (activeSessionSnapshot.exists()) {
-            const activeSession = activeSessionSnapshot.data();
-            const activeMatchPlayers = Array.isArray(activeSession.matchPlayerIds)
-                ? activeSession.matchPlayerIds
-                : [];
-            if (
-                activeSession.gameId === "uno" &&
-                activeSession.status === "playing" &&
-                activeMatchPlayers.includes(currentUser.uid)
-            ) {
-                await leaveUnoMatchFromSession(roomId, activeSession, currentUser.uid);
-                return;
-            }
-            if (
-                activeSession.gameId === "vampir-koylu" &&
-                ["playing", "results"].includes(activeSession.status) &&
-                activeMatchPlayers.includes(currentUser.uid)
-            ) {
-                await leaveVampirKoyluMatchFromSession(roomId, activeSession, currentUser.uid);
-                return;
-            }
-        }
-
-        await runTransaction(db, async (transaction) => {
-            const sessionRef = doc(db, "rooms", roomId, "gameSessions", "active");
-            const snapshot = await transaction.get(sessionRef);
-            if (!snapshot.exists()) return;
-
-            const session = snapshot.data();
+        const snapshots = await getDocs(collection(db, "rooms", roomId, "gameSessions"));
+        for (const item of snapshots.docs) {
+            const session = { ...item.data(), lobbyId: item.id };
             const uid = currentUser.uid;
-            const players = Array.isArray(session.playerIds) ? session.playerIds : [];
-            const readyIds = Array.isArray(session.readyIds) ? session.readyIds : [];
             const matchPlayers = Array.isArray(session.matchPlayerIds)
                 ? session.matchPlayerIds
-                : (["playing", "results"].includes(session.status) ? players : []);
-            const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
-            const nextPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
-            const nextReady = Array.isArray(session.nextRoundReadyIds) ? session.nextRoundReadyIds : [];
-            const isHost = session.hostId === uid;
-
-            const remainingPlayers = players.filter((id) => id !== uid);
-            const remainingReady = readyIds.filter((id) => id !== uid);
-            const remainingMatchPlayers = matchPlayers.filter((id) => id !== uid);
-            let remainingSpectators = spectators.filter((id) => id !== uid);
-            const remainingNextPlayers = nextPlayers.filter((id) => id !== uid);
-            const remainingNextReady = nextReady.filter((id) => id !== uid);
-
-            const hasParticipation = players.includes(uid) ||
-                readyIds.includes(uid) ||
-                matchPlayers.includes(uid) ||
-                spectators.includes(uid) ||
-                nextPlayers.includes(uid) ||
-                nextReady.includes(uid);
-            if (!hasParticipation && !isHost) return;
-
-            if (isHost && remainingPlayers.length === 0) {
-                transaction.delete(sessionRef);
-                return;
+                : (["playing", "results"].includes(session.status) ? session.playerIds || [] : []);
+            if (["playing", "results"].includes(session.status) && matchPlayers.includes(uid)) {
+                if (session.gameId === "uno" && session.status === "playing") {
+                    await leaveUnoMatchFromSession(roomId, session, uid);
+                    continue;
+                }
+                if (session.gameId === "vampir-koylu") {
+                    await leaveVampirKoyluMatchFromSession(roomId, session, uid);
+                    continue;
+                }
             }
-            const isFinalUnoPlayer = session.status === "playing"
-                && session.gameId === "uno"
-                && matchPlayers.length === 1
-                && matchPlayers.includes(uid);
-
-            if (isFinalUnoPlayer) {
+            await runTransaction(db, async (transaction) => {
+                const sessionRef = doc(db, "rooms", roomId, "gameSessions", item.id);
+                const snapshot = await transaction.get(sessionRef);
+                if (!snapshot.exists()) return;
+                const latest = snapshot.data();
+                const players = Array.isArray(latest.playerIds) ? latest.playerIds : [];
+                const readyIds = Array.isArray(latest.readyIds) ? latest.readyIds : [];
+                const matchRoster = Array.isArray(latest.matchPlayerIds)
+                    ? latest.matchPlayerIds
+                    : (["playing", "results"].includes(latest.status) ? players : []);
+                const spectators = Array.isArray(latest.spectatorIds) ? latest.spectatorIds : [];
+                const queued = Array.isArray(latest.nextRoundPlayerIds) ? latest.nextRoundPlayerIds : [];
+                const queuedReady = Array.isArray(latest.nextRoundReadyIds) ? latest.nextRoundReadyIds : [];
+                const remainingPlayers = players.filter((id) => id !== uid);
+                const isHost = latest.hostId === uid;
+                const participated = players.includes(uid) || readyIds.includes(uid) ||
+                    matchRoster.includes(uid) || spectators.includes(uid) ||
+                    queued.includes(uid) || queuedReady.includes(uid);
+                if (!participated && !isHost) return;
+                if (isHost && !remainingPlayers.length) {
+                    transaction.delete(sessionRef);
+                    return;
+                }
                 const updates = {
-                    status: "lobby",
-                    round: (Number(session.round) || 1) + 1,
                     playerIds: remainingPlayers,
-                    readyIds: [],
-                    matchPlayerIds: [],
-                    spectatorIds: [],
-                    nextRoundPlayerIds: [],
-                    nextRoundReadyIds: [],
-                    startedAt: null,
-                    countdownEndsAt: null,
-                    finishedAt: null,
+                    readyIds: readyIds.filter((id) => id !== uid),
+                    matchPlayerIds: matchRoster.filter((id) => id !== uid),
+                    spectatorIds: spectators.filter((id) => id !== uid),
+                    nextRoundPlayerIds: queued.filter((id) => id !== uid),
+                    nextRoundReadyIds: queuedReady.filter((id) => id !== uid),
                     updatedAt: serverTimestamp()
                 };
                 if (isHost) updates.hostId = remainingPlayers[0];
+                if (latest.status === "starting") {
+                    updates.status = "lobby";
+                    updates.countdownEndsAt = null;
+                }
+                if (latest.status === "playing" && latest.gameId === "uno" &&
+                    matchRoster.length === 1 && matchRoster.includes(uid)) {
+                    Object.assign(updates, {
+                        status: "lobby",
+                        round: (Number(latest.round) || 1) + 1,
+                        readyIds: [],
+                        matchPlayerIds: [],
+                        spectatorIds: [],
+                        nextRoundPlayerIds: [],
+                        nextRoundReadyIds: [],
+                        startedAt: null,
+                        countdownEndsAt: null,
+                        finishedAt: null
+                    });
+                }
                 transaction.update(sessionRef, updates);
-                return;
-            }
-
-            const nextHostId = isHost ? remainingPlayers[0] : null;
-            const nextPlayerIds = remainingPlayers;
-
-            const updates = { updatedAt: serverTimestamp() };
-            if (players.includes(uid)) updates.playerIds = nextPlayerIds;
-            if (readyIds.includes(uid)) updates.readyIds = remainingReady;
-            if (matchPlayers.includes(uid)) updates.matchPlayerIds = remainingMatchPlayers;
-            if (spectators.includes(uid)) updates.spectatorIds = remainingSpectators;
-            if (nextPlayers.includes(uid)) updates.nextRoundPlayerIds = remainingNextPlayers;
-            if (nextReady.includes(uid)) updates.nextRoundReadyIds = remainingNextReady;
-
-            if (session.status === "starting" &&
-                (players.includes(uid) || isHost)) {
-                updates.status = "lobby";
-                updates.countdownEndsAt = null;
-            }
-            if (isHost) updates.hostId = nextHostId;
-
-            transaction.update(sessionRef, updates);
-        });
+            });
+        }
     } catch (error) {
         console.warn("CACA game participant cleanup failed:", error);
         throw error;
