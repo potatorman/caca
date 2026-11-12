@@ -1515,7 +1515,7 @@ function renderGameCatalog() {
                 button.dataset.gameId = game.id;
                 button.setAttribute("aria-pressed", String(selected));
                 button.classList.toggle("is-selected", selected);
-                button.style.gridColumn = String(column + 1 + row.offset);
+                button.style.gridColumn = String(column * 2 + row.offset + 1);
                 button.style.gridRow = String(rowIndex + 1);
                 const name = document.createElement("strong");
                 name.className = "game-catalog-name";
@@ -1532,7 +1532,7 @@ function renderGameCatalog() {
                 const tile = document.createElement("div");
                 tile.className = "game-catalog-placeholder-tile";
                 tile.setAttribute("aria-hidden", "true");
-                tile.style.gridColumn = String(column + 1 + row.offset);
+                tile.style.gridColumn = String(column * 2 + row.offset + 1);
                 tile.style.gridRow = String(rowIndex + 1);
                 const name = document.createElement("strong");
                 name.textContent = "Yakında";
