@@ -113,6 +113,7 @@ let activeRoomCode = "";
 let activeRoomId = null;
 let isGlobalChatActive = false;
 let globalChatOptedIn = false;
+let pendingGlobalChatOpen = false;
 let suspendedRoomName = "";
 const GLOBAL_CHAT_ID = "__caca_global_chat__";
 let openingRoomId = null;
@@ -5380,9 +5381,17 @@ async function leaveGlobalChat() {
     }
 }
 
-$("globalChatNavButton").addEventListener("click", openGlobalChat);
+function requestOpenGlobalChat() {
+    if (!currentUser) {
+        pendingGlobalChatOpen = true;
+        return;
+    }
+    openGlobalChat();
+}
+
+$("globalChatNavButton").addEventListener("click", requestOpenGlobalChat);
 $("leaveGlobalChatButton").addEventListener("click", leaveGlobalChat);
-document.addEventListener("caca:open-global-chat", openGlobalChat);
+document.addEventListener("caca:open-global-chat", requestOpenGlobalChat);
 
 // OPEN ROOM
 
@@ -5832,6 +5841,11 @@ onAuthStateChanged(auth, async (user) => {
 
         publicProfileCache.clear();
         await loadRooms();
+
+        if (pendingGlobalChatOpen) {
+            pendingGlobalChatOpen = false;
+            await openGlobalChat();
+        }
 
     } catch (error) {
         showRoomMessage(showError(error));
