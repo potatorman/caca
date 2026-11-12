@@ -2740,17 +2740,33 @@ async function createGameSession() {
         const lockRef = doc(db, "users", currentUser.uid, "gameState", "activeLobby");
         const existingLock = await getDoc(lockRef);
         if (existingLock.exists()) {
-            const lockedLobbyId = existingLock.data().lobbyId;
-            const lockedLobby = await getDoc(getGameSessionRef(GAME_SCOPE_ID, lockedLobbyId));
-            if (lockedLobby.exists()) {
+            const lockedLobbyId = String(existingLock.data().lobbyId || "");
+            const lockedLobby = lockedLobbyId
+                ? await getDoc(getGameSessionRef(GAME_SCOPE_ID, lockedLobbyId))
+                : null;
+            const lockedSession = lockedLobby?.exists()
+                ? { ...lockedLobby.data(), lobbyId: lockedLobbyId }
+                : null;
+            const lockIsValid = Boolean(
+                lockedSession &&
+                lockedSession.hostId === currentUser.uid &&
+                ["lobby", "starting", "playing", "results"].includes(lockedSession.status)
+            );
+
+            if (lockIsValid) {
                 activeGameLobbyId = lockedLobbyId;
-                gameSessionData = { ...lockedLobby.data(), lobbyId: lockedLobbyId };
-                gameSessionsById.set(lockedLobbyId, gameSessionData);
+                gameSessionData = lockedSession;
+                gameSessionsById.set(lockedLobbyId, lockedSession);
+                hasOwnedActiveGameLobby = true;
+                renderGameCenter();
+                renderOpenGameLobbies();
+                setGameCenterStatus("");
+                $("gameSessionContent")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                return;
             }
-            hasOwnedActiveGameLobby = true;
-            setGameCenterStatus("Zaten aktif bir lobin var. Yeni lobi açmadan önce mevcut lobini kapat.", true);
-            renderGameCenter();
-            return;
+
+            // A stale lock must not block creation forever when its lobby was deleted or closed.
+            await deleteDoc(lockRef);
         }
         const createBatch = writeBatch(db);
         createBatch.set(lockRef, { lobbyId, gameId: selectedGame.id, createdAt: serverTimestamp() });
