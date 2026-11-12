@@ -275,13 +275,11 @@ service cloud.firestore {
           'createdAt'
         ])
         && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.senderName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.nickname
+        && request.resource.data.senderAvatarId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('avatarId', 'fox')
         && request.resource.data.text is string
         && request.resource.data.text.size() >= 1
         && request.resource.data.text.size() <= 2000
-        && request.resource.data.senderName is string
-        && request.resource.data.senderName.size() >= 1
-        && request.resource.data.senderName.size() <= 24
-        && request.resource.data.senderAvatarId is string
         && request.resource.data.createdAt is timestamp;
 
       allow update: if canUseGlobalChat()
