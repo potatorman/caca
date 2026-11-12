@@ -7164,3 +7164,91 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .game-room-info-strip .game-bot-lobby-preview { text-align: left; }
     .game-room-redesign .game-session-actions button { flex-basis: 100%; }
 }
+
+
+/* Universal lobby settings control and clearer ready/leave actions */
+.game-room-top-actions {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 9px;
+    flex: 0 0 auto;
+}
+.game-room-settings-button {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    place-items: center;
+    color: #a9d4ff;
+    background: rgba(76, 143, 211, .13);
+    border: 1px solid rgba(116, 176, 234, .27);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, transform .15s ease;
+}
+.game-room-settings-button:hover {
+    background: rgba(91, 160, 231, .23);
+    border-color: rgba(143, 195, 245, .48);
+    transform: rotate(24deg);
+}
+.game-room-settings-button svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.game-room-setting-field {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: #dceaff;
+    font-size: 11px;
+    font-weight: 800;
+}
+.game-room-setting-field select {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    color: #eaf3ff;
+    background: #0b192b;
+    border: 1px solid rgba(127, 171, 222, .24);
+    border-radius: 9px;
+    font: inherit;
+}
+.game-room-redesign #readyGameSessionButton {
+    order: 1;
+    flex: 0 1 220px;
+    min-width: 180px;
+    min-height: 46px;
+    font-size: 12px;
+    letter-spacing: .01em;
+}
+.game-room-redesign #leaveGameSessionButton {
+    order: 8;
+    flex: 0 0 auto;
+    min-width: 128px;
+    min-height: 38px;
+    margin-left: auto;
+    color: #a9bfd9;
+    background: rgba(104, 130, 163, .07);
+    border: 1px solid rgba(125, 153, 188, .18);
+}
+.game-room-redesign #leaveGameSessionButton:hover {
+    color: #ffd0d5;
+    background: rgba(194, 70, 93, .1);
+    border-color: rgba(218, 102, 124, .3);
+}
+@media (max-width: 620px) {
+    .game-room-top-actions { gap: 7px; }
+    .game-room-settings-button { width: 32px; height: 32px; }
+    .game-room-redesign #readyGameSessionButton,
+    .game-room-redesign #leaveGameSessionButton {
+        flex: 1 1 100%;
+        width: 100%;
+        margin-left: 0;
+    }
+}
