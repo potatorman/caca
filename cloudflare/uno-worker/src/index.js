@@ -476,6 +476,54 @@ async function deleteSiteOwnerRoom(request, env, origin) {
     return json({ ok: true, roomId }, 200, origin);
 }
 
+async function revokeSiteOwner(request, env, origin) {
+    const actor = await authenticateFirebaseToken(getBearerToken(request), env);
+    if (!(await isSiteOwnerUid(env, actor.uid))) {
+        return json({ error: "Bu işlem için Site Owner yetkisi gerekli." }, 403, origin);
+    }
+
+    const body = await readJson(request);
+    const targetUid = typeof body.uid === "string" ? body.uid : "";
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)) {
+        return json({ error: "Owner hesabının kullanıcı kimliği geçersiz." }, 400, origin);
+    }
+    if (targetUid === actor.uid) {
+        return json({ error: "Kendi Site Owner yetkini buradan kaldıramazsın." }, 400, origin);
+    }
+    if (!(await isSiteOwnerUid(env, targetUid))) {
+        return json({ error: "Bu hesap aktif bir Site Owner değil." }, 404, origin);
+    }
+
+    const [membership, profile, legacyOwner] = await Promise.all([
+        getFirestoreDocument(env, "siteOwners/" + targetUid),
+        getFirestoreDocument(env, "users/" + targetUid),
+        getFirestoreDocument(env, "siteConfig/siteOwner")
+    ]);
+
+    // Change the server-managed role before deleting registry entries. If a
+    // later write fails, the registry still keeps the owner authorized to retry.
+    if (profile) {
+        await patchFirestoreDocument(env, "users/" + targetUid, {
+            siteRole: "member",
+            siteOwnerRevokedAt: firestoreTimestamp()
+        });
+    }
+
+    if (membership?.data?.uid === targetUid) {
+        await deleteFirestoreDocument(env, "siteOwners/" + targetUid);
+    }
+    if (legacyOwner?.data?.uid === targetUid) {
+        await deleteFirestoreDocument(env, "siteConfig/siteOwner");
+    }
+
+    return json({
+        ok: true,
+        uid: targetUid,
+        revoked: true,
+        accountDeleted: false
+    }, 200, origin);
+}
+
 async function deleteSiteUserAccount(request, env, origin) {
     const owner = await authenticateFirebaseToken(getBearerToken(request), env);
     if (!(await isSiteOwnerUid(env, owner.uid))) {
@@ -570,6 +618,9 @@ export default {
             }
             if (url.pathname === "/api/site-owner/delete-room" && request.method === "POST") {
                 return await deleteSiteOwnerRoom(request, env, origin);
+            }
+            if (url.pathname === "/api/site-owner/revoke-owner" && request.method === "POST") {
+                return await revokeSiteOwner(request, env, origin);
             }
             if (url.pathname === "/api/site-owner/delete-user" && request.method === "POST") {
                 return await deleteSiteUserAccount(request, env, origin);
