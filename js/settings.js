@@ -848,6 +848,9 @@ async function deleteAccountData(user) {
         }
     }
 
+    // Remove the user's Global Chat membership record before deleting the profile.
+    await deleteDoc(doc(db, "globalChatMembers", user.uid));
+
     // Remove the user's private jumpscare library before deleting the profile.
     await deleteDoc(doc(db, "users", user.uid, "jumpscares", "library"));
 
