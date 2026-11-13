@@ -367,6 +367,7 @@ async function deleteUserFirestoreData(env, uid) {
         // Remove this account from every room it joined, plus its private prank inbox.
         await deleteFirestoreDocument(env, roomPath + "/members/" + uid);
         await deleteFirestoreDocument(env, roomPath + "/prankInbox/" + uid);
+        await deleteFirestoreDocument(env, roomPath + "/bans/" + uid);
 
         // Remove messages authored by the deleted account from surviving rooms.
         const roomMessages = await listFirestoreDocuments(env, roomPath + "/messages");
@@ -397,7 +398,7 @@ async function deleteUserFirestoreData(env, uid) {
                     updates[field] = session.data[field].filter((playerId) => playerId !== uid);
                 }
             }
-            for (const field of ["players", "playerProfiles", "playerStates"]) {
+            for (const field of ["players", "playerProfiles", "playerStates", "handCounts"]) {
                 const value = session.data[field];
                 if (value && typeof value === "object" && !Array.isArray(value) && Object.hasOwn(value, uid)) {
                     updates[field] = Object.fromEntries(
@@ -405,6 +406,8 @@ async function deleteUserFirestoreData(env, uid) {
                     );
                 }
             }
+            await deleteFirestoreDocumentTree(env, sessionPath + "/hands/" + uid);
+            await deleteFirestoreDocument(env, sessionPath + "/hands/" + uid);
             if (Object.keys(updates).length) {
                 await patchFirestoreDocument(env, sessionPath, updates);
             }
