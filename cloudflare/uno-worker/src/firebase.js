@@ -241,7 +241,7 @@ export async function createFirestoreDocument(env, documentPath, fields) {
     const encoded = Object.fromEntries(
         entries.map(([key, value]) => [key, encodeFirestoreValue(value)])
     );
-    // Firestore enforces this precondition atomically: only one claim can create the singleton.
+    // Firestore enforces this precondition atomically: only one request can create a document.
     const result = await firestoreRequest(env, documentPath, {
         method: "PATCH",
         query: "?currentDocument.exists=false",
