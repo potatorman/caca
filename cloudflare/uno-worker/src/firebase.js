@@ -112,7 +112,7 @@ async function getGoogleAccessToken(env) {
     const header = base64Url(encoder.encode(JSON.stringify({ alg: "RS256", typ: "JWT" })));
     const claims = base64Url(encoder.encode(JSON.stringify({
         iss: account.client_email,
-        scope: "https://www.googleapis.com/auth/datastore",
+        scope: "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit",
         aud: TOKEN_URL,
         iat: now,
         exp: now + 3600
@@ -255,4 +255,62 @@ export async function createFirestoreDocument(env, documentPath, fields) {
 
 export async function deleteFirestoreDocument(env, documentPath) {
     await firestoreRequest(env, documentPath, { method: "DELETE", allowMissing: true });
+}
+
+
+export async function listFirestoreDocuments(env, collectionPath) {
+    const documents = [];
+    let pageToken = "";
+
+    do {
+        const params = new URLSearchParams({ pageSize: "1000" });
+        if (pageToken) params.set("pageToken", pageToken);
+        const result = await firestoreRequest(env, collectionPath, {
+            query: "?" + params.toString(),
+            allowMissing: true
+        });
+        for (const document of result?.documents || []) {
+            documents.push({
+                id: document.name.split("/").pop(),
+                name: document.name,
+                data: decodeFirestoreFields(document.fields || {})
+            });
+        }
+        pageToken = result?.nextPageToken || "";
+    } while (pageToken);
+
+    return documents;
+}
+
+export async function listFirestoreCollectionIds(env, documentPath) {
+    const collectionIds = [];
+    let pageToken = "";
+    const accessToken = await getGoogleAccessToken(env);
+
+    do {
+        const url = firestoreUrl(env, documentPath) + ":listCollectionIds";
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                Authorization: "Bearer " + accessToken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                pageSize: 1000,
+                ...(pageToken ? { pageToken } : {})
+            })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            if (response.status === 404) return collectionIds;
+            throw new Error(
+                "Firestore alt koleksiyonları listelenemedi (" + response.status + "): " +
+                (payload.error?.message || response.statusText)
+            );
+        }
+        collectionIds.push(...(payload.collectionIds || []));
+        pageToken = payload.nextPageToken || "";
+    } while (pageToken);
+
+    return collectionIds;
 }
