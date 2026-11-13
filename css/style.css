@@ -7816,3 +7816,60 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
         flex-basis:calc(100% - 95px);
     }
 }
+
+/* Site Owner quick filters */
+.site-owner-filter-bar{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+    width:min(1500px,100%);
+    margin:0 auto 16px;
+}
+.site-owner-filter-field{
+    display:grid;
+    gap:6px;
+    min-width:0;
+    padding:10px 12px;
+    color:#83baff;
+    background:#101c2c;
+    border:1px solid #2a3d56;
+    border-radius:10px;
+    font-size:8px;
+    font-weight:900;
+    letter-spacing:.12em;
+}
+.site-owner-filter-field input{
+    width:100%;
+    min-width:0;
+    min-height:29px;
+    padding:0;
+    color:#edf5ff;
+    background:transparent;
+    border:0;
+    outline:0;
+    font:inherit;
+    font-size:11px;
+    font-weight:500;
+    letter-spacing:normal;
+}
+.site-owner-filter-field input::placeholder{
+    color:#7188a4;
+}
+.site-owner-filter-field:focus-within{
+    border-color:#548ed0;
+    box-shadow:0 0 0 2px rgba(74,139,211,.12);
+}
+.owner-room-choice[hidden],
+.owner-chat-choice[hidden]{
+    display:none!important;
+}
+@media(max-width:620px){
+    .site-owner-filter-bar{
+        grid-template-columns:minmax(0,1fr);
+        gap:8px;
+        margin-bottom:12px;
+    }
+    .site-owner-filter-field{
+        padding:9px 11px;
+    }
+}
