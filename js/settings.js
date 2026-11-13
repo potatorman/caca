@@ -367,8 +367,8 @@ $("ownerActivationForm").addEventListener("submit", async (event) => {
         showSettingsMessage("Oturumun sona ermiş. Tekrar giriş yap.");
         return;
     }
-    if (!/^[A-Za-z0-9_-]{16}$/.test(code)) {
-        showSettingsMessage("Kurulum kodu 16 karakterli olmalı.");
+    if (!/^[A-Za-z0-9_-]{32}$/.test(code)) {
+        showSettingsMessage("Kurulum kodu 32 karakterli olmalı.");
         return;
     }
 
