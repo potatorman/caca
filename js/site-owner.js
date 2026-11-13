@@ -547,6 +547,114 @@ async function deleteRoomMemberAccount(uid, nickname, button) {
     }
 }
 
+function renderOwnerAdmins() {
+    const list = $("ownerAdminsList");
+    if (!list) return;
+
+    const owners = ownerUserProfiles
+        .filter(({ profile }) => profile.siteRole === "site_owner")
+        .sort((a, b) => {
+            const aName = a.profile.nickname || a.profile.username || a.uid;
+            const bName = b.profile.nickname || b.profile.username || b.uid;
+            return aName.localeCompare(bName, "tr");
+        });
+
+    $("ownerAdminCount").textContent = String(owners.length);
+    list.replaceChildren();
+
+    if (!owners.length) {
+        const empty = document.createElement("p");
+        empty.className = "owner-console-empty";
+        empty.textContent = "Aktif Site Owner hesabı bulunamadı.";
+        list.appendChild(empty);
+        return;
+    }
+
+    for (const { uid, profile } of owners) {
+        const nickname = profile.nickname || profile.username || "İsimsiz";
+        const username = profile.username || "isimsiz";
+        const isCurrentAccount = uid === currentUser?.uid;
+
+        const row = document.createElement("article");
+        row.className = "owner-user-row";
+
+        const avatar = document.createElement("div");
+        avatar.className = "member-avatar owner-user-avatar";
+        setAvatarElement(avatar, profile.avatarId, profile.avatarData || null);
+
+        const details = document.createElement("div");
+        details.className = "owner-user-details";
+        const heading = document.createElement("div");
+        heading.className = "owner-user-heading";
+        const name = document.createElement("strong");
+        name.textContent = nickname;
+        heading.appendChild(name);
+
+        const badge = document.createElement("span");
+        badge.className = "site-owner-message-badge";
+        badge.textContent = "SITE OWNER";
+        heading.appendChild(badge);
+
+        const accountName = document.createElement("small");
+        accountName.textContent = "@" + username;
+        const uidText = document.createElement("code");
+        uidText.textContent = "UID: " + uid;
+        details.append(heading, accountName, uidText);
+
+        const revoke = document.createElement("button");
+        revoke.type = "button";
+        revoke.className = "owner-user-revoke";
+        revoke.textContent = isCurrentAccount ? "Bu sensin" : "Yetkiyi kaldır";
+        revoke.disabled = isCurrentAccount;
+        if (!isCurrentAccount) {
+            revoke.addEventListener("click", () => revokeOwnerAccess(uid, nickname, revoke));
+        }
+
+        row.append(avatar, details, revoke);
+        list.appendChild(row);
+    }
+}
+
+async function revokeOwnerAccess(uid, nickname, button) {
+    if (!isSiteOwner || !currentUser || uid === currentUser.uid || button.disabled) return;
+    const confirmed = window.confirm(
+        nickname + " hesabının Site Owner yetkisini kaldırmak istiyor musun?\\n\\n" +
+        "Hesap silinmeyecek; normal kullanıcı olarak giriş yapmaya ve sohbetlerini kullanmaya devam edebilecek."
+    );
+    if (!confirmed) return;
+
+    const oldLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Kaldırılıyor...";
+    $("ownerAdminStatus").textContent = nickname + " için owner erişimi kaldırılıyor...";
+
+    try {
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(UNO_WORKER_URL + "/api/site-owner/revoke-owner", {
+            method: "POST",
+            headers: {
+                Authorization: "Bearer " + idToken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ uid })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Owner yetkisi kaldırılamadı.");
+
+        $("ownerAdminStatus").textContent =
+            nickname + " artık Site Owner değil. Hesabı ve sohbetleri korunuyor.";
+        // Firestore's profile listener will remove the account from this list.
+    } catch (error) {
+        console.error("CACA owner access revoke failed:", error);
+        $("ownerAdminStatus").textContent =
+            "Owner yetkisi kaldırılamadı: " + (error.message || "Bilinmeyen hata");
+        if (button.isConnected) {
+            button.disabled = false;
+            button.textContent = oldLabel;
+        }
+    }
+}
+
 function renderOwnerUsers() {
     const list = $("ownerUsersList");
     if (!list) return;
@@ -676,6 +784,7 @@ function listenToOwnerUsers() {
             const bTime = b.profile.createdAt?.toMillis?.() || 0;
             return bTime - aTime;
         });
+        renderOwnerAdmins();
         renderOwnerUsers();
         if (selectedChat?.type === "room") renderOwnerRoomMembers();
     }, (error) => {
