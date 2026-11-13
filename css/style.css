@@ -7377,7 +7377,7 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 }
 #roomView.is-global-chat .room-toolbar .back-button,
 #roomView.is-global-chat .invite-code-box,
-#roomView.is-global-chat .room-toolbar-actions > button:not(#leaveGlobalChatButton) {
+#roomView.is-global-chat .room-toolbar-actions > button:not(#leaveGlobalChatButton):not(#membersToggleButton) {
     display: none !important;
 }
 #roomView.is-global-chat .room-toolbar {
@@ -7389,10 +7389,10 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     font-size: 22px;
 }
 #roomView.is-global-chat .room-chat-layout {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr) 270px !important;
 }
 #roomView.is-global-chat #roomMembersPanel {
-    display: none !important;
+    display: flex !important;
 }
 #roomView.is-global-chat .chat-panel {
     border-color: #2b4464;
@@ -7466,4 +7466,67 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .global-chat-invite-card {
         padding: 23px 19px;
     }
+}
+
+
+/* Global Chat members and Site Owner console */
+.site-owner-badge{display:inline-flex;width:max-content;margin-top:4px;padding:3px 7px;color:#c7e5ff;background:rgba(65,137,211,.16);border:1px solid rgba(117,176,235,.42);border-radius:5px;font-size:8px;font-weight:900;letter-spacing:.09em}
+.site-owner-nav-button{color:#b8d9ff;background:rgba(64,130,203,.08);border-color:rgba(109,169,230,.18)}
+.site-owner-nav-button.is-active{color:#eaf5ff;background:rgba(69,141,219,.2);border-color:rgba(124,187,249,.48)}
+.site-owner-view{width:100%;min-width:0;min-height:calc(100dvh - 108px);padding:clamp(18px,3vw,34px);color:#edf4ff;background:#0c1624}
+.site-owner-page-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;width:min(1500px,100%);margin:0 auto 22px}
+.site-owner-page-heading h2{margin:7px 0 6px;color:#f2f7ff;font-size:clamp(25px,3vw,34px);font-weight:900;letter-spacing:-.055em}
+.site-owner-page-heading p{max-width:650px;margin:0;color:#8fa6c2;font-size:11px;line-height:1.65}
+.site-owner-page-badge{flex:0 0 auto;padding:8px 11px;color:#b9dfff;background:rgba(58,123,190,.13);border:1px solid rgba(111,168,225,.3);border-radius:8px;font-size:9px;font-weight:900;letter-spacing:.1em}
+.site-owner-console-grid{display:grid;grid-template-columns:minmax(230px,285px) minmax(0,1fr);gap:16px;width:min(1500px,100%);min-height:min(690px,calc(100dvh - 245px));margin:0 auto}
+.site-owner-chat-sidebar,.site-owner-chat-panel{min-width:0;min-height:0;overflow:hidden;background:#101c2c;border:1px solid #2a3d56;border-radius:13px}
+.site-owner-chat-sidebar{display:flex;flex-direction:column;padding:14px 11px}
+.site-owner-sidebar-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 12px}
+.site-owner-sidebar-heading h3{margin:0;color:#e9f2ff;font-size:13px}
+.owner-chat-choice,.owner-room-choice{display:flex;align-items:center;gap:10px;width:100%;min-height:49px;padding:9px 10px;color:#dbe9fa;text-align:left;background:rgba(66,113,164,.08);border:1px solid rgba(108,151,197,.13);border-radius:9px;cursor:pointer}
+.owner-chat-choice:hover,.owner-room-choice:hover,.owner-chat-choice.is-active,.owner-room-choice.is-active{background:rgba(69,132,198,.17);border-color:rgba(112,173,234,.36)}
+.owner-chat-choice-icon{display:grid;width:30px;height:30px;flex:0 0 30px;place-items:center;color:#b9ddff;background:rgba(83,151,220,.16);border-radius:8px;font-size:18px}
+.owner-chat-choice strong,.owner-room-choice strong{display:block;color:#ecf5ff;font-size:11px}
+.owner-chat-choice small,.owner-room-choice small{display:block;margin-top:3px;color:#829bb9;font-size:9px}
+.owner-chat-list{display:grid;align-content:start;gap:7px;min-height:0;margin-top:9px;overflow-y:auto}
+.owner-room-choice{min-height:43px;padding:8px 10px}
+.owner-room-choice::before{content:"▤";color:#80b7ed;font-size:14px}
+.owner-console-empty{margin:0;padding:14px 10px;color:#8298b3;font-size:10px;line-height:1.6}
+.site-owner-chat-panel{display:flex;flex-direction:column}
+.site-owner-chat-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;min-height:72px;padding:13px 17px;background:#122137;border-bottom:1px solid #293d57}
+.site-owner-chat-heading h3{margin:5px 0 0;color:#f0f6ff;font-size:16px;font-weight:850}
+.owner-clear-chat-button{min-height:34px;padding:0 11px;color:#ffd5dc;background:rgba(156,54,77,.15);border:1px solid rgba(210,105,126,.35);border-radius:8px;font-size:10px;font-weight:800}
+.owner-clear-chat-button:hover:not(:disabled){background:rgba(156,54,77,.26)}
+.owner-clear-chat-button:disabled{opacity:.5;cursor:not-allowed}
+.owner-chat-status{min-height:0;margin:0;padding:0 15px;color:#8ab9ee;font-size:10px}
+.owner-chat-status:not(:empty){padding-top:9px}
+.owner-chat-messages{display:flex;flex:1;min-height:300px;flex-direction:column;gap:10px;padding:16px;overflow:auto}
+.owner-message-row{display:flex;align-items:flex-start;gap:10px;padding:11px;background:#142338;border:1px solid #263b54;border-radius:10px}
+.owner-message-avatar{width:34px;height:34px;flex:0 0 34px}
+.owner-message-content{min-width:0;flex:1}
+.owner-message-meta{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-bottom:6px}
+.owner-message-meta strong{color:#e8f2ff;font-size:11px}
+.owner-message-meta time{color:#718ba8;font-size:9px}
+.site-owner-message-badge{padding:2px 5px;color:#b9dcff;background:rgba(64,133,204,.17);border:1px solid rgba(112,175,235,.28);border-radius:4px;font-size:7px;font-weight:900;letter-spacing:.08em}
+.owner-message-text{color:#d5e2f2;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.owner-message-delete{flex:0 0 auto;min-height:28px;padding:0 8px;color:#ffc5cf;background:rgba(158,52,75,.14);border:1px solid rgba(206,100,124,.28);border-radius:7px;font-size:9px;font-weight:800}
+.owner-message-delete:hover{background:rgba(158,52,75,.28)}
+.owner-activation-active{margin:12px 0;padding:11px 12px;color:#a9e7c8;background:rgba(40,143,101,.13);border:1px solid rgba(71,184,136,.3);border-radius:9px;font-size:11px;font-weight:750}
+.owner-activation-card input{letter-spacing:.16em}
+.workspace-layout.is-site-owner-workspace > .room-sidebar{display:none!important}
+.workspace-layout.is-site-owner-workspace > .workspace-main{grid-column:1/-1;width:100%;min-width:0;max-width:none}
+@media(max-width:760px){
+ #roomView.is-global-chat .room-chat-layout{grid-template-columns:minmax(0,1fr)!important}
+ #roomView.is-global-chat #roomMembersPanel{max-height:250px}
+ .site-owner-view{padding:16px 12px}
+ .site-owner-page-heading{align-items:flex-start;flex-direction:column}
+ .site-owner-console-grid{grid-template-columns:minmax(0,1fr);min-height:0}
+ .site-owner-chat-sidebar{max-height:235px}
+ .owner-chat-list{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+ .owner-chat-messages{min-height:360px}
+}
+@media(max-width:480px){
+ .site-owner-chat-heading{align-items:flex-start;flex-direction:column}
+ .owner-clear-chat-button{width:100%}
+ .site-owner-page-badge{align-self:flex-start}
 }
