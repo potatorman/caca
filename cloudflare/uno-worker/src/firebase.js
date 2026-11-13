@@ -235,6 +235,24 @@ export async function patchFirestoreDocument(env, documentPath, fields) {
     });
 }
 
+export async function createFirestoreDocument(env, documentPath, fields) {
+    const entries = Object.entries(fields).filter(([, value]) => value !== undefined);
+    if (!entries.length) throw new Error("Firestore belgesi için alan bulunamadı.");
+    const encoded = Object.fromEntries(
+        entries.map(([key, value]) => [key, encodeFirestoreValue(value)])
+    );
+    // Firestore enforces this precondition atomically: only one claim can create the singleton.
+    const result = await firestoreRequest(env, documentPath, {
+        method: "PATCH",
+        query: "?currentDocument.exists=false",
+        body: { fields: encoded }
+    });
+    return result ? {
+        name: result.name,
+        data: decodeFirestoreFields(result.fields || {})
+    } : null;
+}
+
 export async function deleteFirestoreDocument(env, documentPath) {
     await firestoreRequest(env, documentPath, { method: "DELETE", allowMissing: true });
 }
