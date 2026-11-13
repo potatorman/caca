@@ -103,6 +103,7 @@ function openOwnerChat(type, id, title) {
     $("ownerChatStatus").textContent = "Mesajlar yükleniyor...";
     $("ownerChatMessages").replaceChildren();
     $("ownerClearChatButton").disabled = false;
+    $("ownerDeleteChatButton").disabled = type !== "room";
     setSelectedChatButton(type, id);
 
     const messagesQuery = query(getOwnerChatCollection(), orderBy("createdAt", "desc"), limit(100));
@@ -264,6 +265,50 @@ async function clearOwnerChatHistory() {
     } finally {
         button.textContent = oldLabel;
         button.disabled = false;
+    }
+}
+
+async function deleteOwnerChat() {
+    if (!isSiteOwner || !currentUser || !selectedChat || selectedChat.type !== "room") return;
+
+    const roomId = selectedChat.id;
+    const chatTitle = $("ownerChatTitle").textContent || "Bu sohbet";
+    if (!window.confirm(
+        '"' + chatTitle + '" odasını ve sohbetini tamamen silmek istiyor musun? ' +
+        "Oda üyeleri, mesajlar, davet kaydı ve bu odaya ait oyun verileri de silinir. Bu işlem geri alınamaz."
+    )) return;
+
+    const button = $("ownerDeleteChatButton");
+    const oldLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Siliniyor...";
+    $("ownerChatStatus").textContent = "Oda ve sohbet siliniyor...";
+
+    try {
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(UNO_WORKER_URL + "/api/site-owner/delete-room", {
+            method: "POST",
+            headers: {
+                Authorization: "Bearer " + idToken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ roomId })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Sohbet silinemedi.");
+
+        if (unsubscribeMessages) {
+            unsubscribeMessages();
+            unsubscribeMessages = null;
+        }
+        selectedChat = null;
+        $("ownerChatStatus").textContent = '"' + chatTitle + '" odası ve sohbeti silindi.';
+        openOwnerChat("global", "__caca_global_chat__", "Global Chat");
+    } catch (error) {
+        console.error("CACA owner chat delete failed:", error);
+        $("ownerChatStatus").textContent = "Sohbet silinemedi: " + (error.message || "Bilinmeyen hata");
+        button.disabled = false;
+        button.textContent = oldLabel;
     }
 }
 
@@ -457,6 +502,7 @@ $("ownerGlobalChatButton")?.addEventListener("click", () => {
     openOwnerChat("global", "__caca_global_chat__", "Global Chat");
 });
 $("ownerClearChatButton")?.addEventListener("click", clearOwnerChatHistory);
+$("ownerDeleteChatButton")?.addEventListener("click", deleteOwnerChat);
 
 // Capture phase restores the hidden room/dashboard before the existing tab code runs.
 $("chatsNavButton")?.addEventListener("click", restorePreviousWorkspace, true);
