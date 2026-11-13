@@ -901,6 +901,11 @@ $("deleteAccountForm").addEventListener("submit", async (event) => {
     showSettingsMessage("Hesap ve oda kayıtların siliniyor. Bu sırada sayfayı kapatma.", true);
 
     try {
+        const profileSnapshot = await getDoc(doc(db, "users", user.uid));
+        if (profileSnapshot.exists() && profileSnapshot.data().siteRole === "site_owner") {
+            throw new Error("Site Owner hesabı bu ekrandan silinemez. Önce yetkinin güvenli biçimde devredilmesi gerekir.");
+        }
+
         // Reauthenticate before deleting any data. Firebase requires a
         // recent sign-in for account deletion.
         await reauthenticateUser(user, password);
