@@ -784,6 +784,18 @@ function listenToOwnerUsers() {
             const bTime = b.profile.createdAt?.toMillis?.() || 0;
             return bTime - aTime;
         });
+
+        // A revoked owner may still have this tab open. Drop local owner UI
+        // access as soon as their server-written profile role changes.
+        const ownProfile = ownerUserProfiles.find(({ uid }) => uid === currentUser?.uid)?.profile;
+        if (ownProfile && ownProfile.siteRole !== "site_owner") {
+            isSiteOwner = false;
+            renderOwnerAccess();
+            if (!$("siteOwnerView").hidden) restorePreviousWorkspace();
+            stopOwnerListeners();
+            return;
+        }
+
         renderOwnerAdmins();
         renderOwnerUsers();
         if (selectedChat?.type === "room") renderOwnerRoomMembers();
