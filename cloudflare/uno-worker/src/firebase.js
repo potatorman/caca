@@ -93,7 +93,7 @@ function firestoreUrl(env, documentPath) {
         "/databases/(default)/documents/" + path;
 }
 
-async function getGoogleAccessToken(env) {
+export async function getGoogleAccessToken(env) {
     if (cachedGoogleToken && cachedGoogleTokenUntil > Date.now() + 60_000) {
         return cachedGoogleToken;
     }
