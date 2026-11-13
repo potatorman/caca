@@ -10,10 +10,7 @@ finally {
     $rng.Dispose()
 }
 
-$CacaOwnerCode = [Convert]::ToBase64String($bytes).
-    TrimEnd('=').
-    Replace('+', '-').
-    Replace('/', '_')
+$CacaOwnerCode = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 
 Set-Clipboard -Value $CacaOwnerCode
 Write-Host "CACA Site Owner setup code: $CacaOwnerCode" -ForegroundColor Cyan
