@@ -2,6 +2,7 @@ import {
     authenticateFirebaseToken,
     getFirestoreDocument,
     patchFirestoreDocument,
+    createFirestoreDocument,
     deleteFirestoreDocument,
     firestoreTimestamp
 } from "./firebase.js";
@@ -227,6 +228,55 @@ async function manageLobby(request, env, origin) {
     return json({ error: "Desteklenmeyen lobi işlemi." }, 400, origin);
 }
 
+async function claimSiteOwner(request, env, origin) {
+    const user = await authenticateFirebaseToken(getBearerToken(request), env);
+    const ownerPath = "siteConfig/siteOwner";
+    const existingOwner = await getFirestoreDocument(env, ownerPath);
+
+    if (existingOwner && existingOwner.data.uid !== user.uid) {
+        return json({ error: "Site Owner yetkisi zaten başka bir hesap tarafından alındı." }, 409, origin);
+    }
+
+    // A same-account retry safely recovers from a partial first claim.
+    if (!existingOwner) {
+        const body = await readJson(request);
+        const suppliedCode = typeof body.setupCode === "string" ? body.setupCode : "";
+        const configuredCode = typeof env.CACA_SITE_OWNER_SETUP_CODE === "string"
+            ? env.CACA_SITE_OWNER_SETUP_CODE
+            : "";
+
+        if (!configuredCode) {
+            return json({ error: "Site Owner kurulum kodu Worker secret olarak ayarlanmamış." }, 503, origin);
+        }
+        if (
+            !/^[A-Za-z0-9_-]{16}$/.test(configuredCode) ||
+            !/^[A-Za-z0-9_-]{16}$/.test(suppliedCode) ||
+            !constantTimeEqual(encoder.encode(suppliedCode), encoder.encode(configuredCode))
+        ) {
+            return json({ error: "Site Owner kurulum kodu yanlış." }, 403, origin);
+        }
+
+        try {
+            await createFirestoreDocument(env, ownerPath, {
+                uid: user.uid,
+                claimedAt: firestoreTimestamp()
+            });
+        } catch (error) {
+            // If two claims race, only the UID in the atomically created singleton wins.
+            const claimedOwner = await getFirestoreDocument(env, ownerPath);
+            if (!claimedOwner || claimedOwner.data.uid !== user.uid) {
+                return json({ error: "Site Owner yetkisi aynı anda başka bir hesap tarafından alındı." }, 409, origin);
+            }
+        }
+    }
+
+    await patchFirestoreDocument(env, "users/" + user.uid, {
+        siteRole: "site_owner",
+        siteOwnerClaimedAt: firestoreTimestamp()
+    });
+    return json({ ok: true, role: "site_owner" }, 200, origin);
+}
+
 async function readJson(request) {
     try {
         return await request.json();
@@ -260,6 +310,9 @@ export default {
 
             if (url.pathname === "/api/lobby/manage" && request.method === "POST") {
                 return await manageLobby(request, env, origin);
+            }
+            if (url.pathname === "/api/site-owner/claim" && request.method === "POST") {
+                return await claimSiteOwner(request, env, origin);
             }
             if (url.pathname === "/api/uno/ticket" && request.method === "POST") {
                 return await issueTicket(request, env, url, origin, "uno");
