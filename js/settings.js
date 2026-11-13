@@ -1,5 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
+import { UNO_WORKER_URL } from "../games/uno/worker-config.js";
 
 import {
     EmailAuthProvider,
@@ -343,6 +344,61 @@ $("backFromSettings").addEventListener("click", () => {
     showSettingsMessage("");
 });
 
+// SITE OWNER ACTIVATION
+function renderOwnerActivationState(isOwner) {
+    $("ownerActivationActive").hidden = !isOwner;
+    $("ownerActivationForm").hidden = isOwner;
+}
+
+$("ownerActivationForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (accountActionInProgress) return;
+
+    const user = auth.currentUser;
+    const code = $("ownerActivationCode").value.trim();
+    if (!user) {
+        showSettingsMessage("Oturumun sona ermiş. Tekrar giriş yap.");
+        return;
+    }
+    if (!/^[A-Za-z0-9_-]{16}$/.test(code)) {
+        showSettingsMessage("Kurulum kodu 16 karakterli olmalı.");
+        return;
+    }
+
+    const button = $("ownerActivationButton");
+    accountActionInProgress = true;
+    button.disabled = true;
+    button.textContent = "Etkinleştiriliyor...";
+    showSettingsMessage("");
+
+    try {
+        const idToken = await user.getIdToken();
+        const response = await fetch(UNO_WORKER_URL + "/api/site-owner/claim", {
+            method: "POST",
+            headers: {
+                "Authorization": "Bearer " + idToken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ setupCode: code })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(result.error || "Site Owner yetkisi etkinleştirilemedi.");
+        }
+
+        $("ownerActivationCode").value = "";
+        renderOwnerActivationState(true);
+        showSettingsMessage("Site Owner yetkisi etkinleştirildi.", true);
+        document.dispatchEvent(new CustomEvent("caca:site-owner-activated"));
+    } catch (error) {
+        showSettingsMessage("Site Owner etkinleştirilemedi: " + friendlySettingsError(error));
+    } finally {
+        accountActionInProgress = false;
+        button.disabled = false;
+        button.textContent = "Site Owner olarak etkinleştir";
+    }
+});
+
 // LOAD PROFILE
 
 onAuthStateChanged(auth, async (user) => {
@@ -355,6 +411,7 @@ onAuthStateChanged(auth, async (user) => {
         pendingAvatarData = null;
         $("settingsUsername").value = "";
         $("nicknameInput").value = "";
+        renderOwnerActivationState(false);
         renderAvatarPicker();
         return;
     }
@@ -367,6 +424,7 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         const profile = profileSnapshot.data();
+        renderOwnerActivationState(profile.siteRole === "site_owner");
         currentUsername = profile.username || "";
         currentNickname = profile.nickname || currentUsername;
         currentAvatarId = AVATARS[profile.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID;
