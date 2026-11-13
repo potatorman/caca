@@ -102,6 +102,14 @@ function filterGlobalMembers() {
 }
 $("globalMembersSearch")?.addEventListener("input", filterGlobalMembers);
 
+$("closeGlobalMembersButton")?.addEventListener("click", () => {
+    $("roomChatLayout")?.classList.add("members-collapsed");
+    $("membersToggleButton")?.setAttribute("aria-expanded", "false");
+    if ($("membersToggleButton")) {
+        $("membersToggleButton").innerHTML = 'Üyeleri göster <span aria-hidden="true">▥</span>';
+    }
+});
+
 async function getMemberProfile(userId) {
     if (profileCache.has(userId)) return profileCache.get(userId);
     const request = getDoc(doc(db, "users", userId))
