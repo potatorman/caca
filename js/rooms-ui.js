@@ -2574,6 +2574,24 @@ if (gamePanel && gamesMount) {
 
 let gamesTabPreviousVisibility = null;
 
+// Site Owner saves the actual Chats workspace before hiding it. When the
+// owner panel exits to Chats, restore that exact view instead of guessing
+// from GAME_SCOPE_ID (which could show the dashboard and room together).
+document.addEventListener("caca:site-owner-opened", (event) => {
+    const state = event.detail;
+    if (!state) return;
+
+    // If Site Owner was opened from Games, keep the Chats snapshot captured
+    // when Games was entered. The visible views are intentionally hidden then.
+    if (state.gamesWorkspace && gamesTabPreviousVisibility) return;
+
+    gamesTabPreviousVisibility = {
+        sidebarHidden: Boolean(state.sidebarHidden),
+        dashboardHidden: Boolean(state.dashboardHidden),
+        roomHidden: Boolean(state.roomHidden)
+    };
+});
+
 function setWorkspaceTab(tab) {
     const showGames = tab === "games";
     const workspace = document.querySelector(".workspace-layout");
@@ -2605,9 +2623,19 @@ function setWorkspaceTab(tab) {
     } else {
         gamesView.hidden = true;
         if (workspace) workspace.classList.remove("is-games-workspace");
-        if (roomSidebar) roomSidebar.hidden = gamesTabPreviousVisibility?.sidebarHidden ?? false;
-        if (dashboardView) dashboardView.hidden = gamesTabPreviousVisibility?.dashboardHidden ?? !GAME_SCOPE_ID;
-        if (roomView) roomView.hidden = gamesTabPreviousVisibility?.roomHidden ?? Boolean(!GAME_SCOPE_ID);
+
+        if (gamesTabPreviousVisibility) {
+            if (roomSidebar) roomSidebar.hidden = gamesTabPreviousVisibility.sidebarHidden;
+            if (dashboardView) dashboardView.hidden = gamesTabPreviousVisibility.dashboardHidden;
+            if (roomView) roomView.hidden = gamesTabPreviousVisibility.roomHidden;
+        } else {
+            // Safe default when no tab snapshot exists: show either the
+            // currently active chat or the welcome dashboard, never both.
+            const hasActiveChat = Boolean(activeRoomId || isGlobalChatActive);
+            if (roomSidebar) roomSidebar.hidden = false;
+            if (dashboardView) dashboardView.hidden = hasActiveChat;
+            if (roomView) roomView.hidden = !hasActiveChat;
+        }
         gamesTabPreviousVisibility = null;
     }
 
