@@ -7,6 +7,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // This immutable singleton is created only by the authenticated Cloudflare Worker.
+    function isSiteOwner() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/siteConfig/siteOwner)
+        && get(/databases/$(database)/documents/siteConfig/siteOwner).data.get('uid', '') == request.auth.uid;
+    }
+
     function roomPath(roomId) {
       return /databases/$(database)/documents/rooms/$(roomId);
     }
@@ -259,9 +266,12 @@ service cloud.firestore {
     // Community messages use a dedicated collection, separate from private rooms and game sessions.
     match /globalChatMessages/{messageId} {
       function canUseGlobalChat() {
-        return signedIn()
-          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('globalChatOptIn', false) == true;
+        return isSiteOwner()
+          || (
+            signedIn()
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('globalChatOptIn', false) == true
+          );
       }
 
       allow read: if canUseGlobalChat();
@@ -293,18 +303,42 @@ service cloud.firestore {
         && request.resource.data.text.size() <= 2000
         && request.resource.data.editedAt is timestamp;
 
-      allow delete: if canUseGlobalChat()
-        && resource.data.senderId == request.auth.uid;
+      allow delete: if isSiteOwner()
+        || (canUseGlobalChat() && resource.data.senderId == request.auth.uid);
+    }
+
+    // Membership is opt-in state, not an online-presence indicator.
+    match /globalChatMembers/{userId} {
+      allow read: if isSiteOwner()
+        || (
+          signedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('globalChatOptIn', false) == true
+        );
+
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('globalChatOptIn', false) == true
+        && request.resource.data.keys().hasOnly(['userId', 'joinedAt'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.joinedAt is timestamp;
+
+      allow update: if false;
+      allow delete: if signedIn() && (request.auth.uid == userId || isSiteOwner());
     }
 
     match /rooms/{roomId} {
-      allow get: if signedIn()
-        && (
-          resource.data.ownerId == request.auth.uid
-          || isRoomMember(roomId)
+      allow get: if isSiteOwner()
+        || (
+          signedIn()
+          && (
+            resource.data.ownerId == request.auth.uid
+            || isRoomMember(roomId)
+          )
         );
 
-      allow list: if false;
+      allow list: if isSiteOwner();
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly([
@@ -447,7 +481,7 @@ service cloud.firestore {
       }
 
       match /messages/{messageId} {
-        allow read: if isRoomMember(roomId);
+        allow read: if isSiteOwner() || isRoomMember(roomId);
 
         allow create: if isRoomMember(roomId)
           && request.resource.data.keys().hasOnly([
@@ -476,10 +510,13 @@ service cloud.firestore {
           && request.resource.data.text.size() <= 2000
           && request.resource.data.editedAt is timestamp;
 
-        allow delete: if isRoomMember(roomId)
-          && (
-            resource.data.senderId == request.auth.uid
-            || isRoomOwner(roomId)
+        allow delete: if isSiteOwner()
+          || (
+            isRoomMember(roomId)
+            && (
+              resource.data.senderId == request.auth.uid
+              || isRoomOwner(roomId)
+            )
           );
       }
 
