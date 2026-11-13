@@ -428,6 +428,43 @@ async function deleteUserFirestoreData(env, uid) {
     await deleteFirestoreDocument(env, "users/" + uid);
 }
 
+async function deleteSiteOwnerRoom(request, env, origin) {
+    const owner = await authenticateFirebaseToken(getBearerToken(request), env);
+    if (!(await isSiteOwnerUid(env, owner.uid))) {
+        return json({ error: "Bu işlem için Site Owner yetkisi gerekli." }, 403, origin);
+    }
+
+    const body = await readJson(request);
+    const roomId = typeof body.roomId === "string" ? body.roomId : "";
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(roomId) || roomId === "global") {
+        return json({ error: "Silinecek özel oda kimliği geçersiz." }, 400, origin);
+    }
+
+    const roomPath = "rooms/" + roomId;
+    const roomDocument = await getFirestoreDocument(env, roomPath);
+    if (!roomDocument) {
+        return json({ error: "Bu özel oda zaten silinmiş veya bulunamadı." }, 404, origin);
+    }
+
+    // Remove invite lookup first, then recursively remove every room subcollection
+    // (members, messages, game sessions, bans, inboxes, and nested game data).
+    const inviteCode = roomDocument.data.inviteCode;
+    if (typeof inviteCode === "string" && inviteCode) {
+        await deleteFirestoreDocument(env, "roomInvites/" + inviteCode);
+    }
+
+    // Remove each user's private room-list entry so deleted rooms disappear everywhere.
+    const users = await listFirestoreDocuments(env, "users");
+    for (const user of users) {
+        await deleteFirestoreDocument(env, "users/" + user.id + "/rooms/" + roomId);
+    }
+
+    await deleteFirestoreDocumentTree(env, roomPath);
+    await deleteFirestoreDocument(env, roomPath);
+
+    return json({ ok: true, roomId }, 200, origin);
+}
+
 async function deleteSiteUserAccount(request, env, origin) {
     const owner = await authenticateFirebaseToken(getBearerToken(request), env);
     if (!(await isSiteOwnerUid(env, owner.uid))) {
@@ -490,6 +527,9 @@ export default {
             }
             if (url.pathname === "/api/site-owner/claim" && request.method === "POST") {
                 return await claimSiteOwner(request, env, origin);
+            }
+            if (url.pathname === "/api/site-owner/delete-room" && request.method === "POST") {
+                return await deleteSiteOwnerRoom(request, env, origin);
             }
             if (url.pathname === "/api/site-owner/delete-user" && request.method === "POST") {
                 return await deleteSiteUserAccount(request, env, origin);
