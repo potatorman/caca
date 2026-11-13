@@ -113,6 +113,7 @@ let activeRoomCode = "";
 let activeRoomId = null;
 let isGlobalChatActive = false;
 let globalChatOptedIn = false;
+let isSiteOwner = false;
 let pendingGlobalChatOpen = false;
 let suspendedRoomName = "";
 const GLOBAL_CHAT_ID = "__caca_global_chat__";
@@ -363,7 +364,8 @@ async function getAccountDisplayNames(userId, fallbackName = "Bilinmeyen kullan�
             accountUsername,
             displayNickname: profile.nickname || accountUsername,
             avatarId: AVATARS[profile.avatarId] ? profile.avatarId : DEFAULT_AVATAR_ID,
-            avatarData: profile.avatarData || null
+            avatarData: profile.avatarData || null,
+            siteRole: profile.siteRole || ""
         };
     }
 
@@ -386,7 +388,7 @@ function updateLiveProfileUI(userId, profile) {
         : DEFAULT_AVATAR_ID;
     const avatarData = profile?.avatarData || null;
 
-    for (const list of [$("membersList"), $("bannedList"), $("roomAdminsList")]) {
+    for (const list of [$("membersList"), $("bannedList"), $("roomAdminsList"), $("globalMembersList")]) {
         if (!list) continue;
 
         const item = Array.from(
@@ -415,6 +417,7 @@ function updateLiveProfileUI(userId, profile) {
     }
 
     filterMemberList();
+    document.dispatchEvent(new CustomEvent("caca:refresh-global-members"));
 
     const messagesList = $("chatMessages");
     if (!messagesList) return;
@@ -925,12 +928,19 @@ function listenToMessages(roomId) {
                     meta.className = "message-meta";
                     const author = document.createElement("strong");
                     author.textContent = senderName;
+                    meta.appendChild(author);
+                    if (profile?.siteRole === "site_owner") {
+                        const ownerBadge = document.createElement("span");
+                        ownerBadge.className = "site-owner-message-badge";
+                        ownerBadge.textContent = "SITE OWNER";
+                        meta.appendChild(ownerBadge);
+                    }
                     const time = document.createElement("time");
                     time.textContent = formatMessageTime(message.createdAt);
                     if (message.createdAt?.toDate) {
                         time.dateTime = message.createdAt.toDate().toISOString();
                     }
-                    meta.append(author, time);
+                    meta.appendChild(time);
                     content.appendChild(meta);
                 }
 
@@ -946,7 +956,7 @@ function listenToMessages(roomId) {
                     content.appendChild(editedLabel);
                 }
 
-                const canDelete = isMine || (!isGlobalChatActive && activeRoomOwnerId === currentUser?.uid);
+                const canDelete = isMine || isSiteOwner || (!isGlobalChatActive && activeRoomOwnerId === currentUser?.uid);
                 if (canDelete) {
                     const actions = document.createElement("div");
                     actions.className = "message-actions";
@@ -3964,6 +3974,11 @@ if ("ResizeObserver" in window) {
     }
 }
 
+function setGlobalMembersMode(isGlobal) {
+    if ($("privateMembersContent")) $("privateMembersContent").hidden = isGlobal;
+    if ($("globalMembersContent")) $("globalMembersContent").hidden = !isGlobal;
+}
+
 function setMembersPanelOpen(isOpen) {
     const layout = $("roomChatLayout");
     const toggle = $("membersToggleButton");
@@ -4864,6 +4879,13 @@ function listenToMembers(roomId, ownerId) {
                     nameLine.appendChild(ownerBadge);
                 }
 
+                if (member.siteRole === "site_owner") {
+                    const siteOwnerBadge = document.createElement("span");
+                    siteOwnerBadge.className = "site-owner-message-badge";
+                    siteOwnerBadge.textContent = "SITE OWNER";
+                    nameLine.appendChild(siteOwnerBadge);
+                }
+
                 if (isAdmin) {
                     const adminBadge = document.createElement("span");
                     adminBadge.className = "member-badge admin-badge";
@@ -5270,6 +5292,8 @@ function showPrivateRoomChat(roomId) {
     if (!roomId || roomId !== activeRoomId) return;
 
     isGlobalChatActive = false;
+    setGlobalMembersMode(false);
+    document.dispatchEvent(new CustomEvent("caca:global-chat-close"));
     $("roomView").classList.remove("is-global-chat");
     $("roomView").hidden = false;
     $("dashboardView").hidden = true;
@@ -5320,7 +5344,9 @@ async function openGlobalChat() {
         $("leaveRoomButton").hidden = true;
         $("chatPanelTitle").textContent = "Global Chat";
         $("chatPanelSubtitle").textContent = "CACA topluluğuyla konuş";
-        setMembersPanelOpen(false);
+        setGlobalMembersMode(true);
+        setMembersPanelOpen(true);
+        document.dispatchEvent(new CustomEvent("caca:global-chat-open"));
         setGlobalChatNavigationActive(true);
 
         document.querySelectorAll(".room-list-item").forEach((item) => {
@@ -5349,6 +5375,7 @@ async function leaveGlobalChat() {
             globalChatPrompted: true
         });
         globalChatOptedIn = false;
+        document.dispatchEvent(new CustomEvent("caca:global-chat-leave"));
 
         if (unsubscribeMessages) {
             unsubscribeMessages();
@@ -5472,6 +5499,8 @@ async function openRoom(roomId) {
 
         // Restore the private-room toolbar after leaving Global Chat.
         isGlobalChatActive = false;
+        setGlobalMembersMode(false);
+        document.dispatchEvent(new CustomEvent("caca:global-chat-close"));
         $("roomView").classList.remove("is-global-chat");
         $("backToDashboard").hidden = false;
         $("activeRoomCode").parentElement.hidden = false;
@@ -5774,6 +5803,10 @@ $("copyRoomCode").addEventListener("click", async () => {
 
 // AUTH STATE
 
+document.addEventListener("caca:site-owner-activated", () => {
+    isSiteOwner = true;
+});
+
 onAuthStateChanged(auth, async (user) => {
 
     if (!user) {
@@ -5790,6 +5823,7 @@ onAuthStateChanged(auth, async (user) => {
         activeGameLobbyId = "";
 
         currentUser = null;
+        isSiteOwner = false;
         jumpscareLibraryLoadedFor = null;
         jumpscareLibraryLoadPromise = null;
         currentJumpscareSlots = { slot1: null, slot2: null, slot3: null };
@@ -5828,6 +5862,7 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         const profile = profileSnapshot.data();
+        isSiteOwner = profile.siteRole === "site_owner";
         globalChatOptedIn = profile.globalChatOptIn === true;
         currentUsername = profile.nickname || profile.username;
         currentAvatarId = AVATARS[profile.avatarId]
