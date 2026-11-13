@@ -57,6 +57,8 @@ function stopOwnerListeners() {
         unsubscribeRoomMembers();
         unsubscribeRoomMembers = null;
     }
+    $("ownerRoomMembersPanel")?.setAttribute("hidden", "");
+    $("ownerRoomMembersList")?.replaceChildren();
     ownerUserProfiles = [];
     ownerRoomMembers = [];
     selectedOwnerUserIds.clear();
@@ -592,6 +594,11 @@ function renderOwnerUsers() {
         select.disabled = isOwner || isCurrentAccount;
         select.setAttribute("aria-label", nickname + " hesabını seç");
         select.addEventListener("change", () => {
+            if (select.checked && selectedOwnerUserIds.size >= 25) {
+                select.checked = false;
+                $("ownerUsersStatus").textContent = "Tek seferde en fazla 25 hesap seçebilirsin.";
+                return;
+            }
             if (select.checked) selectedOwnerUserIds.add(uid);
             else selectedOwnerUserIds.delete(uid);
             renderOwnerUsers();
@@ -678,11 +685,11 @@ async function deleteOwnerUser(uid, nickname, button) {
         const result = await deleteOwnerAccounts([uid]);
         const failures = Array.isArray(result.failed) ? result.failed : [];
         selectedOwnerUserIds.delete(uid);
+        renderOwnerUsers();
+        if (selectedChat?.type === "room") renderOwnerRoomMembers();
         $("ownerUsersStatus").textContent = failures.length
             ? nickname + " silinemedi: " + (failures[0].error || "Bilinmeyen hata")
             : nickname + " hesabı ve ilişkili verileri kalıcı olarak silindi.";
-        renderOwnerUsers();
-        if (selectedChat?.type === "room") renderOwnerRoomMembers();
     } catch (error) {
         console.error("CACA owner account deletion failed:", error);
         $("ownerUsersStatus").textContent =
@@ -729,16 +736,18 @@ async function deleteSelectedOwnerUsers() {
         const deletedUids = Array.isArray(result.deletedUids) ? result.deletedUids : [];
         const failures = Array.isArray(result.failed) ? result.failed : [];
         deletedUids.forEach((uid) => selectedOwnerUserIds.delete(uid));
+        let completionMessage;
         if (!failures.length) {
             selectedOwnerUserIds.clear();
-            $("ownerUsersStatus").textContent = deletedUids.length + " hesap kalıcı olarak silindi.";
+            completionMessage = deletedUids.length + " hesap kalıcı olarak silindi.";
         } else {
-            $("ownerUsersStatus").textContent =
+            completionMessage =
                 deletedUids.length + " hesap silindi; " + failures.length + " hesap silinemedi: " +
                 failures.slice(0, 3).map((item) => item.error || item.uid).join(" · ");
         }
         renderOwnerUsers();
         if (selectedChat?.type === "room") renderOwnerRoomMembers();
+        $("ownerUsersStatus").textContent = completionMessage;
     } catch (error) {
         console.error("CACA bulk account deletion failed:", error);
         $("ownerUsersStatus").textContent = "Toplu silme başarısız: " + (error.message || "Bilinmeyen hata");
@@ -757,8 +766,15 @@ $("ownerSelectVisibleUsers")?.addEventListener("change", (event) => {
         const values = [uid, profile.username, profile.nickname].filter(Boolean).map(normalizeOwnerSearch);
         return !search || values.some((value) => value.includes(search));
     });
-    if (event.currentTarget.checked) visible.forEach(({ uid }) => selectedOwnerUserIds.add(uid));
-    else visible.forEach(({ uid }) => selectedOwnerUserIds.delete(uid));
+    if (event.currentTarget.checked) {
+        const remainingSlots = Math.max(0, 25 - selectedOwnerUserIds.size);
+        visible.slice(0, remainingSlots).forEach(({ uid }) => selectedOwnerUserIds.add(uid));
+        if (visible.length > remainingSlots) {
+            $("ownerUsersStatus").textContent = "En fazla 25 hesap seçildi. Toplu silme sınırı 25 hesap.";
+        }
+    } else {
+        visible.forEach(({ uid }) => selectedOwnerUserIds.delete(uid));
+    }
     renderOwnerUsers();
 });
 $("ownerBulkDeleteButton")?.addEventListener("click", deleteSelectedOwnerUsers);
