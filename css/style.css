@@ -7809,3 +7809,10 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .owner-user-bulk-delete{width:100%}
     .owner-user-row .owner-user-select{align-self:flex-start;margin-top:9px}
 }
+
+@media(max-width:560px){
+    .owner-user-select + .owner-user-avatar + .owner-user-details{
+        min-width:calc(100% - 95px);
+        flex-basis:calc(100% - 95px);
+    }
+}
