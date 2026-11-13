@@ -7873,3 +7873,48 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
         padding:9px 11px;
     }
 }
+
+
+/* Site Owner access revocation panel */
+.site-owner-admins-panel{
+    width:min(1500px,100%);
+    margin:0 auto 16px;
+    padding:16px;
+    color:#edf4ff;
+    background:#101c2c;
+    border:1px solid #2a3d56;
+    border-radius:13px;
+}
+.site-owner-admins-panel .owner-users-list{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));
+    gap:8px;
+}
+.owner-user-revoke{
+    flex:0 0 auto;
+    min-height:34px;
+    padding:0 11px;
+    color:#ffc5cf;
+    background:rgba(158,52,75,.14);
+    border:1px solid rgba(206,100,124,.28);
+    border-radius:8px;
+    font-size:9px;
+    font-weight:850;
+    cursor:pointer;
+}
+.owner-user-revoke:hover:not(:disabled){
+    background:rgba(158,52,75,.28);
+    border-color:rgba(225,122,144,.46);
+}
+.owner-user-revoke:disabled{
+    color:#9ab5d1;
+    background:rgba(64,133,204,.1);
+    border-color:rgba(112,175,235,.18);
+    opacity:.8;
+    cursor:not-allowed;
+}
+@media(max-width:560px){
+    .site-owner-admins-panel{padding:12px}
+    .site-owner-admins-panel .owner-user-row{align-items:flex-start;flex-wrap:wrap}
+    .site-owner-admins-panel .owner-user-revoke{width:100%;margin-left:49px}
+}
