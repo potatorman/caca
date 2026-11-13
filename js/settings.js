@@ -30,6 +30,7 @@ let currentAvatarData = null;
 let pendingAvatarData = null;
 let accountActionInProgress = false;
 let settingsReturnToRoom = false;
+let settingsReturnToOwner = false;
 
 // MESSAGES
 
@@ -316,7 +317,8 @@ function renderAvatarPicker() {
 // SETTINGS NAVIGATION
 
 $("settingsButton").addEventListener("click", () => {
-    // Remember whether settings were opened over a live room or the dashboard.
+    // Keep the Site Owner console mounted underneath the settings overlay.
+    settingsReturnToOwner = !$("siteOwnerView").hidden;
     settingsReturnToRoom = !$("roomView").hidden;
 
     $("dashboardView").hidden = true;
@@ -332,7 +334,11 @@ $("settingsButton").addEventListener("click", () => {
 $("backFromSettings").addEventListener("click", () => {
     $("settingsView").hidden = true;
 
-    if (settingsReturnToRoom && !$("roomView").hidden) {
+    if (settingsReturnToOwner) {
+        $("dashboardView").hidden = true;
+        $("roomView").hidden = true;
+        $("siteOwnerView").hidden = false;
+    } else if (settingsReturnToRoom && !$("roomView").hidden) {
         $("dashboardView").hidden = true;
         $("roomView").hidden = false;
     } else {
@@ -341,6 +347,7 @@ $("backFromSettings").addEventListener("click", () => {
     }
 
     settingsReturnToRoom = false;
+    settingsReturnToOwner = false;
     showSettingsMessage("");
 });
 
