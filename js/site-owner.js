@@ -1,5 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { setAvatarElement } from "./avatars.js";
+import { UNO_WORKER_URL } from "../games/uno/worker-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 import {
     collection,
@@ -21,7 +22,11 @@ let isSiteOwner = false;
 let unsubscribeRooms = null;
 let unsubscribeMessages = null;
 let unsubscribeUsers = null;
+let unsubscribeRoomMembers = null;
 let ownerUserProfiles = [];
+let ownerRoomMembers = [];
+let selectedOwnerUserIds = new Set();
+let ownerRoomMembersVersion = 0;
 let selectedChat = null;
 let messageRenderVersion = 0;
 let previousWorkspace = null;
@@ -48,7 +53,14 @@ function stopOwnerListeners() {
         unsubscribeUsers();
         unsubscribeUsers = null;
     }
+    if (unsubscribeRoomMembers) {
+        unsubscribeRoomMembers();
+        unsubscribeRoomMembers = null;
+    }
     ownerUserProfiles = [];
+    ownerRoomMembers = [];
+    selectedOwnerUserIds.clear();
+    ownerRoomMembersVersion += 1;
     messageRenderVersion += 1;
 }
 
@@ -57,13 +69,18 @@ function restorePreviousWorkspace() {
     const previous = previousWorkspace;
     const workspace = document.querySelector(".workspace-layout");
     document.querySelector(".room-sidebar").hidden = previous.sidebarHidden;
-    $("dashboardView").hidden = previous.dashboardHidden;
-    $("roomView").hidden = previous.roomHidden;
-    $("gamesView").hidden = previous.gamesHidden;
     $("settingsView").hidden = previous.settingsHidden;
     $("siteOwnerView").hidden = true;
-    workspace.classList.toggle("is-games-workspace", previous.gamesWorkspace);
-    workspace.classList.toggle("is-site-owner-workspace", previous.ownerWorkspace);
+
+    // Restore one coherent screen. A room/chat takes precedence over the
+    // welcome dashboard so the two screens can never appear on top of each other.
+    const returnToRoom = previous.roomHidden === false;
+    const returnToGames = !returnToRoom && previous.gamesHidden === false;
+    $("roomView").hidden = !returnToRoom;
+    $("gamesView").hidden = !returnToGames;
+    $("dashboardView").hidden = returnToRoom || returnToGames;
+    workspace.classList.toggle("is-games-workspace", returnToGames);
+    workspace.classList.remove("is-site-owner-workspace");
     previousWorkspace = null;
     $("siteOwnerNavButton").classList.remove("is-active");
     $("siteOwnerNavButton").setAttribute("aria-pressed", "false");
@@ -105,6 +122,11 @@ function openOwnerChat(type, id, title) {
     $("ownerClearChatButton").disabled = false;
     $("ownerDeleteChatButton").disabled = type !== "room";
     setSelectedChatButton(type, id);
+    if (type === "room") {
+        listenToOwnerRoomMembers(id);
+    } else {
+        stopOwnerRoomMembersListener();
+    }
 
     const messagesQuery = query(getOwnerChatCollection(), orderBy("createdAt", "desc"), limit(100));
     unsubscribeMessages = onSnapshot(messagesQuery, async (snapshot) => {
