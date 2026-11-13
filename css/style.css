@@ -7741,3 +7741,71 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
         flex:1 1 auto;
     }
 }
+
+
+/* Site Owner room-member view and bulk account selection */
+.site-owner-room-members-panel{
+    grid-column:1 / -1;
+    min-width:0;
+    margin-top:0;
+    padding:16px;
+    color:#edf4ff;
+    background:#101c2c;
+    border:1px solid #2a3d56;
+    border-radius:13px;
+}
+.site-owner-room-members-panel[hidden]{display:none!important}
+.owner-user-bulk-actions{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    margin-top:12px;
+}
+.owner-select-visible-label{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    color:#9db4d0;
+    font-size:10px;
+    cursor:pointer;
+}
+.owner-select-visible-label input,
+.owner-user-select{
+    width:16px;
+    height:16px;
+    flex:0 0 16px;
+    margin:0;
+    accent-color:#5e9fe9;
+    cursor:pointer;
+}
+.owner-user-select:disabled{
+    opacity:.35;
+    cursor:not-allowed;
+}
+.owner-user-row{
+    min-width:0;
+}
+.owner-user-bulk-delete{
+    min-height:35px;
+    padding:0 12px;
+}
+.owner-user-bulk-delete:disabled{
+    opacity:.45;
+    cursor:not-allowed;
+}
+.owner-user-row .owner-user-select{
+    align-self:center;
+}
+.site-owner-room-members-panel .owner-users-list{
+    max-height:390px;
+    overflow-y:auto;
+    padding-right:3px;
+}
+@media(max-width:560px){
+    .site-owner-room-members-panel{padding:12px}
+    .owner-user-bulk-actions{align-items:stretch;flex-direction:column}
+    .owner-user-bulk-delete{width:100%}
+    .owner-user-row .owner-user-select{align-self:flex-start;margin-top:9px}
+}
