@@ -5,7 +5,6 @@ import {
     collection,
     doc,
     getDoc,
-    setDoc,
     deleteDoc,
     runTransaction,
     onSnapshot,
@@ -52,27 +51,31 @@ async function refreshOptInState() {
     return optedIntoGlobalChat;
 }
 
-function ensureMembershipDocument() {
-    if (!currentUser) return Promise.resolve();
+async function ensureMembershipDocument() {
+    if (!currentUser) return;
     if (membershipSyncPromise) return membershipSyncPromise;
 
     const userId = currentUser.uid;
-    membershipSyncPromise = (async () => {
-        if (!(await refreshOptInState())) return;
+    const pending = (async () => {
+        const profileSnapshot = await getDoc(doc(db, "users", userId));
+        if (currentUser?.uid !== userId) return;
+        optedIntoGlobalChat = profileSnapshot.exists() && profileSnapshot.data().globalChatOptIn === true;
+        if (!optedIntoGlobalChat) return;
+
         const memberRef = doc(db, "globalChatMembers", userId);
         await runTransaction(db, async (transaction) => {
             const memberSnapshot = await transaction.get(memberRef);
             if (!memberSnapshot.exists()) {
-                transaction.set(memberRef, {
-                    userId,
-                    joinedAt: serverTimestamp()
-                });
+                transaction.set(memberRef, { userId, joinedAt: serverTimestamp() });
             }
         });
-    })().finally(() => {
-        membershipSyncPromise = null;
-    });
-    return membershipSyncPromise;
+    })();
+    membershipSyncPromise = pending;
+    try {
+        await pending;
+    } finally {
+        if (membershipSyncPromise === pending) membershipSyncPromise = null;
+    }
 }
 
 function filterGlobalMembers() {
