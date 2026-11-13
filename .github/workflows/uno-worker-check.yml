@@ -37,7 +37,11 @@ jobs:
             ../../games/vampir-koylu/index.js \
             ../../games/vampir-koylu/state.js \
             ../../games/vampir-koylu/ui.js \
-            ../../js/rooms-ui.js
+            ../../js/rooms-ui.js \
+            ../../js/global-chat-members.js \
+            ../../js/site-owner.js \
+            ../../js/settings.js \
+            ../../js/app.js
           do
             node --input-type=module --check < "$file"
           done
