@@ -372,7 +372,41 @@ async function deleteUserFirestoreData(env, uid) {
         const roomMessages = await listFirestoreDocuments(env, roomPath + "/messages");
         for (const message of roomMessages) {
             if (message.data.senderId === uid) {
-                await deleteFirestoreDocument(env, roomPath + "/messages/" + message.id);
+                const messagePath = roomPath + "/messages/" + message.id;
+                await deleteFirestoreDocumentTree(env, messagePath);
+                await deleteFirestoreDocument(env, messagePath);
+            }
+        }
+
+        // Remove the deleted account from any active game session in this room.
+        const sessions = await listFirestoreDocuments(env, roomPath + "/gameSessions");
+        for (const session of sessions) {
+            const sessionPath = roomPath + "/gameSessions/" + session.id;
+            if (session.data.hostId === uid) {
+                await deleteFirestoreDocumentTree(env, sessionPath);
+                await deleteFirestoreDocument(env, sessionPath);
+                continue;
+            }
+
+            const updates = {};
+            for (const field of [
+                "playerIds", "matchPlayerIds", "nextRoundPlayerIds",
+                "spectatorIds", "readyPlayerIds", "alivePlayerIds", "votedPlayerIds"
+            ]) {
+                if (Array.isArray(session.data[field]) && session.data[field].includes(uid)) {
+                    updates[field] = session.data[field].filter((playerId) => playerId !== uid);
+                }
+            }
+            for (const field of ["players", "playerProfiles", "playerStates"]) {
+                const value = session.data[field];
+                if (value && typeof value === "object" && !Array.isArray(value) && Object.hasOwn(value, uid)) {
+                    updates[field] = Object.fromEntries(
+                        Object.entries(value).filter(([playerId]) => playerId !== uid)
+                    );
+                }
+            }
+            if (Object.keys(updates).length) {
+                await patchFirestoreDocument(env, sessionPath, updates);
             }
         }
     }
@@ -380,7 +414,9 @@ async function deleteUserFirestoreData(env, uid) {
     const globalMessages = await listFirestoreDocuments(env, "globalChatMessages");
     for (const message of globalMessages) {
         if (message.data.senderId === uid) {
-            await deleteFirestoreDocument(env, "globalChatMessages/" + message.id);
+            const messagePath = "globalChatMessages/" + message.id;
+            await deleteFirestoreDocumentTree(env, messagePath);
+            await deleteFirestoreDocument(env, messagePath);
         }
     }
 
@@ -496,7 +532,7 @@ export default {
         } catch (error) {
             const message = error?.message || "Beklenmeyen sunucu hatası.";
             const status = /token|oturum|bileti/i.test(message) ? 401 :
-                /üyesi|oyuncusu|izleyicisi|açık/i.test(message) ? 403 : 400;
+                /yetki|izin|permission|silemiyor|üyesi|oyuncusu|izleyicisi|açık/i.test(message) ? 403 : 400;
             return json({ error: message }, status, origin);
         }
     }
