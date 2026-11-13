@@ -376,11 +376,14 @@ service cloud.firestore {
         && !existsAfter(userRoomPath(request.auth.uid, roomId));
 
       match /members/{memberId} {
-        allow get, list: if signedIn()
-          && (
-            memberId == request.auth.uid
-            || isRoomOwner(roomId)
-            || isRoomMember(roomId)
+        allow get, list: if isSiteOwner()
+          || (
+            signedIn()
+            && (
+              memberId == request.auth.uid
+              || isRoomOwner(roomId)
+              || isRoomMember(roomId)
+            )
           );
 
         allow create: if signedIn()
