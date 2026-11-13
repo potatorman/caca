@@ -2,8 +2,8 @@ $ErrorActionPreference = "Stop"
 
 $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
 try {
-    # 12 cryptographically random bytes encode to exactly 16 URL-safe Base64 characters.
-    $bytes = New-Object byte[] 12
+    # 24 cryptographically random bytes encode to exactly 32 URL-safe Base64 characters.
+    $bytes = New-Object byte[] 24
     $rng.GetBytes($bytes)
 }
 finally {
