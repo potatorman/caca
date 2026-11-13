@@ -766,16 +766,18 @@ $("ownerSelectVisibleUsers")?.addEventListener("change", (event) => {
         const values = [uid, profile.username, profile.nickname].filter(Boolean).map(normalizeOwnerSearch);
         return !search || values.some((value) => value.includes(search));
     });
+    let hitSelectionLimit = false;
     if (event.currentTarget.checked) {
         const remainingSlots = Math.max(0, 25 - selectedOwnerUserIds.size);
         visible.slice(0, remainingSlots).forEach(({ uid }) => selectedOwnerUserIds.add(uid));
-        if (visible.length > remainingSlots) {
-            $("ownerUsersStatus").textContent = "En fazla 25 hesap seçildi. Toplu silme sınırı 25 hesap.";
-        }
+        hitSelectionLimit = visible.length > remainingSlots;
     } else {
         visible.forEach(({ uid }) => selectedOwnerUserIds.delete(uid));
     }
     renderOwnerUsers();
+    if (hitSelectionLimit) {
+        $("ownerUsersStatus").textContent = "En fazla 25 hesap seçildi. Toplu silme sınırı 25 hesap.";
+    }
 });
 $("ownerBulkDeleteButton")?.addEventListener("click", deleteSelectedOwnerUsers);
 
