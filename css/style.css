@@ -7411,10 +7411,15 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     background: #3b2933;
 }
 .global-chat-invite-dialog {
+    position: fixed;
+    inset: 0;
     width: min(390px, calc(100vw - 32px));
+    height: fit-content;
     max-width: none;
+    max-height: calc(100dvh - 32px);
+    margin: auto;
     padding: 0;
-    overflow: visible;
+    overflow-y: auto;
     color: #edf4ff;
     background: transparent;
     border: 0;

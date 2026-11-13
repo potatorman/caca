@@ -4075,7 +4075,6 @@ $("createRoomForm").addEventListener("submit", async (event) => {
 
         form.reset();
 
-        showRoomMessage("Odan başarıyla oluşturuldu!", true);
 
         await loadRooms();
         await openRoom(roomRef.id);
@@ -4169,7 +4168,6 @@ $("joinRoomForm").addEventListener("submit", async (event) => {
 
         form.reset();
 
-        showRoomMessage("Odaya başarıyla katıldın!", true);
 
         await loadRooms();
         await openRoom(roomId);
@@ -5631,7 +5629,6 @@ async function deleteActiveRoom() {
         $("bannedSection").hidden = true;
 
         await loadRooms();
-        showRoomMessage("Oda ve tüm kayıtları başarıyla silindi.", true);
     } catch (error) {
         isDeletingRoom = false;
         button.disabled = false;
@@ -5750,7 +5747,6 @@ $("leaveRoomButton").addEventListener("click", async () => {
         $("roomView").hidden = true;
         $("dashboardView").hidden = false;
         await loadRooms();
-        showRoomMessage("Odadan ayrıldın.", true);
     } catch (error) {
         button.disabled = false;
         showRoomMessage(showError(error));
