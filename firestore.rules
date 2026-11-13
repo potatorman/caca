@@ -7,11 +7,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // This immutable singleton is created only by the authenticated Cloudflare Worker.
+    // Owner membership documents are created only by the authenticated Cloudflare Worker.
+    // The legacy singleton remains accepted so the first existing owner keeps access.
     function isSiteOwner() {
       return signedIn()
-        && exists(/databases/$(database)/documents/siteConfig/siteOwner)
-        && get(/databases/$(database)/documents/siteConfig/siteOwner).data.get('uid', '') == request.auth.uid;
+        && (
+          exists(/databases/$(database)/documents/siteConfig/siteOwners/$(request.auth.uid))
+          || (
+            exists(/databases/$(database)/documents/siteConfig/siteOwner)
+            && get(/databases/$(database)/documents/siteConfig/siteOwner).data.get('uid', '') == request.auth.uid
+          )
+        );
     }
 
     function roomPath(roomId) {
@@ -114,7 +120,7 @@ service cloud.firestore {
     // and chat messages display each other's public nickname and avatar.
     match /users/{userId} {
       allow get: if signedIn();
-      allow list: if false;
+      allow list: if isSiteOwner();
 
       allow create: if signedIn()
         && request.auth.uid == userId
