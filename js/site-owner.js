@@ -20,6 +20,8 @@ let currentUser = null;
 let isSiteOwner = false;
 let unsubscribeRooms = null;
 let unsubscribeMessages = null;
+let unsubscribeUsers = null;
+let ownerUserProfiles = [];
 let selectedChat = null;
 let messageRenderVersion = 0;
 let previousWorkspace = null;
@@ -42,6 +44,11 @@ function stopOwnerListeners() {
         unsubscribeMessages();
         unsubscribeMessages = null;
     }
+    if (unsubscribeUsers) {
+        unsubscribeUsers();
+        unsubscribeUsers = null;
+    }
+    ownerUserProfiles = [];
     messageRenderVersion += 1;
 }
 
@@ -260,6 +267,154 @@ async function clearOwnerChatHistory() {
     }
 }
 
+function formatOwnerUserDate(timestamp) {
+    if (!timestamp || typeof timestamp.toDate !== "function") return "Kayıt tarihi bilinmiyor";
+    return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(timestamp.toDate());
+}
+
+function renderOwnerUsers() {
+    const list = $("ownerUsersList");
+    if (!list) return;
+
+    const search = ($("ownerUserSearch")?.value || "").trim().toLocaleLowerCase("tr-TR");
+    const filtered = ownerUserProfiles.filter(({ uid, profile }) => {
+        const values = [uid, profile.username, profile.nickname]
+            .filter(Boolean)
+            .join(" ")
+            .toLocaleLowerCase("tr-TR");
+        return !search || values.includes(search);
+    });
+
+    $("ownerUserCount").textContent = String(ownerUserProfiles.length);
+    $("ownerUsersStatus").textContent = search
+        ? filtered.length + " / " + ownerUserProfiles.length + " hesap eşleşti."
+        : ownerUserProfiles.length + " kayıtlı hesap";
+
+    list.replaceChildren();
+    if (!filtered.length) {
+        const empty = document.createElement("p");
+        empty.className = "owner-console-empty";
+        empty.textContent = ownerUserProfiles.length
+            ? "Aramana uygun hesap bulunamadı."
+            : "Henüz kullanıcı hesabı bulunamadı.";
+        list.appendChild(empty);
+        return;
+    }
+
+    for (const { uid, profile } of filtered) {
+        const username = profile.username || "isimsiz";
+        const nickname = profile.nickname || username;
+        const isOwner = profile.siteRole === "site_owner";
+        const isCurrentAccount = uid === currentUser?.uid;
+
+        const row = document.createElement("article");
+        row.className = "owner-user-row";
+
+        const avatar = document.createElement("div");
+        avatar.className = "member-avatar owner-user-avatar";
+        setAvatarElement(avatar, profile.avatarId, profile.avatarData || null);
+
+        const details = document.createElement("div");
+        details.className = "owner-user-details";
+
+        const heading = document.createElement("div");
+        heading.className = "owner-user-heading";
+        const name = document.createElement("strong");
+        name.textContent = nickname;
+        heading.appendChild(name);
+
+        if (isOwner) {
+            const badge = document.createElement("span");
+            badge.className = "site-owner-message-badge";
+            badge.textContent = "SITE OWNER";
+            heading.appendChild(badge);
+        }
+
+        const accountName = document.createElement("small");
+        accountName.textContent = "@" + username;
+        const uidText = document.createElement("code");
+        uidText.textContent = "UID: " + uid;
+        const created = document.createElement("small");
+        created.textContent = formatOwnerUserDate(profile.createdAt);
+
+        details.append(heading, accountName, uidText, created);
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "owner-user-delete";
+        remove.textContent = isOwner ? "Owner korunuyor" : "Hesabı sil";
+        remove.disabled = isOwner || isCurrentAccount;
+        if (!remove.disabled) {
+            remove.addEventListener("click", () => deleteOwnerUser(uid, nickname, remove));
+        }
+
+        row.append(avatar, details, remove);
+        list.appendChild(row);
+    }
+}
+
+function listenToOwnerUsers() {
+    if (unsubscribeUsers || !isSiteOwner) return;
+    $("ownerUsersStatus").textContent = "Kullanıcı hesapları yükleniyor...";
+
+    unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+        if (!isSiteOwner) return;
+        ownerUserProfiles = snapshot.docs.map((userDoc) => ({
+            uid: userDoc.id,
+            profile: userDoc.data()
+        })).sort((a, b) => {
+            const aTime = a.profile.createdAt?.toMillis?.() || 0;
+            const bTime = b.profile.createdAt?.toMillis?.() || 0;
+            return bTime - aTime;
+        });
+        renderOwnerUsers();
+    }, (error) => {
+        console.error("CACA owner user list failed:", error);
+        $("ownerUsersStatus").textContent =
+            "Kullanıcı listesi yüklenemedi: " + (error.message || "Bilinmeyen hata");
+    });
+}
+
+async function deleteOwnerUser(uid, nickname, button) {
+    if (!isSiteOwner || !currentUser || uid === currentUser.uid || button.disabled) return;
+    const confirmed = window.confirm(
+        nickname + " hesabını ve Firebase Authentication kaydını kalıcı olarak silmek istiyor musun? " +
+        "Bu hesaba ait Global Chat mesajları, oda üyelikleri ve sahibi olduğu odalar da silinir. Bu işlem geri alınamaz."
+    );
+    if (!confirmed) return;
+
+    button.disabled = true;
+    const oldLabel = button.textContent;
+    button.textContent = "Siliniyor...";
+    $("ownerUsersStatus").textContent = nickname + " hesabı siliniyor...";
+
+    try {
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(UNO_WORKER_URL + "/api/site-owner/delete-user", {
+            method: "POST",
+            headers: {
+                Authorization: "Bearer " + idToken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ uid })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Hesap silinemedi.");
+
+        $("ownerUsersStatus").textContent = nickname + " hesabı ve ilişkili verileri kalıcı olarak silindi.";
+    } catch (error) {
+        console.error("CACA owner account deletion failed:", error);
+        $("ownerUsersStatus").textContent =
+            "Hesap silinemedi: " + (error.message || "Bilinmeyen hata");
+        if (button.isConnected) {
+            button.disabled = false;
+            button.textContent = oldLabel;
+        }
+    }
+}
+
+$("ownerUserSearch")?.addEventListener("input", renderOwnerUsers);
+
 function openOwnerConsole() {
     if (!isSiteOwner || !currentUser) return;
     if (!previousWorkspace) {
@@ -293,6 +448,7 @@ function openOwnerConsole() {
     $("siteOwnerNavButton").setAttribute("aria-pressed", "true");
 
     listenToOwnerRooms();
+    listenToOwnerUsers();
     if (!selectedChat) openOwnerChat("global", "__caca_global_chat__", "Global Chat");
 }
 
