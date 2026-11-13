@@ -7,6 +7,7 @@ import {
     getDoc,
     setDoc,
     deleteDoc,
+    runTransaction,
     onSnapshot,
     query,
     orderBy,
@@ -18,6 +19,7 @@ const $ = (id) => document.getElementById(id);
 let currentUser = null;
 let globalModeOpen = false;
 let optedIntoGlobalChat = false;
+let membershipSyncPromise = null;
 let unsubscribeMembers = null;
 const profileUnsubscribers = new Map();
 const profileCache = new Map();
@@ -50,16 +52,27 @@ async function refreshOptInState() {
     return optedIntoGlobalChat;
 }
 
-async function ensureMembershipDocument() {
-    if (!currentUser || !(await refreshOptInState())) return;
-    const memberRef = doc(db, "globalChatMembers", currentUser.uid);
-    const memberSnapshot = await getDoc(memberRef);
-    if (!memberSnapshot.exists()) {
-        await setDoc(memberRef, {
-            userId: currentUser.uid,
-            joinedAt: serverTimestamp()
+function ensureMembershipDocument() {
+    if (!currentUser) return Promise.resolve();
+    if (membershipSyncPromise) return membershipSyncPromise;
+
+    const userId = currentUser.uid;
+    membershipSyncPromise = (async () => {
+        if (!(await refreshOptInState())) return;
+        const memberRef = doc(db, "globalChatMembers", userId);
+        await runTransaction(db, async (transaction) => {
+            const memberSnapshot = await transaction.get(memberRef);
+            if (!memberSnapshot.exists()) {
+                transaction.set(memberRef, {
+                    userId,
+                    joinedAt: serverTimestamp()
+                });
+            }
         });
-    }
+    })().finally(() => {
+        membershipSyncPromise = null;
+    });
+    return membershipSyncPromise;
 }
 
 function filterGlobalMembers() {
@@ -247,6 +260,7 @@ document.addEventListener("caca:refresh-global-members", renderGlobalMembers);
 onAuthStateChanged(auth, async (user) => {
     closeGlobalMembers();
     currentUser = user || null;
+    membershipSyncPromise = null;
     optedIntoGlobalChat = false;
     if (!currentUser) return;
     try {
