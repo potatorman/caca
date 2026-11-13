@@ -712,6 +712,25 @@
                                             <p class="owner-console-empty">Mesajlar yükleniyor...</p>
                                         </div>
                                     </section>
+
+                                    <section id="ownerRoomMembersPanel" class="site-owner-room-members-panel" hidden>
+                                        <div class="site-owner-users-heading">
+                                            <div>
+                                                <span class="small-label">ROOM MEMBERS</span>
+                                                <h3>Oda üyeleri</h3>
+                                                <p>Bu odaya katılmış hesapları ara ve doğrudan buradan silebil.</p>
+                                            </div>
+                                            <span id="ownerRoomMembersCount" class="members-count">0</span>
+                                        </div>
+                                        <label class="owner-user-search" for="ownerRoomMemberSearch">
+                                            <span aria-hidden="true">⌕</span>
+                                            <input id="ownerRoomMemberSearch" type="search" placeholder="Oda üyelerinde ara..." autocomplete="off">
+                                        </label>
+                                        <p id="ownerRoomMembersStatus" class="owner-users-status" role="status" aria-live="polite">Oda üyeleri yükleniyor...</p>
+                                        <div id="ownerRoomMembersList" class="owner-users-list">
+                                            <p class="owner-console-empty">Üyeler yükleniyor...</p>
+                                        </div>
+                                    </section>
                                 </div>
 
                                 <section class="site-owner-users-panel">
@@ -727,6 +746,13 @@
                                         <span aria-hidden="true">⌕</span>
                                         <input id="ownerUserSearch" type="search" placeholder="Nickname, kullanıcı adı veya UID ara..." autocomplete="off">
                                     </label>
+                                    <div class="owner-user-bulk-actions">
+                                        <label class="owner-select-visible-label">
+                                            <input id="ownerSelectVisibleUsers" type="checkbox">
+                                            <span>Görünenleri seç</span>
+                                        </label>
+                                        <button id="ownerBulkDeleteButton" class="owner-user-delete owner-user-bulk-delete" type="button" disabled>Seçilenleri sil (0)</button>
+                                    </div>
                                     <p id="ownerUsersStatus" class="owner-users-status" role="status" aria-live="polite">Kullanıcı hesapları yükleniyor...</p>
                                     <div id="ownerUsersList" class="owner-users-list">
                                         <p class="owner-console-empty">Hesaplar yükleniyor...</p>
