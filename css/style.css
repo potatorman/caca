@@ -7670,3 +7670,74 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     .owner-user-details{min-width:calc(100% - 62px);flex-basis:calc(100% - 62px)}
     .owner-user-delete{width:100%;margin-left:49px}
 }
+
+
+/* Site Owner console: scroll the complete page, including the user directory. */
+.workspace-layout.is-site-owner-workspace > .workspace-main{
+    overflow-x:hidden;
+    overflow-y:auto;
+    overscroll-behavior-y:contain;
+}
+.workspace-layout.is-site-owner-workspace > .workspace-main > .site-owner-view{
+    flex:0 0 auto;
+    height:auto;
+    overflow:visible;
+}
+.site-owner-users-panel{
+    margin-bottom:24px;
+}
+.owner-chat-actions{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    flex-wrap:wrap;
+    gap:8px;
+    flex:0 0 auto;
+}
+.owner-chat-actions > button{
+    white-space:nowrap;
+}
+.owner-delete-chat-button{
+    min-height:34px;
+    padding:0 11px;
+    color:#ffc1cb;
+    background:rgba(166,55,78,.12);
+    border:1px solid rgba(211,105,129,.3);
+    border-radius:8px;
+    font-size:10px;
+    font-weight:850;
+    cursor:pointer;
+}
+.owner-delete-chat-button:hover:not(:disabled){
+    background:rgba(166,55,78,.24);
+    border-color:rgba(225,122,144,.48);
+}
+.owner-delete-chat-button:disabled{
+    opacity:.42;
+    cursor:not-allowed;
+}
+@media(max-width:760px){
+    .workspace-layout.is-site-owner-workspace > .workspace-main{
+        padding:14px 12px;
+    }
+    .site-owner-users-panel{
+        margin-bottom:18px;
+    }
+    .owner-chat-actions{
+        width:100%;
+        justify-content:stretch;
+    }
+    .owner-chat-actions > button{
+        flex:1 1 190px;
+    }
+}
+@media(max-width:480px){
+    .owner-chat-actions{
+        flex-direction:column;
+        align-items:stretch;
+    }
+    .owner-chat-actions > button{
+        width:100%;
+        flex:1 1 auto;
+    }
+}
