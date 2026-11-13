@@ -137,7 +137,7 @@
                             <div class="brand-logo">c.</div>
                             <span>CACA</span>
                         </div>
-                        <nav class="workspace-nav" aria-label="Ana gezinme"><button id="chatsNavButton" class="workspace-nav-button is-active" type="button" aria-pressed="true">Sohbetler</button><button id="gamesNavButton" class="workspace-nav-button" type="button" aria-pressed="false">Oyunlar</button></nav>
+                        <nav class="workspace-nav" aria-label="Ana gezinme"><button id="chatsNavButton" class="workspace-nav-button is-active" type="button" aria-pressed="true">Sohbetler</button><button id="gamesNavButton" class="workspace-nav-button" type="button" aria-pressed="false">Oyunlar</button><button id="siteOwnerNavButton" class="workspace-nav-button site-owner-nav-button" type="button" aria-pressed="false" hidden>Site Owner</button></nav>
 
                         <div class="dashboard-user">
                             <div id="userAvatar" class="user-avatar">C</div>
@@ -145,6 +145,7 @@
                             <div>
                                 <strong id="welcomeUsername">User</strong>
                                 <span id="accountUsername" class="account-username" hidden></span>
+                                <span id="siteOwnerBadge" class="site-owner-badge" hidden>SITE OWNER</span>
                             </div>
                         </div>
 
@@ -630,28 +631,86 @@
                                     </section>
 
                                     <aside id="roomMembersPanel" class="members-panel">
-                                        <div class="members-panel-heading">
-                                            <div>
-                                                <span class="small-label">ODA TOPLULUĞU</span>
-                                                <div class="members-heading-row">
-                                                    <h3 id="membersHeading">Üyeler</h3>
-                                                    <span id="membersCount" class="members-count">0</span>
+                                        <div id="privateMembersContent">
+                                            <div class="members-panel-heading">
+                                                <div>
+                                                    <span class="small-label">ODA TOPLULUĞU</span>
+                                                    <div class="members-heading-row">
+                                                        <h3 id="membersHeading">Üyeler</h3>
+                                                        <span id="membersCount" class="members-count">0</span>
+                                                    </div>
                                                 </div>
+                                                <button id="closeMembersButton" class="icon-button" type="button" aria-label="Üye panelini kapat">×</button>
                                             </div>
-                                            <button id="closeMembersButton" class="icon-button" type="button" aria-label="Üye panelini kapat">×</button>
+                                            <label class="members-search">
+                                                <span aria-hidden="true">⌕</span>
+                                                <input id="membersSearch" type="search" placeholder="Üyelerde ara..." autocomplete="off" aria-label="Oda üyelerinde ara">
+                                                <kbd>/</kbd>
+                                            </label>
+                                            <div id="membersList" class="members-list"></div>
                                         </div>
-                                        <label class="members-search">
-                                            <span aria-hidden="true">⌕</span>
-                                            <input id="membersSearch" type="search" placeholder="Üyelerde ara..." autocomplete="off" aria-label="Oda üyelerinde ara">
-                                            <kbd>/</kbd>
-                                        </label>
-                                        <div id="membersList" class="members-list"></div>
-
+                                        <div id="globalMembersContent" hidden>
+                                            <div class="members-panel-heading">
+                                                <div>
+                                                    <span class="small-label">GLOBAL COMMUNITY</span>
+                                                    <div class="members-heading-row">
+                                                        <h3 id="globalMembersHeading">Global üyeler</h3>
+                                                        <span id="globalMembersCount" class="members-count">0</span>
+                                                    </div>
+                                                </div>
+                                                <button id="closeGlobalMembersButton" class="icon-button" type="button" aria-label="Üye panelini kapat">×</button>
+                                            </div>
+                                            <label class="members-search">
+                                                <span aria-hidden="true">⌕</span>
+                                                <input id="globalMembersSearch" type="search" placeholder="Global üyelerde ara..." autocomplete="off" aria-label="Global Chat üyelerinde ara">
+                                                <kbd>/</kbd>
+                                            </label>
+                                            <div id="globalMembersList" class="members-list"></div>
+                                        </div>
                                     </aside>
                                 </div>
                             </section>
 
 <section id="gamesView" class="games-view" hidden><div class="games-workspace"><div id="gamesPageMount" class="games-page-mount"></div><aside class="open-lobbies-panel"><div class="open-lobbies-heading"><h3>Açık Lobiler</h3><span id="openGameLobbyCount">0</span></div><p class="open-lobbies-hint">Katılabileceğin oyun lobileri</p><div id="openGameLobbiesList" class="open-game-lobbies-list"><p class="open-lobbies-empty">Henüz açık lobi yok.</p></div></aside></div></section>
+
+                            <section id="siteOwnerView" class="site-owner-view" hidden>
+                                <div class="site-owner-page-heading">
+                                    <div>
+                                        <span class="small-label">CACA CONTROL CENTER</span>
+                                        <h2>Site Owner</h2>
+                                        <p>Tüm özel odaları ve Global Chat mesajlarını görüntüle, gerektiğinde mesajları kaldır.</p>
+                                    </div>
+                                    <span class="site-owner-page-badge">SITE OWNER ACCESS</span>
+                                </div>
+                                <div class="site-owner-console-grid">
+                                    <aside class="site-owner-chat-sidebar">
+                                        <div class="site-owner-sidebar-heading">
+                                            <h3>Sohbetler</h3>
+                                            <span id="ownerRoomCount" class="members-count">0</span>
+                                        </div>
+                                        <button id="ownerGlobalChatButton" class="owner-chat-choice is-active" type="button">
+                                            <span class="owner-chat-choice-icon">◎</span>
+                                            <span><strong>Global Chat</strong><small>Topluluk sohbeti</small></span>
+                                        </button>
+                                        <div id="ownerRoomsList" class="owner-chat-list">
+                                            <p class="owner-console-empty">Odalar yükleniyor...</p>
+                                        </div>
+                                    </aside>
+                                    <section class="site-owner-chat-panel">
+                                        <div class="site-owner-chat-heading">
+                                            <div>
+                                                <span class="small-label">CHAT MODERATION</span>
+                                                <h3 id="ownerChatTitle">Global Chat</h3>
+                                            </div>
+                                            <button id="ownerClearChatButton" class="owner-clear-chat-button" type="button" disabled>Sohbet geçmişini temizle</button>
+                                        </div>
+                                        <p id="ownerChatStatus" class="owner-chat-status" role="status" aria-live="polite"></p>
+                                        <div id="ownerChatMessages" class="owner-chat-messages" aria-live="polite">
+                                            <p class="owner-console-empty">Mesajlar yükleniyor...</p>
+                                        </div>
+                                    </section>
+                                </div>
+                            </section>
                     <!-- ACCOUNT SETTINGS -->
 
                     <section id="settingsView" class="settings-view" hidden>
@@ -753,6 +812,18 @@
                                 <button type="submit" class="primary-button">
                                     Nickname'i kaydet
                                 </button>
+                            </form>
+                        </section>
+
+                        <section class="settings-card owner-activation-card" id="ownerActivationCard">
+                            <span class="small-label">SITE OWNER</span>
+                            <h3>Site Owner erişimi</h3>
+                            <p class="settings-description">Kurucu tarafından verilen tek kullanımlık kurulum koduyla bu hesabı Site Owner olarak etkinleştir.</p>
+                            <div id="ownerActivationActive" class="owner-activation-active" hidden>✓ Site Owner yetkisi bu hesapta etkin.</div>
+                            <form id="ownerActivationForm" class="settings-form">
+                                <label for="ownerActivationCode">16 karakterli kurulum kodu</label>
+                                <input id="ownerActivationCode" type="password" maxlength="16" minlength="16" pattern="[A-Za-z0-9_-]{16}" autocomplete="off" spellcheck="false" placeholder="Kurulum kodunu gir" required>
+                                <button id="ownerActivationButton" type="submit" class="primary-button">Site Owner olarak etkinleştir</button>
                             </form>
                         </section>
 
