@@ -472,23 +472,52 @@ async function deleteSiteUserAccount(request, env, origin) {
     }
 
     const body = await readJson(request);
-    const targetUid = typeof body.uid === "string" ? body.uid : "";
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)) {
-        return json({ error: "Silinecek kullanıcı kimliği geçersiz." }, 400, origin);
+    const suppliedUids = Array.isArray(body.uids)
+        ? body.uids
+        : (typeof body.uid === "string" ? [body.uid] : []);
+    const targetUids = [...new Set(suppliedUids)];
+    if (!targetUids.length) {
+        return json({ error: "Silinecek kullanıcı seçilmedi." }, 400, origin);
     }
-    if (targetUid === owner.uid) {
-        return json({ error: "Kendi Site Owner hesabını bu panelden silemezsin." }, 400, origin);
+    if (targetUids.length > 25) {
+        return json({ error: "Tek istekte en fazla 25 hesap silebilirsin." }, 400, origin);
     }
-    if (await isSiteOwnerUid(env, targetUid)) {
-        return json({ error: "Başka bir Site Owner hesabı bu kullanıcı listesinden silinemez." }, 409, origin);
+    if (targetUids.some((uid) => typeof uid !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(uid))) {
+        return json({ error: "Silinecek kullanıcı kimliklerinden biri geçersiz." }, 400, origin);
     }
 
-    // Delete Authentication first. If Firestore cleanup is interrupted, retrying
-    // this endpoint is safe: USER_NOT_FOUND is treated as an already-deleted account.
-    await deleteFirebaseAuthAccount(env, targetUid);
-    await deleteUserFirestoreData(env, targetUid);
+    const deletedUids = [];
+    const failed = [];
+    for (const targetUid of targetUids) {
+        if (targetUid === owner.uid) {
+            failed.push({ uid: targetUid, error: "Kendi Site Owner hesabını silemezsin." });
+            continue;
+        }
+        try {
+            if (await isSiteOwnerUid(env, targetUid)) {
+                failed.push({ uid: targetUid, error: "Site Owner hesapları bu listeden silinemez." });
+                continue;
+            }
 
-    return json({ ok: true, uid: targetUid }, 200, origin);
+            // Authentication is deleted first. Retrying after a partial cleanup
+            // is safe because USER_NOT_FOUND is treated as already deleted.
+            await deleteFirebaseAuthAccount(env, targetUid);
+            await deleteUserFirestoreData(env, targetUid);
+            deletedUids.push(targetUid);
+        } catch (error) {
+            console.error("CACA owner account deletion failed for UID:", targetUid, error);
+            failed.push({
+                uid: targetUid,
+                error: error?.message || "Hesap silinemedi."
+            });
+        }
+    }
+
+    return json({
+        ok: failed.length === 0,
+        deletedUids,
+        failed
+    }, 200, origin);
 }
 
 async function readJson(request) {
