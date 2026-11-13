@@ -339,23 +339,231 @@ function formatOwnerUserDate(timestamp) {
     return new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(timestamp.toDate());
 }
 
+function normalizeOwnerSearch(value) {
+    return String(value || "").trim().toLocaleLowerCase("tr-TR");
+}
+
+function getOwnerUserLabel(uid, profile = {}, membership = {}) {
+    const username = profile.username || membership.username || "isimsiz";
+    return {
+        username,
+        nickname: profile.nickname || membership.username || username
+    };
+}
+
+async function deleteOwnerAccounts(uids) {
+    if (!isSiteOwner || !currentUser) throw new Error("Site Owner oturumu bulunamadı.");
+    const uniqueUids = [...new Set(uids)].filter((uid) => uid && uid !== currentUser.uid);
+    if (!uniqueUids.length) throw new Error("Silinecek hesap seçilmedi.");
+    if (uniqueUids.length > 25) throw new Error("Tek seferde en fazla 25 hesap silebilirsin.");
+
+    const idToken = await currentUser.getIdToken();
+    const response = await fetch(UNO_WORKER_URL + "/api/site-owner/delete-user", {
+        method: "POST",
+        headers: {
+            Authorization: "Bearer " + idToken,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ uids: uniqueUids })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Hesaplar silinemedi.");
+    return result;
+}
+
+function renderOwnerRoomMembers() {
+    const list = $("ownerRoomMembersList");
+    if (!list) return;
+
+    const search = normalizeOwnerSearch($("ownerRoomMemberSearch")?.value);
+    const filtered = ownerRoomMembers.filter(({ uid, profile, membership }) => {
+        const { username, nickname } = getOwnerUserLabel(uid, profile, membership);
+        return !search || [uid, username, nickname].some((value) => normalizeOwnerSearch(value).includes(search));
+    });
+
+    $("ownerRoomMembersCount").textContent = String(ownerRoomMembers.length);
+    $("ownerRoomMembersStatus").textContent = search
+        ? filtered.length + " / " + ownerRoomMembers.length + " üye eşleşti."
+        : ownerRoomMembers.length + " oda üyesi";
+
+    list.replaceChildren();
+    if (!filtered.length) {
+        const empty = document.createElement("p");
+        empty.className = "owner-console-empty";
+        empty.textContent = ownerRoomMembers.length
+            ? "Aramana uygun oda üyesi bulunamadı."
+            : "Bu odada henüz üye bulunmuyor.";
+        list.appendChild(empty);
+        return;
+    }
+
+    for (const { uid, profile, membership } of filtered) {
+        const { username, nickname } = getOwnerUserLabel(uid, profile, membership);
+        const isOwner = profile?.siteRole === "site_owner";
+        const isCurrentAccount = uid === currentUser?.uid;
+
+        const row = document.createElement("article");
+        row.className = "owner-user-row";
+
+        const avatar = document.createElement("div");
+        avatar.className = "member-avatar owner-user-avatar";
+        setAvatarElement(avatar, profile?.avatarId, profile?.avatarData || null);
+
+        const details = document.createElement("div");
+        details.className = "owner-user-details";
+        const heading = document.createElement("div");
+        heading.className = "owner-user-heading";
+        const name = document.createElement("strong");
+        name.textContent = nickname;
+        heading.appendChild(name);
+
+        if (isOwner) {
+            const badge = document.createElement("span");
+            badge.className = "site-owner-message-badge";
+            badge.textContent = "SITE OWNER";
+            heading.appendChild(badge);
+        }
+
+        const role = document.createElement("small");
+        role.textContent = membership.role === "owner"
+            ? "Oda sahibi"
+            : membership.role === "admin" ? "Oda yöneticisi" : "Üye";
+        const accountName = document.createElement("small");
+        accountName.textContent = "@" + username;
+        details.append(heading, role, accountName);
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "owner-user-delete";
+        remove.textContent = isOwner ? "Owner korunuyor" : "Hesabı sil";
+        remove.disabled = isOwner || isCurrentAccount;
+        if (!remove.disabled) {
+            remove.addEventListener("click", () => deleteRoomMemberAccount(uid, nickname, remove));
+        }
+
+        row.append(avatar, details, remove);
+        list.appendChild(row);
+    }
+}
+
+function stopOwnerRoomMembersListener() {
+    if (unsubscribeRoomMembers) {
+        unsubscribeRoomMembers();
+        unsubscribeRoomMembers = null;
+    }
+    ownerRoomMembersVersion += 1;
+    ownerRoomMembers = [];
+    const panel = $("ownerRoomMembersPanel");
+    if (panel) panel.hidden = true;
+    $("ownerRoomMembersList")?.replaceChildren();
+    if ($("ownerRoomMembersStatus")) $("ownerRoomMembersStatus").textContent = "";
+}
+
+function listenToOwnerRoomMembers(roomId) {
+    stopOwnerRoomMembersListener();
+    const version = ++ownerRoomMembersVersion;
+    $("ownerRoomMembersPanel").hidden = false;
+    $("ownerRoomMembersStatus").textContent = "Oda üyeleri yükleniyor...";
+    $("ownerRoomMembersList").replaceChildren();
+
+    unsubscribeRoomMembers = onSnapshot(
+        collection(db, "rooms", roomId, "members"),
+        async (snapshot) => {
+            const members = await Promise.all(snapshot.docs.map(async (memberDoc) => {
+                const uid = memberDoc.id;
+                let profile = ownerUserProfiles.find((entry) => entry.uid === uid)?.profile || null;
+                if (!profile) {
+                    const profileSnapshot = await getDoc(doc(db, "users", uid));
+                    profile = profileSnapshot.exists() ? profileSnapshot.data() : null;
+                }
+                return { uid, profile: profile || {}, membership: memberDoc.data() };
+            }));
+
+            if (!isSiteOwner || version !== ownerRoomMembersVersion || selectedChat?.type !== "room" || selectedChat.id !== roomId) {
+                return;
+            }
+            ownerRoomMembers = members.sort((a, b) => {
+                const aName = getOwnerUserLabel(a.uid, a.profile, a.membership).nickname;
+                const bName = getOwnerUserLabel(b.uid, b.profile, b.membership).nickname;
+                return aName.localeCompare(bName, "tr");
+            });
+            renderOwnerRoomMembers();
+        },
+        (error) => {
+            console.error("CACA owner room members listener failed:", error);
+            if (version === ownerRoomMembersVersion) {
+                $("ownerRoomMembersStatus").textContent =
+                    "Oda üyeleri yüklenemedi: " + (error.message || "Bilinmeyen hata");
+            }
+        }
+    );
+}
+
+async function deleteRoomMemberAccount(uid, nickname, button) {
+    if (!isSiteOwner || !currentUser || uid === currentUser.uid || button.disabled) return;
+    const confirmed = window.confirm(
+        nickname + " hesabını kalıcı olarak silmek istiyor musun? Hesap tüm CACA verileriyle birlikte silinir."
+    );
+    if (!confirmed) return;
+
+    const oldLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Siliniyor...";
+    $("ownerRoomMembersStatus").textContent = nickname + " hesabı siliniyor...";
+    try {
+        const result = await deleteOwnerAccounts([uid]);
+        const failures = Array.isArray(result.failed) ? result.failed : [];
+        $("ownerRoomMembersStatus").textContent = failures.length
+            ? nickname + " silinemedi: " + (failures[0].error || "Bilinmeyen hata")
+            : nickname + " hesabı kalıcı olarak silindi.";
+        selectedOwnerUserIds.delete(uid);
+    } catch (error) {
+        console.error("CACA room member account delete failed:", error);
+        $("ownerRoomMembersStatus").textContent =
+            "Hesap silinemedi: " + (error.message || "Bilinmeyen hata");
+        if (button.isConnected) {
+            button.disabled = false;
+            button.textContent = oldLabel;
+        }
+    }
+}
+
 function renderOwnerUsers() {
     const list = $("ownerUsersList");
     if (!list) return;
 
-    const search = ($("ownerUserSearch")?.value || "").trim().toLocaleLowerCase("tr-TR");
+    const search = normalizeOwnerSearch($("ownerUserSearch")?.value);
     const filtered = ownerUserProfiles.filter(({ uid, profile }) => {
         const values = [uid, profile.username, profile.nickname]
             .filter(Boolean)
-            .join(" ")
-            .toLocaleLowerCase("tr-TR");
-        return !search || values.includes(search);
+            .map(normalizeOwnerSearch);
+        return !search || values.some((value) => value.includes(search));
     });
+
+    const eligibleVisible = filtered.filter(({ uid, profile }) =>
+        uid !== currentUser?.uid && profile.siteRole !== "site_owner"
+    );
+    for (const uid of [...selectedOwnerUserIds]) {
+        const account = ownerUserProfiles.find((entry) => entry.uid === uid);
+        if (!account || uid === currentUser?.uid || account.profile.siteRole === "site_owner") {
+            selectedOwnerUserIds.delete(uid);
+        }
+    }
 
     $("ownerUserCount").textContent = String(ownerUserProfiles.length);
     $("ownerUsersStatus").textContent = search
         ? filtered.length + " / " + ownerUserProfiles.length + " hesap eşleşti."
         : ownerUserProfiles.length + " kayıtlı hesap";
+
+    const selectVisible = $("ownerSelectVisibleUsers");
+    selectVisible.checked = eligibleVisible.length > 0 &&
+        eligibleVisible.every(({ uid }) => selectedOwnerUserIds.has(uid));
+    selectVisible.indeterminate = eligibleVisible.some(({ uid }) => selectedOwnerUserIds.has(uid)) &&
+        !selectVisible.checked;
+
+    const bulkButton = $("ownerBulkDeleteButton");
+    bulkButton.textContent = "Seçilenleri sil (" + selectedOwnerUserIds.size + ")";
+    bulkButton.disabled = selectedOwnerUserIds.size === 0;
 
     list.replaceChildren();
     if (!filtered.length) {
@@ -377,13 +585,24 @@ function renderOwnerUsers() {
         const row = document.createElement("article");
         row.className = "owner-user-row";
 
+        const select = document.createElement("input");
+        select.type = "checkbox";
+        select.className = "owner-user-select";
+        select.checked = selectedOwnerUserIds.has(uid);
+        select.disabled = isOwner || isCurrentAccount;
+        select.setAttribute("aria-label", nickname + " hesabını seç");
+        select.addEventListener("change", () => {
+            if (select.checked) selectedOwnerUserIds.add(uid);
+            else selectedOwnerUserIds.delete(uid);
+            renderOwnerUsers();
+        });
+
         const avatar = document.createElement("div");
         avatar.className = "member-avatar owner-user-avatar";
         setAvatarElement(avatar, profile.avatarId, profile.avatarData || null);
 
         const details = document.createElement("div");
         details.className = "owner-user-details";
-
         const heading = document.createElement("div");
         heading.className = "owner-user-heading";
         const name = document.createElement("strong");
@@ -403,7 +622,6 @@ function renderOwnerUsers() {
         uidText.textContent = "UID: " + uid;
         const created = document.createElement("small");
         created.textContent = formatOwnerUserDate(profile.createdAt);
-
         details.append(heading, accountName, uidText, created);
 
         const remove = document.createElement("button");
@@ -415,7 +633,7 @@ function renderOwnerUsers() {
             remove.addEventListener("click", () => deleteOwnerUser(uid, nickname, remove));
         }
 
-        row.append(avatar, details, remove);
+        row.append(select, avatar, details, remove);
         list.appendChild(row);
     }
 }
@@ -435,6 +653,7 @@ function listenToOwnerUsers() {
             return bTime - aTime;
         });
         renderOwnerUsers();
+        if (selectedChat?.type === "room") renderOwnerRoomMembers();
     }, (error) => {
         console.error("CACA owner user list failed:", error);
         $("ownerUsersStatus").textContent =
@@ -450,25 +669,20 @@ async function deleteOwnerUser(uid, nickname, button) {
     );
     if (!confirmed) return;
 
-    button.disabled = true;
     const oldLabel = button.textContent;
+    button.disabled = true;
     button.textContent = "Siliniyor...";
     $("ownerUsersStatus").textContent = nickname + " hesabı siliniyor...";
 
     try {
-        const idToken = await currentUser.getIdToken();
-        const response = await fetch(UNO_WORKER_URL + "/api/site-owner/delete-user", {
-            method: "POST",
-            headers: {
-                Authorization: "Bearer " + idToken,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ uid })
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.error || "Hesap silinemedi.");
-
-        $("ownerUsersStatus").textContent = nickname + " hesabı ve ilişkili verileri kalıcı olarak silindi.";
+        const result = await deleteOwnerAccounts([uid]);
+        const failures = Array.isArray(result.failed) ? result.failed : [];
+        selectedOwnerUserIds.delete(uid);
+        $("ownerUsersStatus").textContent = failures.length
+            ? nickname + " silinemedi: " + (failures[0].error || "Bilinmeyen hata")
+            : nickname + " hesabı ve ilişkili verileri kalıcı olarak silindi.";
+        renderOwnerUsers();
+        if (selectedChat?.type === "room") renderOwnerRoomMembers();
     } catch (error) {
         console.error("CACA owner account deletion failed:", error);
         $("ownerUsersStatus").textContent =
@@ -480,7 +694,74 @@ async function deleteOwnerUser(uid, nickname, button) {
     }
 }
 
+async function deleteSelectedOwnerUsers() {
+    if (!isSiteOwner || !currentUser) return;
+    const targets = ownerUserProfiles.filter(({ uid, profile }) =>
+        selectedOwnerUserIds.has(uid) && uid !== currentUser.uid && profile.siteRole !== "site_owner"
+    );
+    if (!targets.length) {
+        selectedOwnerUserIds.clear();
+        renderOwnerUsers();
+        return;
+    }
+    if (targets.length > 25) {
+        $("ownerUsersStatus").textContent = "Tek seferde en fazla 25 hesap silebilirsin. Seçimini azalt.";
+        return;
+    }
+
+    const names = targets.map(({ profile }) => profile.nickname || profile.username || "İsimsiz").slice(0, 8);
+    const extra = targets.length > names.length ? "\\nve " + (targets.length - names.length) + " hesap daha" : "";
+    const confirmed = window.confirm(
+        targets.length + " hesabı kalıcı olarak silmek istiyor musun?\\n\\n" +
+        names.join(", ") + extra +
+        "\\n\\nSeçilen hesapların Firebase Authentication kayıtları ve CACA verileri silinir. Bu işlem geri alınamaz."
+    );
+    if (!confirmed) return;
+
+    const button = $("ownerBulkDeleteButton");
+    button.disabled = true;
+    const oldLabel = button.textContent;
+    button.textContent = "Hesaplar siliniyor...";
+    $("ownerUsersStatus").textContent = targets.length + " hesap siliniyor...";
+
+    try {
+        const result = await deleteOwnerAccounts(targets.map(({ uid }) => uid));
+        const deletedUids = Array.isArray(result.deletedUids) ? result.deletedUids : [];
+        const failures = Array.isArray(result.failed) ? result.failed : [];
+        deletedUids.forEach((uid) => selectedOwnerUserIds.delete(uid));
+        if (!failures.length) {
+            selectedOwnerUserIds.clear();
+            $("ownerUsersStatus").textContent = deletedUids.length + " hesap kalıcı olarak silindi.";
+        } else {
+            $("ownerUsersStatus").textContent =
+                deletedUids.length + " hesap silindi; " + failures.length + " hesap silinemedi: " +
+                failures.slice(0, 3).map((item) => item.error || item.uid).join(" · ");
+        }
+        renderOwnerUsers();
+        if (selectedChat?.type === "room") renderOwnerRoomMembers();
+    } catch (error) {
+        console.error("CACA bulk account deletion failed:", error);
+        $("ownerUsersStatus").textContent = "Toplu silme başarısız: " + (error.message || "Bilinmeyen hata");
+    } finally {
+        button.textContent = oldLabel;
+        renderOwnerUsers();
+    }
+}
+
 $("ownerUserSearch")?.addEventListener("input", renderOwnerUsers);
+$("ownerRoomMemberSearch")?.addEventListener("input", renderOwnerRoomMembers);
+$("ownerSelectVisibleUsers")?.addEventListener("change", (event) => {
+    const search = normalizeOwnerSearch($("ownerUserSearch")?.value);
+    const visible = ownerUserProfiles.filter(({ uid, profile }) => {
+        if (uid === currentUser?.uid || profile.siteRole === "site_owner") return false;
+        const values = [uid, profile.username, profile.nickname].filter(Boolean).map(normalizeOwnerSearch);
+        return !search || values.some((value) => value.includes(search));
+    });
+    if (event.currentTarget.checked) visible.forEach(({ uid }) => selectedOwnerUserIds.add(uid));
+    else visible.forEach(({ uid }) => selectedOwnerUserIds.delete(uid));
+    renderOwnerUsers();
+});
+$("ownerBulkDeleteButton")?.addEventListener("click", deleteSelectedOwnerUsers);
 
 function openOwnerConsole() {
     if (!isSiteOwner || !currentUser) return;
