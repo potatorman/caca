@@ -68,21 +68,12 @@ function stopOwnerListeners() {
 
 function restorePreviousWorkspace() {
     if (!previousWorkspace) return;
-    const previous = previousWorkspace;
-    const workspace = document.querySelector(".workspace-layout");
-    document.querySelector(".room-sidebar").hidden = previous.sidebarHidden;
-    $("settingsView").hidden = previous.settingsHidden;
+    // The Chats/Games tab handler restores the actual workspace snapshot.
+    // Do not change dashboard/room visibility here: the tab handler runs
+    // immediately after this capture-phase listener and owns that state.
     $("siteOwnerView").hidden = true;
-
-    // Restore one coherent screen. A room/chat takes precedence over the
-    // welcome dashboard so the two screens can never appear on top of each other.
-    const returnToRoom = previous.roomHidden === false;
-    const returnToGames = !returnToRoom && previous.gamesHidden === false;
-    $("roomView").hidden = !returnToRoom;
-    $("gamesView").hidden = !returnToGames;
-    $("dashboardView").hidden = returnToRoom || returnToGames;
-    workspace.classList.toggle("is-games-workspace", returnToGames);
-    workspace.classList.remove("is-site-owner-workspace");
+    $("settingsView").hidden = true;
+    document.querySelector(".workspace-layout").classList.remove("is-site-owner-workspace");
     previousWorkspace = null;
     $("siteOwnerNavButton").classList.remove("is-active");
     $("siteOwnerNavButton").setAttribute("aria-pressed", "false");
@@ -93,6 +84,30 @@ function setSelectedChatButton(type, roomId = "") {
     $("ownerRoomsList").querySelectorAll(".owner-room-choice").forEach((button) => {
         button.classList.toggle("is-active", type === "room" && button.dataset.roomId === roomId);
     });
+}
+
+function filterOwnerChats() {
+    const search = normalizeOwnerSearch($("ownerChatSearch")?.value);
+    const globalButton = $("ownerGlobalChatButton");
+    const roomList = $("ownerRoomsList");
+    const globalMatches = !search || normalizeOwnerSearch("Global Chat").includes(search);
+
+    globalButton.hidden = !globalMatches;
+    let visibleCount = globalMatches ? 1 : 0;
+
+    roomList.querySelectorAll(".owner-room-choice").forEach((button) => {
+        const matches = !search || normalizeOwnerSearch(button.textContent).includes(search);
+        button.hidden = !matches;
+        if (matches) visibleCount += 1;
+    });
+
+    roomList.querySelector(".owner-chat-filter-empty")?.remove();
+    if (search && visibleCount === 0) {
+        const empty = document.createElement("p");
+        empty.className = "owner-console-empty owner-chat-filter-empty";
+        empty.textContent = "Aramana uygun sohbet bulunamadı.";
+        roomList.appendChild(empty);
+    }
 }
 
 function formatOwnerMessageTime(timestamp) {
@@ -222,6 +237,7 @@ function listenToOwnerRooms() {
             empty.className = "owner-console-empty";
             empty.textContent = "Henüz oluşturulmuş özel oda yok.";
             list.appendChild(empty);
+            filterOwnerChats();
             return;
         }
 
@@ -243,6 +259,7 @@ function listenToOwnerRooms() {
         }
 
         if (selectedChat?.type === "room") setSelectedChatButton("room", selectedChat.id);
+        filterOwnerChats();
     }, (error) => {
         console.error("CACA owner room list failed:", error);
         $("ownerChatStatus").textContent = "Odalar listelenemedi: " + (error.message || "Bilinmeyen hata");
@@ -758,6 +775,7 @@ async function deleteSelectedOwnerUsers() {
 }
 
 $("ownerUserSearch")?.addEventListener("input", renderOwnerUsers);
+$("ownerChatSearch")?.addEventListener("input", filterOwnerChats);
 $("ownerRoomMemberSearch")?.addEventListener("input", renderOwnerRoomMembers);
 $("ownerSelectVisibleUsers")?.addEventListener("change", (event) => {
     const search = normalizeOwnerSearch($("ownerUserSearch")?.value);
@@ -795,6 +813,10 @@ function openOwnerConsole() {
             ownerWorkspace: workspace.classList.contains("is-site-owner-workspace")
         };
     }
+
+    document.dispatchEvent(new CustomEvent("caca:site-owner-opened", {
+        detail: { ...previousWorkspace }
+    }));
 
     document.querySelector(".room-sidebar").hidden = true;
     $("dashboardView").hidden = true;
