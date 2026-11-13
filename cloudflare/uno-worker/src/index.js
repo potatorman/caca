@@ -4,6 +4,9 @@ import {
     patchFirestoreDocument,
     createFirestoreDocument,
     deleteFirestoreDocument,
+    listFirestoreDocuments,
+    listFirestoreCollectionIds,
+    getGoogleAccessToken,
     firestoreTimestamp
 } from "./firebase.js";
 import { signTicket, verifyTicket } from "./ticket.js";
@@ -228,46 +231,75 @@ async function manageLobby(request, env, origin) {
     return json({ error: "Desteklenmeyen lobi işlemi." }, 400, origin);
 }
 
+async function isSiteOwnerUid(env, uid) {
+    const [membership, legacyOwner] = await Promise.all([
+        getFirestoreDocument(env, "siteConfig/siteOwners/" + uid),
+        getFirestoreDocument(env, "siteConfig/siteOwner")
+    ]);
+    return Boolean(membership || legacyOwner?.data.uid === uid);
+}
+
 async function claimSiteOwner(request, env, origin) {
     const user = await authenticateFirebaseToken(getBearerToken(request), env);
-    const ownerPath = "siteConfig/siteOwner";
-    const existingOwner = await getFirestoreDocument(env, ownerPath);
+    const ownerPath = "siteConfig/siteOwners/" + user.uid;
 
-    if (existingOwner && existingOwner.data.uid !== user.uid) {
-        return json({ error: "Site Owner yetkisi zaten başka bir hesap tarafından alındı." }, 409, origin);
+    // Existing owners can safely retry a partially completed activation.
+    if (await isSiteOwnerUid(env, user.uid)) {
+        await patchFirestoreDocument(env, "users/" + user.uid, {
+            siteRole: "site_owner",
+            siteOwnerClaimedAt: firestoreTimestamp()
+        });
+        return json({ ok: true, role: "site_owner", alreadyOwner: true }, 200, origin);
     }
 
-    // A same-account retry safely recovers from a partial first claim.
-    if (!existingOwner) {
-        const body = await readJson(request);
-        const suppliedCode = typeof body.setupCode === "string" ? body.setupCode : "";
-        const configuredCode = typeof env.CACA_SITE_OWNER_SETUP_CODE === "string"
-            ? env.CACA_SITE_OWNER_SETUP_CODE
-            : "";
+    const body = await readJson(request);
+    const suppliedCode = typeof body.setupCode === "string" ? body.setupCode : "";
+    const configuredCode = typeof env.CACA_SITE_OWNER_SETUP_CODE === "string"
+        ? env.CACA_SITE_OWNER_SETUP_CODE
+        : "";
 
-        if (!configuredCode) {
-            return json({ error: "Site Owner kurulum kodu Worker secret olarak ayarlanmamış." }, 503, origin);
-        }
-        if (
-            !/^[A-Za-z0-9_-]{16}$/.test(configuredCode) ||
-            !/^[A-Za-z0-9_-]{16}$/.test(suppliedCode) ||
-            !constantTimeEqual(encoder.encode(suppliedCode), encoder.encode(configuredCode))
-        ) {
-            return json({ error: "Site Owner kurulum kodu yanlış." }, 403, origin);
-        }
+    if (!configuredCode) {
+        return json({ error: "Site Owner kurulum kodu Worker secret olarak ayarlanmamış." }, 503, origin);
+    }
+    if (
+        !/^[A-Za-z0-9_-]{32}$/.test(configuredCode) ||
+        !/^[A-Za-z0-9_-]{32}$/.test(suppliedCode) ||
+        !constantTimeEqual(encoder.encode(suppliedCode), encoder.encode(configuredCode))
+    ) {
+        return json({ error: "32 karakterli Site Owner kurulum kodu yanlış." }, 403, origin);
+    }
 
+    // Store only a SHA-256 digest so each generated secret can be redeemed once.
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(suppliedCode)));
+    const codeHash = [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    const usedCodePath = "siteConfig/usedOwnerSetupCodes/" + codeHash;
+    const usedCode = await getFirestoreDocument(env, usedCodePath);
+    if (usedCode && usedCode.data.uid !== user.uid) {
+        return json({ error: "Bu kurulum kodu daha önce kullanılmış. Yeni bir kod üret." }, 409, origin);
+    }
+    if (!usedCode) {
         try {
-            await createFirestoreDocument(env, ownerPath, {
+            await createFirestoreDocument(env, usedCodePath, {
                 uid: user.uid,
-                claimedAt: firestoreTimestamp()
+                usedAt: firestoreTimestamp()
             });
-        } catch (error) {
-            // If two claims race, only the UID in the atomically created singleton wins.
-            const claimedOwner = await getFirestoreDocument(env, ownerPath);
-            if (!claimedOwner || claimedOwner.data.uid !== user.uid) {
-                return json({ error: "Site Owner yetkisi aynı anda başka bir hesap tarafından alındı." }, 409, origin);
+        } catch {
+            const redeemed = await getFirestoreDocument(env, usedCodePath);
+            if (!redeemed || redeemed.data.uid !== user.uid) {
+                return json({ error: "Bu kurulum kodu aynı anda başka bir hesap tarafından kullanıldı." }, 409, origin);
             }
         }
+    }
+
+    try {
+        await createFirestoreDocument(env, ownerPath, {
+            uid: user.uid,
+            grantedAt: firestoreTimestamp(),
+            grantedBy: "one_time_setup_code"
+        });
+    } catch {
+        const existingMembership = await getFirestoreDocument(env, ownerPath);
+        if (!existingMembership) throw new Error("Site Owner yetkisi kaydedilemedi. Aynı kodla tekrar dene.");
     }
 
     await patchFirestoreDocument(env, "users/" + user.uid, {
@@ -275,6 +307,112 @@ async function claimSiteOwner(request, env, origin) {
         siteOwnerClaimedAt: firestoreTimestamp()
     });
     return json({ ok: true, role: "site_owner" }, 200, origin);
+}
+
+async function deleteFirestoreDocumentTree(env, documentPath, depth = 0) {
+    if (depth > 12) throw new Error("Hesap verilerinde beklenenden fazla alt koleksiyon bulundu.");
+    const collectionIds = await listFirestoreCollectionIds(env, documentPath);
+    for (const collectionId of collectionIds) {
+        const collectionPath = documentPath + "/" + collectionId;
+        const documents = await listFirestoreDocuments(env, collectionPath);
+        for (const child of documents) {
+            const childPath = collectionPath + "/" + child.id;
+            await deleteFirestoreDocumentTree(env, childPath, depth + 1);
+            await deleteFirestoreDocument(env, childPath);
+        }
+    }
+}
+
+async function deleteFirebaseAuthAccount(env, uid) {
+    const accessToken = await getGoogleAccessToken(env);
+    const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:delete", {
+        method: "POST",
+        headers: {
+            Authorization: "Bearer " + accessToken,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            localId: uid,
+            targetProjectId: env.FIREBASE_PROJECT_ID
+        })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok || /USER_NOT_FOUND/i.test(payload.error?.message || "")) return;
+
+    const reason = payload.error?.message || response.statusText;
+    if (response.status === 403 || /PERMISSION_DENIED|insufficient.*permission/i.test(reason)) {
+        throw new Error(
+            "Firebase service account hesabı silemiyor. Google Cloud Console'da FIREBASE_SERVICE_ACCOUNT_JSON içindeki service account'a Firebase Authentication Admin rolünü (firebaseauth.users.delete) ver."
+        );
+    }
+    throw new Error("Firebase Authentication hesabı silinemedi: " + reason);
+}
+
+async function deleteUserFirestoreData(env, uid) {
+    const rooms = await listFirestoreDocuments(env, "rooms");
+
+    for (const roomDocument of rooms) {
+        const roomPath = "rooms/" + roomDocument.id;
+        const room = roomDocument.data || {};
+
+        if (room.ownerId === uid) {
+            if (typeof room.inviteCode === "string" && room.inviteCode) {
+                await deleteFirestoreDocument(env, "roomInvites/" + room.inviteCode);
+            }
+            await deleteFirestoreDocumentTree(env, roomPath);
+            await deleteFirestoreDocument(env, roomPath);
+            continue;
+        }
+
+        // Remove this account from every room it joined, plus its private prank inbox.
+        await deleteFirestoreDocument(env, roomPath + "/members/" + uid);
+        await deleteFirestoreDocument(env, roomPath + "/prankInbox/" + uid);
+
+        // Remove messages authored by the deleted account from surviving rooms.
+        const roomMessages = await listFirestoreDocuments(env, roomPath + "/messages");
+        for (const message of roomMessages) {
+            if (message.data.senderId === uid) {
+                await deleteFirestoreDocument(env, roomPath + "/messages/" + message.id);
+            }
+        }
+    }
+
+    const globalMessages = await listFirestoreDocuments(env, "globalChatMessages");
+    for (const message of globalMessages) {
+        if (message.data.senderId === uid) {
+            await deleteFirestoreDocument(env, "globalChatMessages/" + message.id);
+        }
+    }
+
+    await deleteFirestoreDocument(env, "globalChatMembers/" + uid);
+    await deleteFirestoreDocumentTree(env, "users/" + uid);
+    await deleteFirestoreDocument(env, "users/" + uid);
+}
+
+async function deleteSiteUserAccount(request, env, origin) {
+    const owner = await authenticateFirebaseToken(getBearerToken(request), env);
+    if (!(await isSiteOwnerUid(env, owner.uid))) {
+        return json({ error: "Bu işlem için Site Owner yetkisi gerekli." }, 403, origin);
+    }
+
+    const body = await readJson(request);
+    const targetUid = typeof body.uid === "string" ? body.uid : "";
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)) {
+        return json({ error: "Silinecek kullanıcı kimliği geçersiz." }, 400, origin);
+    }
+    if (targetUid === owner.uid) {
+        return json({ error: "Kendi Site Owner hesabını bu panelden silemezsin." }, 400, origin);
+    }
+    if (await isSiteOwnerUid(env, targetUid)) {
+        return json({ error: "Başka bir Site Owner hesabı bu kullanıcı listesinden silinemez." }, 409, origin);
+    }
+
+    // Delete Authentication first. If Firestore cleanup is interrupted, retrying
+    // this endpoint is safe: USER_NOT_FOUND is treated as an already-deleted account.
+    await deleteFirebaseAuthAccount(env, targetUid);
+    await deleteUserFirestoreData(env, targetUid);
+
+    return json({ ok: true, uid: targetUid }, 200, origin);
 }
 
 async function readJson(request) {
@@ -313,6 +451,9 @@ export default {
             }
             if (url.pathname === "/api/site-owner/claim" && request.method === "POST") {
                 return await claimSiteOwner(request, env, origin);
+            }
+            if (url.pathname === "/api/site-owner/delete-user" && request.method === "POST") {
+                return await deleteSiteUserAccount(request, env, origin);
             }
             if (url.pathname === "/api/uno/ticket" && request.method === "POST") {
                 return await issueTicket(request, env, url, origin, "uno");
