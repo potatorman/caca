@@ -8,18 +8,23 @@ service cloud.firestore {
     }
 
     // Owner membership is granted by the authenticated Cloudflare Worker.
-    // siteRole is server-written only: user create/update rules never allow clients to set it.
-    // Accept profile role as a recovery path, alongside both owner document formats.
+    // Owner registry and profile checks must match the signed-in UID.
+    // siteRole remains server-written only; client profile rules cannot modify it.
     function isSiteOwner() {
       return signedIn()
         && (
-          exists(/databases/$(database)/documents/siteConfig/siteOwners/$(request.auth.uid))
-          || (
-            exists(/databases/$(database)/documents/siteConfig/siteOwner)
-            && get(/databases/$(database)/documents/siteConfig/siteOwner).data.get('uid', '') == request.auth.uid
+          (
+            exists(/databases/$(database)/documents/siteOwners/$(request.auth.uid))
+            && get(/databases/$(database)/documents/siteOwners/$(request.auth.uid)).data.get('uid', '') == request.auth.uid
           )
           || (
             exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('siteRole', '') == 'site_owner'
+          )
+          || (
+            exists(/databases/$(database)/documents/siteConfig/siteOwner)
+            && get(/databases/$(database)/documents/siteConfig/siteOwner).data.get('uid', '') == request.auth.uid
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid))
             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('siteRole', '') == 'site_owner'
           )
         );
