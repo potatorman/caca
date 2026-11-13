@@ -232,16 +232,27 @@ async function manageLobby(request, env, origin) {
 }
 
 async function isSiteOwnerUid(env, uid) {
-    const [membership, legacyOwner] = await Promise.all([
-        getFirestoreDocument(env, "siteConfig/siteOwners/" + uid),
+    // Canonical owner records live in a top-level collection. Always validate
+    // the UID stored in the record; document existence alone is not authority.
+    const [membership, profile, legacyOwner] = await Promise.all([
+        getFirestoreDocument(env, "siteOwners/" + uid),
+        getFirestoreDocument(env, "users/" + uid),
         getFirestoreDocument(env, "siteConfig/siteOwner")
     ]);
-    return Boolean(membership || legacyOwner?.data.uid === uid);
+
+    const membershipMatches = membership?.data?.uid === uid;
+    const profileIsOwner = profile?.data?.siteRole === "site_owner";
+    const legacyOwnerMatches = legacyOwner?.data?.uid === uid;
+
+    // The legacy singleton is accepted only when the server-written profile
+    // role agrees, preventing stale or mismatched singleton data from blocking
+    // deletion of an ordinary account.
+    return membershipMatches || profileIsOwner || (legacyOwnerMatches && profileIsOwner);
 }
 
 async function claimSiteOwner(request, env, origin) {
     const user = await authenticateFirebaseToken(getBearerToken(request), env);
-    const ownerPath = "siteConfig/siteOwners/" + user.uid;
+    const ownerPath = "siteOwners/" + user.uid;
 
     // Existing owners can safely retry a partially completed activation.
     if (await isSiteOwnerUid(env, user.uid)) {
@@ -272,7 +283,7 @@ async function claimSiteOwner(request, env, origin) {
     // Store only a SHA-256 digest so each generated secret can be redeemed once.
     const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(suppliedCode)));
     const codeHash = [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-    const usedCodePath = "siteConfig/usedOwnerSetupCodes/" + codeHash;
+    const usedCodePath = "usedOwnerSetupCodes/" + codeHash;
     const usedCode = await getFirestoreDocument(env, usedCodePath);
     if (usedCode && usedCode.data.uid !== user.uid) {
         return json({ error: "Bu kurulum kodu daha önce kullanılmış. Yeni bir kod üret." }, 409, origin);
