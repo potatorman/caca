@@ -7963,9 +7963,19 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
     line-height: 1.65;
 }
 
+.owner-game-catalog .owner-section-heading > div:first-child {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 .catalog-add-button {
     flex: 0 0 auto;
-    min-height: 36px;
+    width: auto;
+    max-width: 100%;
+    height: 38px;
+    min-height: 38px;
+    margin: 0;
+    padding: 0 16px;
     white-space: nowrap;
 }
 
