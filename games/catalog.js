@@ -103,16 +103,24 @@ export function getMergedCatalog(firestoreEntries = [], isSiteOwner = false) {
 export function subscribeToCatalog(db, onChange) {
     // Lazy import of Firestore to avoid circular deps at module parse time.
     import("https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js").then(
-        ({ collection, onSnapshot, orderBy, query }) => {
+        ({ collection, onSnapshot, query, where }) => {
             if (_unsubscribeCatalog) _unsubscribeCatalog();
 
+            // Public game pickers must never download unpublished drafts.
+            // Site Owner drafts are read separately by catalog-admin.js.
             const q = query(
                 collection(db, "gamesCatalog"),
-                orderBy("createdAt", "asc")
+                where("published", "==", true)
             );
 
             _unsubscribeCatalog = onSnapshot(q, snapshot => {
-                _catalogCache = snapshot.docs.map(d => firestoreDocToCatalog(d.id, d.data()));
+                // Keep a stable creation order without requiring a composite index.
+                const orderedDocs = [...snapshot.docs].sort((a, b) => {
+                    const aTime = a.data().createdAt?.toMillis?.() ?? 0;
+                    const bTime = b.data().createdAt?.toMillis?.() ?? 0;
+                    return aTime - bTime;
+                });
+                _catalogCache = orderedDocs.map(d => firestoreDocToCatalog(d.id, d.data()));
                 _catalogListeners.forEach(fn => fn(_catalogCache));
                 onChange(_catalogCache);
             }, error => {
