@@ -929,8 +929,10 @@ function openOwnerConsole() {
             dashboardHidden: $("dashboardView").hidden,
             roomHidden: $("roomView").hidden,
             gamesHidden: $("gamesView").hidden,
+            archiveHidden: $("archiveView").hidden,
             settingsHidden: $("settingsView").hidden,
             gamesWorkspace: workspace.classList.contains("is-games-workspace"),
+            archiveWorkspace: workspace.classList.contains("is-archive-workspace"),
             ownerWorkspace: workspace.classList.contains("is-site-owner-workspace")
         };
     }
@@ -943,16 +945,20 @@ function openOwnerConsole() {
     $("dashboardView").hidden = true;
     $("roomView").hidden = true;
     $("gamesView").hidden = true;
+    $("archiveView").hidden = true;
     $("settingsView").hidden = true;
     $("siteOwnerView").hidden = false;
     const workspace = document.querySelector(".workspace-layout");
     workspace.classList.remove("is-games-workspace");
+    workspace.classList.remove("is-archive-workspace");
     workspace.classList.add("is-site-owner-workspace");
 
     $("chatsNavButton").classList.remove("is-active");
     $("gamesNavButton").classList.remove("is-active");
+    $("archiveNavButton").classList.remove("is-active");
     $("chatsNavButton").setAttribute("aria-pressed", "false");
     $("gamesNavButton").setAttribute("aria-pressed", "false");
+    $("archiveNavButton").setAttribute("aria-pressed", "false");
     $("siteOwnerNavButton").classList.add("is-active");
     $("siteOwnerNavButton").setAttribute("aria-pressed", "true");
 
@@ -971,6 +977,7 @@ $("ownerDeleteChatButton")?.addEventListener("click", deleteOwnerChat);
 // Capture phase restores the hidden room/dashboard before the existing tab code runs.
 $("chatsNavButton")?.addEventListener("click", restorePreviousWorkspace, true);
 $("gamesNavButton")?.addEventListener("click", restorePreviousWorkspace, true);
+$("archiveNavButton")?.addEventListener("click", restorePreviousWorkspace, true);
 
 document.addEventListener("caca:site-owner-activated", () => {
     isSiteOwner = true;

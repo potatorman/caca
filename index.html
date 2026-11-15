@@ -137,7 +137,7 @@
                             <div class="brand-logo">c.</div>
                             <span>CACA</span>
                         </div>
-                        <nav class="workspace-nav" aria-label="Ana gezinme"><button id="chatsNavButton" class="workspace-nav-button is-active" type="button" aria-pressed="true">Sohbetler</button><button id="gamesNavButton" class="workspace-nav-button" type="button" aria-pressed="false">Oyunlar</button><button id="siteOwnerNavButton" class="workspace-nav-button site-owner-nav-button" type="button" aria-pressed="false" hidden>Site Owner</button></nav>
+                        <nav class="workspace-nav" aria-label="Ana gezinme"><button id="chatsNavButton" class="workspace-nav-button is-active" type="button" aria-pressed="true">Sohbetler</button><button id="gamesNavButton" class="workspace-nav-button" type="button" aria-pressed="false">Oyunlar</button><button id="archiveNavButton" class="workspace-nav-button" type="button" aria-pressed="false">Arşiv</button><button id="siteOwnerNavButton" class="workspace-nav-button site-owner-nav-button" type="button" aria-pressed="false" hidden>Site Owner</button></nav>
 
                         <div class="dashboard-user">
                             <div id="userAvatar" class="user-avatar">C</div>
@@ -671,7 +671,43 @@
                                 </div>
                             </section>
 
-<section id="gamesView" class="games-view" hidden><div class="games-workspace"><div id="gamesPageMount" class="games-page-mount"></div><aside class="open-lobbies-panel"><div class="open-lobbies-heading"><h3>Açık Lobiler</h3><span id="openGameLobbyCount">0</span></div><p class="open-lobbies-hint">Katılabileceğin oyun lobileri</p><div id="openGameLobbiesList" class="open-game-lobbies-list"><p class="open-lobbies-empty">Henüz açık lobi yok.</p></div></aside></div><section id="downloadGamesSection" class="games-downloads-section" hidden aria-labelledby="downloadGamesHeading"><div class="games-downloads-heading"><div><span class="small-label">OYUN KÜTÜPHANESİ</span><h2 id="downloadGamesHeading">İndirilebilir oyunlar</h2><p>Özel oyunlar için CACA hesabı ve arşiv parolası gerekir. Public bağlantılar bu korumayı sağlamaz.</p></div></div><div id="downloadGamesGrid" class="download-games-grid"></div></section></section>
+<section id="gamesView" class="games-view" hidden><div class="games-workspace"><div id="gamesPageMount" class="games-page-mount"></div><aside class="open-lobbies-panel"><div class="open-lobbies-heading"><h3>Açık Lobiler</h3><span id="openGameLobbyCount">0</span></div><p class="open-lobbies-hint">Katılabileceğin oyun lobileri</p><div id="openGameLobbiesList" class="open-game-lobbies-list"><p class="open-lobbies-empty">Henüz açık lobi yok.</p></div></aside></div></section>
+
+<section id="archiveView" class="archive-view" hidden>
+    <div id="archiveContent" class="archive-content" aria-hidden="true" inert>
+        <section id="downloadGamesSection" class="games-downloads-section archive-downloads-section" hidden aria-labelledby="downloadGamesHeading">
+            <div class="games-downloads-heading">
+                <div>
+                    <span class="small-label">ÖZEL OYUN ARŞİVİ</span>
+                    <h2 id="downloadGamesHeading">İndirilebilir oyunlar</h2>
+                    <p>Arşivdeki oyunları buradan indirebilirsin.</p>
+                </div>
+            </div>
+            <div id="downloadGamesGrid" class="download-games-grid"></div>
+        </section>
+        <div id="archiveEmptyState" class="archive-empty-state" hidden>Arşivde henüz oyun yok.</div>
+    </div>
+
+    <div id="archiveLockScreen" class="archive-lock-screen">
+        <form id="archiveUnlockForm" class="archive-unlock-form" autocomplete="off">
+            <svg class="archive-lock-icon" viewBox="0 0 64 64" aria-hidden="true">
+                <path d="M19 28v-9a13 13 0 0 1 26 0v9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+                <rect x="9" y="27" width="46" height="32" rx="7" fill="currentColor" fill-opacity=".13" stroke="currentColor" stroke-width="3"/>
+                <circle cx="32" cy="41" r="4" fill="currentColor"/>
+                <path d="M32 45v6" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            <div class="archive-unlock-field">
+                <input id="archiveUnlockInput" name="archive-key" type="password"
+                    autocomplete="off" autocapitalize="none" spellcheck="false"
+                    maxlength="128" required aria-label="Arşiv anahtarı">
+                <button id="archiveUnlockButton" type="submit" aria-label="Arşivi aç">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+            </div>
+            <p id="archiveUnlockStatus" class="archive-unlock-status" role="status" aria-live="polite"></p>
+        </form>
+    </div>
+</section>
 
 <dialog id="webGameDialog" class="web-game-dialog" aria-labelledby="webGameDialogTitle">
     <div class="web-game-dialog-shell">
@@ -696,21 +732,6 @@
             allowfullscreen loading="lazy"
             referrerpolicy="strict-origin-when-cross-origin"></iframe>
     </div>
-</dialog>
-
-<dialog id="archivePasswordDialog" class="archive-password-dialog" aria-labelledby="archivePasswordDialogTitle">
-    <form id="archivePasswordForm" class="archive-password-form">
-        <span>ÖZEL OYUN ARŞİVİ</span>
-        <h2 id="archivePasswordDialogTitle">Arşiv parolası</h2>
-        <p>Özel oyun dosyalarını indirmek için sana verilen parolayı gir.</p>
-        <label for="archivePasswordInput">Parola</label>
-        <input id="archivePasswordInput" type="password" autocomplete="current-password"
-            required maxlength="128" placeholder="Arşiv parolası">
-        <div class="archive-password-actions">
-            <button id="archivePasswordCancel" type="button">Vazgeç</button>
-            <button type="submit">Arşivi aç</button>
-        </div>
-    </form>
 </dialog>
 
                             <section id="siteOwnerView" class="site-owner-view" hidden>
