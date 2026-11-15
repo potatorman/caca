@@ -42,6 +42,14 @@ import {
 
 const $ = (id) => document.getElementById(id);
 
+function isSafeHttpsUrl(value) {
+    try {
+        return new URL(value).protocol === "https:";
+    } catch {
+        return false;
+    }
+}
+
 function filterMemberList() {
     const list = $("membersList");
     const search = $("membersSearch");
@@ -1623,7 +1631,7 @@ function renderDownloadGames() {
         const card = document.createElement("article");
         card.className = "download-game-card";
 
-        if (game.coverUrl) {
+        if (isSafeHttpsUrl(game.coverUrl)) {
             const cover = document.createElement("img");
             cover.className = "download-game-cover";
             cover.src = game.coverUrl;
@@ -1690,10 +1698,10 @@ async function startCatalogGameDownload(game, button, status) {
     }
 
     if (!game.privateDownloadUrl) {
-        if (game.downloadUrl) {
+        if (isSafeHttpsUrl(game.downloadUrl)) {
             window.location.assign(game.downloadUrl);
         } else {
-            status.textContent = "Bu oyun için henüz bir indirme bağlantısı eklenmemiş.";
+            status.textContent = "Bu oyun için henüz geçerli bir indirme bağlantısı eklenmemiş.";
         }
         return;
     }
@@ -1715,7 +1723,9 @@ async function startCatalogGameDownload(game, button, status) {
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || typeof payload.downloadUrl !== "string") {
-            throw new Error(payload.error || "Güvenli indirme bağlantısı oluşturulamadı.");
+            const error = new Error(payload.error || "Güvenli indirme bağlantısı oluşturulamadı.");
+            error.status = response.status;
+            throw error;
         }
 
         // The short-lived URL contains a signed, 60-second ticket. The Worker
@@ -1723,7 +1733,18 @@ async function startCatalogGameDownload(game, button, status) {
         // the browser and the ZIP is never buffered in JavaScript memory.
         window.location.assign(payload.downloadUrl);
     } catch (error) {
-        status.textContent = error.message || "İndirme başlatılamadı. Daha sonra tekrar dene.";
+        // During migration, keep the old public Release usable if the private
+        // route is not deployed/configured yet. Never fall back on auth errors.
+        if (
+            game.downloadUrl &&
+            isSafeHttpsUrl(game.downloadUrl) &&
+            ![401, 403].includes(error.status)
+        ) {
+            status.textContent = "Özel indirme henüz hazır değil; mevcut public bağlantı açılıyor.";
+            window.location.assign(game.downloadUrl);
+        } else {
+            status.textContent = error.message || "İndirme başlatılamadı. Daha sonra tekrar dene.";
+        }
     } finally {
         button.disabled = false;
         button.textContent = originalText;
