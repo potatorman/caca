@@ -32,7 +32,9 @@
   ],
   "vars": {
     "FIREBASE_PROJECT_ID": "caca-dfe6c",
-    "FIREBASE_WEB_API_KEY": "AIzaSyDJ6cu30qrIeq9yV_FZ7U8KXyUirEksdHY"
+    "FIREBASE_WEB_API_KEY": "AIzaSyDJ6cu30qrIeq9yV_FZ7U8KXyUirEksdHY",
+    "GAME_RELEASES_OWNER": "potatorman",
+    "GAME_RELEASES_REPO": "arcade-game-vault"
   },
   "observability": {
     "enabled": true
@@ -40,7 +42,9 @@
   "previews": {
     "vars": {
       "FIREBASE_PROJECT_ID": "caca-dfe6c",
-      "FIREBASE_WEB_API_KEY": "AIzaSyDJ6cu30qrIeq9yV_FZ7U8KXyUirEksdHY"
+      "FIREBASE_WEB_API_KEY": "AIzaSyDJ6cu30qrIeq9yV_FZ7U8KXyUirEksdHY",
+      "GAME_RELEASES_OWNER": "potatorman",
+      "GAME_RELEASES_REPO": "arcade-game-vault"
     },
     "durable_objects": {
       "bindings": [
