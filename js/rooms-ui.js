@@ -1554,6 +1554,7 @@ function recordGameLobbyCooldown(roomId, sessionData) {
 }
 
 function renderGameCatalog() {
+    renderDownloadGames();
     const grid = $("gameCatalogGrid");
     const createButton = $("createGameSessionButton");
     if (!grid || !createButton) return;
@@ -1601,6 +1602,132 @@ function renderGameCatalog() {
         : cooldown > 0
             ? `Yeni lobi için ${Math.ceil(cooldown / 1000)} sn bekle`
             : `${selected?.name || "Oyun"} lobisi oluştur`;
+}
+
+function renderDownloadGames() {
+    const section = $("downloadGamesSection");
+    const grid = $("downloadGamesGrid");
+    if (!section || !grid) return;
+
+    const games = _firestoreCatalogEntries.filter(game =>
+        game.published !== false &&
+        ["download", "download-mp"].includes(game.type)
+    );
+    section.hidden = games.length === 0;
+    if (!games.length) {
+        grid.replaceChildren();
+        return;
+    }
+
+    grid.replaceChildren(...games.map(game => {
+        const card = document.createElement("article");
+        card.className = "download-game-card";
+
+        if (game.coverUrl) {
+            const cover = document.createElement("img");
+            cover.className = "download-game-cover";
+            cover.src = game.coverUrl;
+            cover.alt = "";
+            cover.loading = "lazy";
+            cover.referrerPolicy = "no-referrer";
+            card.appendChild(cover);
+        } else {
+            const cover = document.createElement("div");
+            cover.className = "download-game-cover download-game-cover--placeholder";
+            cover.setAttribute("aria-hidden", "true");
+            cover.textContent = game.icon || "🎮";
+            card.appendChild(cover);
+        }
+
+        const body = document.createElement("div");
+        body.className = "download-game-body";
+
+        const title = document.createElement("h3");
+        title.textContent = game.name;
+
+        const description = document.createElement("p");
+        description.className = "download-game-description";
+        description.textContent = game.description || "Bu oyun için indirme paketi hazır.";
+
+        const meta = document.createElement("div");
+        meta.className = "download-game-meta";
+        const details = [
+            game.version ? "v" + game.version : "",
+            game.type === "download-mp" ? "Çok oyunculu" : "Tek oyunculu",
+            game.downloadSize || ""
+        ].filter(Boolean);
+        meta.textContent = details.join(" · ");
+
+        const actions = document.createElement("div");
+        actions.className = "download-game-actions";
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "download-game-button";
+        button.textContent = game.privateDownloadUrl ? "Güvenli indir" : "İndir";
+        button.disabled = !game.privateDownloadUrl && !game.downloadUrl;
+
+        const status = document.createElement("p");
+        status.className = "download-game-status";
+        status.setAttribute("role", "status");
+        status.setAttribute("aria-live", "polite");
+
+        button.addEventListener("click", () => {
+            void startCatalogGameDownload(game, button, status);
+        });
+
+        actions.append(button);
+        body.append(title, description, meta, actions, status);
+        card.append(body);
+        return card;
+    }));
+}
+
+async function startCatalogGameDownload(game, button, status) {
+    if (!currentUser) {
+        status.textContent = "İndirmek için CACA hesabına giriş yapmalısın.";
+        return;
+    }
+
+    if (!game.privateDownloadUrl) {
+        if (game.downloadUrl) {
+            window.location.assign(game.downloadUrl);
+        } else {
+            status.textContent = "Bu oyun için henüz bir indirme bağlantısı eklenmemiş.";
+        }
+        return;
+    }
+
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Bağlantı hazırlanıyor...";
+    status.textContent = "";
+
+    try {
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(UNO_WORKER_URL + "/api/download-ticket", {
+            method: "POST",
+            headers: {
+                Authorization: "Bearer " + idToken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ gameId: game.id })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || typeof payload.downloadUrl !== "string") {
+            throw new Error(payload.error || "Güvenli indirme bağlantısı oluşturulamadı.");
+        }
+
+        // The short-lived URL contains a signed, 60-second ticket. The Worker
+        // streams the private asset as an attachment; no GitHub token reaches
+        // the browser and the ZIP is never buffered in JavaScript memory.
+        window.location.assign(payload.downloadUrl);
+    } catch (error) {
+        status.textContent = error.message || "İndirme başlatılamadı. Daha sonra tekrar dene.";
+    } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+    }
 }
 
 function selectGameLobby(lobbyId) {
