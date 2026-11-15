@@ -2074,9 +2074,17 @@ service cloud.firestore {
 
     match /gamesCatalog/{gameId} {
       allow get, list: if isSiteOwner() || (signedIn() && resource.data.published == true);
-      allow create, update: if isSiteOwner()
-        && request.resource.data.type in ['browser', 'download', 'download-mp']
+      allow create: if isSiteOwner()
+        && request.resource.data.type in ['download', 'download-mp']
         && request.resource.data.published is bool;
+      // Keep existing legacy browser entries manageable by server migrations,
+      // but prevent creating any new browser-playable catalog entries.
+      allow update: if isSiteOwner()
+        && request.resource.data.published is bool
+        && (
+          request.resource.data.type in ['download', 'download-mp']
+          || (resource.data.type == 'browser' && request.resource.data.type == 'browser')
+        );
       allow delete: if isSiteOwner();
     }
 
