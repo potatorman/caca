@@ -46,7 +46,7 @@ In the Worker **Settings → Variables & Secrets**, add these as encrypted secre
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: the full JSON key for a service account in Firebase
   project `caca-dfe6c`.
 - `GITHUB_RELEASES_TOKEN`: optional until private game downloads are enabled; then add a
-  fine-grained GitHub token scoped only to the private `arcade-game-vault` repository with
+  fine-grained GitHub token scoped only to the private `game-vault` repository with
   **Contents: Read-only** permission. Add it as an encrypted Cloudflare Worker secret. Keep
   this token out of GitHub source files and browser code.
 
