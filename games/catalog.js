@@ -163,5 +163,8 @@ export function validateCatalogEntry(data) {
     if (!["download", "download-mp"].includes(data.type)) {
         return "Yalnızca indirilebilir tek oyunculu veya çok oyunculu oyun eklenebilir.";
     }
+    if (typeof data.privateDownloadUrl !== "string" || !data.privateDownloadUrl.trim()) {
+        return "Arşiv parolası koruması için private game-vault Release bağlantısı zorunludur.";
+    }
     return null;
 }

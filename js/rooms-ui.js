@@ -1695,13 +1695,16 @@ function renderDownloadGames() {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "download-game-button";
-        button.textContent = game.privateDownloadUrl ? "Güvenli indir" : "İndir";
-        button.disabled = !game.privateDownloadUrl && !game.downloadUrl;
+        button.textContent = game.privateDownloadUrl ? "Arşiv parolasıyla indir" : "Özel bağlantı gerekli";
+        button.disabled = !game.privateDownloadUrl;
 
         const status = document.createElement("p");
         status.className = "download-game-status";
         status.setAttribute("role", "status");
         status.setAttribute("aria-live", "polite");
+        if (!game.privateDownloadUrl && game.downloadUrl) {
+            status.textContent = "Bu eski public bağlantı parola ile korunmuyor. Site Owner private bağlantıyı eklemeli.";
+        }
 
         button.addEventListener("click", () => {
             void startCatalogGameDownload(game, button, status);
@@ -1714,6 +1717,87 @@ function renderDownloadGames() {
     }));
 }
 
+function promptForArchivePassword() {
+    return new Promise((resolve) => {
+        const dialog = $("archivePasswordDialog");
+        const form = $("archivePasswordForm");
+        const input = $("archivePasswordInput");
+        const cancelButton = $("archivePasswordCancel");
+
+        if (!dialog || !form || !input || typeof dialog.showModal !== "function") {
+            resolve(window.prompt("Özel oyun arşivini açmak için parolayı gir:"));
+            return;
+        }
+
+        let submittedPassword = null;
+        const handleSubmit = (event) => {
+            event.preventDefault();
+            submittedPassword = input.value;
+            dialog.close();
+        };
+        const handleCancel = () => dialog.close();
+        const handleClose = () => {
+            form.removeEventListener("submit", handleSubmit);
+            cancelButton?.removeEventListener("click", handleCancel);
+            input.value = "";
+            resolve(submittedPassword);
+        };
+
+        form.addEventListener("submit", handleSubmit);
+        cancelButton?.addEventListener("click", handleCancel);
+        dialog.addEventListener("close", handleClose, { once: true });
+        dialog.showModal();
+        input.focus();
+    });
+}
+
+async function unlockPrivateArchive(idToken) {
+    const storageKey = "caca.archive.access:" + currentUser.uid;
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+        if (
+            saved?.uid === currentUser.uid &&
+            typeof saved.token === "string" &&
+            Number(saved.expiresAt) > Date.now() + 30000
+        ) {
+            return saved.token;
+        }
+    } catch {
+        // Storage can be unavailable in private browsing; prompt again when needed.
+    }
+
+    const password = await promptForArchivePassword();
+    if (password === null) return null;
+    if (typeof password !== "string" || password.length === 0) {
+        throw new Error("Arşiv parolası girilmedi.");
+    }
+
+    const response = await fetch(UNO_WORKER_URL + "/api/archive/unlock", {
+        method: "POST",
+        headers: {
+            Authorization: "Bearer " + idToken,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ password })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || typeof payload.accessToken !== "string") {
+        throw new Error(payload.error || "Arşiv açılamadı. Daha sonra tekrar dene.");
+    }
+
+    const expiresIn = Math.max(60, Number(payload.expiresIn) || 0);
+    try {
+        sessionStorage.setItem(storageKey, JSON.stringify({
+            uid: currentUser.uid,
+            token: payload.accessToken,
+            expiresAt: Date.now() + expiresIn * 1000
+        }));
+    } catch {
+        // The signed token still works for this download without session storage.
+    }
+    return payload.accessToken;
+}
+
 async function startCatalogGameDownload(game, button, status) {
     if (!currentUser) {
         status.textContent = "İndirmek için CACA hesabına giriş yapmalısın.";
@@ -1721,11 +1805,7 @@ async function startCatalogGameDownload(game, button, status) {
     }
 
     if (!game.privateDownloadUrl) {
-        if (isSafeHttpsUrl(game.downloadUrl)) {
-            window.location.assign(game.downloadUrl);
-        } else {
-            status.textContent = "Bu oyun için henüz geçerli bir indirme bağlantısı eklenmemiş.";
-        }
+        status.textContent = "Bu oyun henüz private arşive taşınmadığı için parola koruması yok. Site Owner'dan private bağlantıyı eklemesini iste.";
         return;
     }
 
@@ -1736,13 +1816,19 @@ async function startCatalogGameDownload(game, button, status) {
 
     try {
         const idToken = await currentUser.getIdToken();
+        const archiveAccessToken = await unlockPrivateArchive(idToken);
+        if (!archiveAccessToken) {
+            status.textContent = "İndirme iptal edildi.";
+            return;
+        }
+
         const response = await fetch(UNO_WORKER_URL + "/api/download-ticket", {
             method: "POST",
             headers: {
                 Authorization: "Bearer " + idToken,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ gameId: game.id })
+            body: JSON.stringify({ gameId: game.id, archiveAccessToken })
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || typeof payload.downloadUrl !== "string") {
@@ -1756,18 +1842,8 @@ async function startCatalogGameDownload(game, button, status) {
         // the browser and the ZIP is never buffered in JavaScript memory.
         window.location.assign(payload.downloadUrl);
     } catch (error) {
-        // During migration, keep the old public Release usable if the private
-        // route is not deployed/configured yet. Never fall back on auth errors.
-        if (
-            game.downloadUrl &&
-            isSafeHttpsUrl(game.downloadUrl) &&
-            ![401, 403].includes(error.status)
-        ) {
-            status.textContent = "Özel indirme henüz hazır değil; mevcut public bağlantı açılıyor.";
-            window.location.assign(game.downloadUrl);
-        } else {
-            status.textContent = error.message || "İndirme başlatılamadı. Daha sonra tekrar dene.";
-        }
+        // Never fall back to a public URL after a private download fails.
+        status.textContent = error.message || "İndirme başlatılamadı. Daha sonra tekrar dene.";
     } finally {
         button.disabled = false;
         button.textContent = originalText;

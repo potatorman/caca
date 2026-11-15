@@ -9175,3 +9175,113 @@ dialog.catalog-edit-dialog[open] {
     .web-game-toolbar-actions { gap: 8px; }
     .web-game-open-link { font-size: 10px; }
 }
+
+
+
+/* Keep the standalone 3D.CITY artwork the same compact size as other game icons. */
+.game-catalog-webgame .game-catalog-icon {
+    box-sizing: border-box;
+    display: grid;
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px;
+    min-height: 32px;
+    max-width: 32px;
+    max-height: 32px;
+    flex: 0 0 32px;
+    overflow: hidden;
+    place-items: center;
+    font-size: 16px;
+    line-height: 1;
+}
+.game-catalog-webgame .game-catalog-icon img,
+.game-catalog-webgame .game-catalog-card-top img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 32px;
+    max-height: 32px;
+    object-fit: contain;
+}
+
+/* Password prompt for private game downloads. */
+.archive-password-dialog {
+    width: min(420px, calc(100vw - 28px));
+    max-width: none;
+    padding: 0;
+    color: #e8f1fb;
+    background: #101f33;
+    border: 1px solid #385b80;
+    border-radius: 14px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
+}
+.archive-password-dialog::backdrop {
+    background: rgba(2, 7, 14, .82);
+    backdrop-filter: blur(6px);
+}
+.archive-password-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 24px;
+}
+.archive-password-form > span {
+    color: #83b9f2;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .14em;
+}
+.archive-password-form h2 {
+    margin: 0;
+    color: #f1f6ff;
+    font-size: 22px;
+    font-weight: 900;
+}
+.archive-password-form p {
+    margin: 0 0 8px;
+    color: #9db2cb;
+    font-size: 11px;
+    line-height: 1.55;
+}
+.archive-password-form label {
+    color: #c7d9ef;
+    font-size: 10px;
+    font-weight: 800;
+}
+.archive-password-form input {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    color: #f1f6ff;
+    background: #0a1625;
+    border: 1px solid #3c5c7d;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+}
+.archive-password-form input:focus {
+    outline: 2px solid #73b8ff;
+    outline-offset: 2px;
+}
+.archive-password-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 7px;
+}
+.archive-password-actions button {
+    min-height: 38px;
+    padding: 0 14px;
+    color: #dbeaff;
+    background: #213a57;
+    border: 1px solid #3b5f83;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 850;
+    cursor: pointer;
+}
+.archive-password-actions button[type="submit"] {
+    color: #07182b;
+    background: #8fc9ff;
+    border-color: #a9d7ff;
+}

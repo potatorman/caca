@@ -115,12 +115,12 @@ function buildAdminHTML() {
                         <label class="catalog-field catalog-field--full">
                             <span>Private GitHub Release bağlantısı <small>Önerilen</small></span>
                             <input id="catalogFieldPrivateDownloadUrl" type="url" placeholder="https://github.com/potatorman/game-vault/releases/download/v1.0.0/game.zip" maxlength="500">
-                            <small class="catalog-field-hint">Yalnızca giriş yapmış CACA üyeleri indirebilir. Dosyayı private potatorman/game-vault deposunda Release asset olarak yayınlayın ve doğrudan dosya bağlantısını yapıştırın.</small>
+                            <small class="catalog-field-hint">CACA hesabı ve arşiv parolası gerekir. ZIP dosyasını private potatorman/game-vault deposunda Release asset olarak yayınlayıp doğrudan dosya bağlantısını yapıştırın.</small>
                         </label>
                         <label class="catalog-field catalog-field--full">
                             <span>Mevcut public indirme bağlantısı <small>Geçiş yedeği</small></span>
                             <input id="catalogFieldDownloadUrl" type="url" placeholder="https://github.com/.../releases/download/.../oyun.zip" maxlength="500">
-                            <small class="catalog-field-hint">Private indirme kurulana kadar mevcut public bağlantıyı burada bırakın. Private bağlantı eklenirse CACA önce onu kullanır; bu alan eski indirmeleri korur.</small>
+                            <small class="catalog-field-hint">Bu alan yalnızca eski public oyunlar içindir. Public bağlantılar herkese açıktır ve arşiv parolasıyla korunamaz. Yeni oyun eklerken private bağlantı zorunludur.</small>
                         </label>
                         <label class="catalog-field">
                             <span>Dosya boyutu</span>

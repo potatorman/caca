@@ -1,27 +1,26 @@
 # Private CACA Game Downloads
 
-CACA can serve game ZIPs stored in a **private GitHub repository** to signed-in CACA members. The existing public release repository and its links remain supported during migration.
+CACA can serve game ZIPs stored in a **private GitHub repository** only to signed-in CACA members who also know the shared archive password. The password is checked by the Cloudflare Worker and is never stored in the website source. Public release links remain public and cannot be protected by this password.
 
 ## Architecture
 
-1. A CACA member clicks **Güvenli indir** on a published downloadable game.
-2. The browser sends the member's Firebase ID token to `POST /api/download-ticket` on the existing `caca-uno` Cloudflare Worker.
-3. The Worker verifies the Firebase token with Firebase Authentication and confirms the member's Firestore `users/{uid}` profile exists.
-4. The Worker confirms the game is published and its private Release URL points to the configured private repository.
-5. Using its server-only GitHub token, the Worker locates the exact uploaded Release asset and returns a signed download URL valid for 60 seconds.
-6. The browser navigates to `GET /api/download?ticket=...`. The Worker re-checks the member profile, publication state and exact private URL, then streams the GitHub asset to the browser as an attachment.
+1. A CACA member clicks **Arşiv parolasıyla indir** on a published downloadable game.
+2. The browser asks for the password in a masked input dialog and sends it with the member's Firebase ID token to `POST /api/archive/unlock`.
+3. The Worker verifies the Firebase token, confirms the member profile and checks the password against the encrypted `GAME_ARCHIVE_PASSWORD` Worker secret.
+4. The Worker returns a signed archive-access ticket tied to that Firebase UID and valid for eight hours. The browser keeps only this short-lived ticket in the current tab's session storage; it never stores the password.
+5. The browser sends the signed archive-access ticket with `POST /api/download-ticket`. The Worker verifies the ticket and confirms the game is published and its private Release URL points to the configured private repository.
+6. Using its server-only GitHub token, the Worker locates the exact uploaded Release asset and returns a signed download URL valid for 60 seconds.
+7. The browser navigates to `GET /api/download?ticket=...`. The Worker re-checks the member profile, publication state and exact private URL, then streams the GitHub asset to the browser as an attachment.
 
 The GitHub token is stored only as a Cloudflare encrypted secret. It is never sent to the browser. The file is streamed through the Worker; the Worker does not buffer the complete ZIP in memory.
 
 ## Important migration safety
 
-- Keep `potatorman/arcade-game-zips` **public** for now. Existing public Release URLs must continue working.
-- Create a separate private repository named `potatorman/game-vault`.
-- Upload copies of game archives to private Releases. Do not delete the old public assets during setup.
-- Existing catalog records keep using their current `downloadUrl` when `privateDownloadUrl` is empty.
-- A catalog record switches to the private route only when its `privateDownloadUrl` field is filled in and saved.
-- Migrate and test one game first. Keep its previous public URL in `downloadUrl` until private downloads are confirmed.
-- Only after every private URL has been tested should you decide whether to remove old public links or make the old repository private. Do not change the old repository's visibility as part of the initial setup.
+- Existing records with only `downloadUrl` remain public legacy downloads; anyone with the link can open them without the archive password.
+- New downloadable catalog entries now require `privateDownloadUrl`. Use only the private `potatorman/game-vault` Release URL for games you want protected.
+- A private entry never falls back to its public `downloadUrl` when the password check or Worker request fails. This prevents a public fallback from bypassing the password gate.
+- Migrate and test one game first. Keep old public files only until the private version is confirmed, then remove or retire the public copy.
+- Do not change the old repository's visibility as part of the initial setup. A public ZIP remains public even if CACA's page asks for a password.
 
 ## One-time GitHub setup
 
@@ -58,6 +57,16 @@ Add an **encrypted Secret**:
 - Value: the fine-grained token created above
 
 Do not put the token in `wrangler.jsonc`, GitHub source files, Firestore or browser code.
+
+Add a second encrypted Cloudflare Worker Secret:
+- Name: `GAME_ARCHIVE_PASSWORD`
+- Value: the shared password you give only to people you trust (at least 12 characters).
+
+Never put this password in `wrangler.jsonc`, GitHub source files, Firestore or browser code.
+Add it in the production Worker's **Settings → Variables & Secrets**. If you use Worker
+Previews to test archive downloads, add it as an encrypted Preview secret too. The website
+receives only a signed access ticket tied to the member's Firebase UID; the ticket expires
+after eight hours.
 
 The Worker configuration already declares these non-secret variables in production and Preview environments:
 
@@ -104,11 +113,11 @@ Each individual GitHub Release asset must be smaller than 2 GiB.
 
 In Site Owner → Game Catalog → Edit game → Download information:
 
-- **Private GitHub Release URL:** paste the direct private Release asset URL.
-- **Existing public download URL:** keep the old public URL during the migration.
+- **Private GitHub Release URL:** required; paste the direct private Release asset URL.
+- **Existing public download URL:** legacy field only. It is not password-protected and should not be used for new private uploads.
 - **File size:** informational text only.
 
-Save and publish the entry. The Games page will prefer the private route whenever `privateDownloadUrl` is present. If that field is empty, the existing public `downloadUrl` is used.
+Save and publish the entry. New entries must use `privateDownloadUrl`; the shared archive password is checked before the Worker issues a download ticket. Old entries with only a public `downloadUrl` remain publicly accessible until you migrate and remove the public copy.
 
 ## Test checklist
 
@@ -116,8 +125,12 @@ Use a test downloadable game first:
 
 - [ ] Its private Release exists and contains the exact ZIP asset.
 - [ ] The Cloudflare Worker has `GITHUB_RELEASES_TOKEN` as an encrypted secret.
-- [ ] A signed-in CACA member receives a short-lived download ticket and the ZIP downloads.
-- [ ] A logged-out request cannot receive a ticket.
+- [ ] A signed-in CACA member with the correct archive password receives an eight-hour access ticket and can download the ZIP.
+- [ ] A wrong password is rejected by the Worker.
+- [ ] An archive-access ticket cannot be used by a different Firebase UID.
+- [ ] A download-ticket request without a valid archive-access ticket is rejected.
+- [ ] A private download error never redirects to a legacy public URL.
+- [ ] A logged-out request cannot receive an access ticket.
 - [ ] A Firebase user without a CACA `users/{uid}` profile cannot receive a ticket.
 - [ ] An unpublished game cannot be downloaded.
 - [ ] Removing or changing `privateDownloadUrl` invalidates an already-issued ticket.
@@ -125,7 +138,7 @@ Use a test downloadable game first:
 
 ## Free-plan notes
 
-This uses GitHub private Releases plus the existing Cloudflare Worker and Firebase Authentication. No R2 bucket or paid storage plan is required. Cloudflare Workers Free has a 100,000 requests/day allowance and no enforced HTTP response-body size limit; each private download uses two Worker requests (ticket + streamed file), in addition to the Worker's existing traffic. Usage is shared with the existing Worker routes, so monitor account limits as traffic grows.
+This uses GitHub private Releases plus the existing Cloudflare Worker and Firebase Authentication. No R2 bucket or paid storage plan is required. Cloudflare Workers Free has a 100,000 requests/day allowance and no enforced HTTP response-body size limit; each private download uses two Worker requests (ticket + streamed file), in addition to the Worker's existing traffic. The first private download in a browser tab also uses one archive-unlock request; its signed access ticket is reused in that tab for up to eight hours. Usage is shared with the existing Worker routes, so monitor account limits as traffic grows.
 
 ## Rollback
 
