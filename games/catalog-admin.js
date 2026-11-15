@@ -114,8 +114,8 @@ function buildAdminHTML() {
                     <div class="catalog-form-grid">
                         <label class="catalog-field catalog-field--full">
                             <span>Private GitHub Release bağlantısı <small>Önerilen</small></span>
-                            <input id="catalogFieldPrivateDownloadUrl" type="url" placeholder="https://github.com/potatorman/arcade-game-vault/releases/download/v1.0.0/game.zip" maxlength="500">
-                            <small class="catalog-field-hint">Yalnızca giriş yapmış CACA üyeleri indirebilir. Dosyayı private potatorman/arcade-game-vault deposunda Release asset olarak yayınlayın ve doğrudan dosya bağlantısını yapıştırın.</small>
+                            <input id="catalogFieldPrivateDownloadUrl" type="url" placeholder="https://github.com/potatorman/game-vault/releases/download/v1.0.0/game.zip" maxlength="500">
+                            <small class="catalog-field-hint">Yalnızca giriş yapmış CACA üyeleri indirebilir. Dosyayı private potatorman/game-vault deposunda Release asset olarak yayınlayın ve doğrudan dosya bağlantısını yapıştırın.</small>
                         </label>
                         <label class="catalog-field catalog-field--full">
                             <span>Mevcut public indirme bağlantısı <small>Geçiş yedeği</small></span>
