@@ -11,6 +11,7 @@ import {
 } from "./firebase.js";
 import { signTicket, verifyTicket } from "./ticket.js";
 import { findUploadedReleaseAsset, parsePrivateReleaseAssetUrl } from "./game-downloads.js";
+import { constantTimeStringEqual, isValidArchiveAccessTicket } from "./archive-access.js";
 import { UnoRoom } from "./UnoRoom.js";
 import { VampirKoyluRoom } from "./VampirKoyluRoom.js";
 import { getUnoDurableObjectName, getVampirKoyluDurableObjectName, isValidVampirKoyluSessionId } from "./session-identity.js";
@@ -644,6 +645,38 @@ async function requireCacaMember(env, uid) {
     );
 }
 
+async function issueArchiveAccessTicket(request, env, origin) {
+    const user = await authenticateFirebaseToken(getBearerToken(request), env);
+    if (!await requireCacaMember(env, user.uid)) {
+        return json({ error: "A valid CACA member profile is required to open the archive." }, 403, origin);
+    }
+
+    const configuredPassword = typeof env.GAME_ARCHIVE_PASSWORD === "string"
+        ? env.GAME_ARCHIVE_PASSWORD
+        : "";
+    if (configuredPassword.length < 12) {
+        return json({ error: "The archive password is not configured on the CACA Worker." }, 503, origin);
+    }
+
+    const body = await readJson(request);
+    const submittedPassword = typeof body.password === "string" ? body.password : "";
+    if (
+        submittedPassword.length > 128 ||
+        !constantTimeStringEqual(submittedPassword, configuredPassword)
+    ) {
+        return json({ error: "Arşiv parolası yanlış." }, 403, origin);
+    }
+
+    const expiresIn = 8 * 60 * 60;
+    const accessToken = await signTicket({
+        kind: "caca-archive-access",
+        uid: user.uid,
+        exp: Math.floor(Date.now() / 1000) + expiresIn
+    }, env.CACA_TICKET_SECRET);
+
+    return json({ accessToken, expiresIn }, 200, origin);
+}
+
 function validateDownloadGameDocument(game) {
     return Boolean(
         game &&
@@ -659,6 +692,16 @@ async function issuePrivateGameDownloadTicket(request, env, url, origin) {
     }
 
     const body = await readJson(request);
+    let archiveAccessTicket = null;
+    try {
+        archiveAccessTicket = await verifyTicket(body.archiveAccessToken, env.CACA_TICKET_SECRET);
+    } catch {
+        // Missing, expired and invalid access tickets all fail closed.
+    }
+    if (!isValidArchiveAccessTicket(archiveAccessTicket, user.uid)) {
+        return json({ error: "Arşiv parolası gerekli veya süresi dolmuş." }, 403, origin);
+    }
+
     const gameId = typeof body.gameId === "string" ? body.gameId.trim() : "";
     if (!/^[a-z0-9-]{2,32}$/.test(gameId)) {
         return json({ error: "Invalid game ID." }, 400, origin);
@@ -870,6 +913,9 @@ export default {
                 return await sendHttpAction(request, env, origin, "vampir-koylu");
             }
 
+            if (url.pathname === "/api/archive/unlock" && request.method === "POST") {
+                return await issueArchiveAccessTicket(request, env, origin);
+            }
             if (url.pathname === "/api/download-ticket" && request.method === "POST") {
                 return await issuePrivateGameDownloadTicket(request, env, url, origin);
             }
