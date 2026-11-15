@@ -9062,3 +9062,114 @@ dialog.catalog-edit-dialog[open] {
     position: relative;
     z-index: 1;
 }
+
+
+/* ── Standalone browser games ─────────────────────────────────────────── */
+.game-catalog-webgame {
+    border-color: rgba(78, 170, 205, .42);
+    background: linear-gradient(145deg, #102536, #0d1725 72%);
+}
+.game-catalog-webgame:hover:not(:disabled) {
+    border-color: #55b9d8;
+    background: linear-gradient(145deg, #173b50, #14243a 72%);
+}
+.game-catalog-webgame .game-catalog-description {
+    max-width: 34ch;
+}
+.web-game-dialog {
+    width: min(1500px, calc(100vw - 28px));
+    height: min(940px, calc(100dvh - 28px));
+    max-width: none;
+    max-height: none;
+    padding: 0;
+    overflow: hidden;
+    color: #e8f1fb;
+    background: #0a1421;
+    border: 1px solid rgba(118, 165, 214, .34);
+    border-radius: 16px;
+    box-shadow: 0 24px 90px rgba(0, 0, 0, .68);
+}
+.web-game-dialog::backdrop {
+    background: rgba(2, 7, 14, .88);
+    backdrop-filter: blur(8px);
+}
+.web-game-dialog-shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+.web-game-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: 62px;
+    padding: 10px 14px;
+    background: #101d2d;
+    border-bottom: 1px solid #263a52;
+}
+.web-game-toolbar-title,
+.web-game-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+}
+.web-game-toolbar-icon { font-size: 24px; line-height: 1; }
+.web-game-toolbar-title strong {
+    display: block;
+    color: #f1f6ff;
+    font-size: 14px;
+    letter-spacing: .04em;
+}
+.web-game-toolbar-title small {
+    display: block;
+    margin-top: 3px;
+    color: #91a5bd;
+    font-size: 10px;
+}
+.web-game-open-link {
+    color: #9fd5f2;
+    font-size: 11px;
+    font-weight: 750;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.web-game-open-link:hover { color: #fff; text-decoration: underline; }
+.web-game-close {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    color: #eaf3ff;
+    background: #1a2a3d;
+    border: 1px solid #3a526e;
+    border-radius: 9px;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+}
+.web-game-close:hover { background: #29415e; }
+.web-game-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border: 0;
+    background: #1a2332;
+}
+@media (max-width: 620px) {
+    .web-game-dialog {
+        width: 100vw;
+        height: 100dvh;
+        border: 0;
+        border-radius: 0;
+    }
+    .web-game-toolbar { min-height: 56px; padding: 8px 10px; }
+    .web-game-toolbar-title { gap: 7px; }
+    .web-game-toolbar-title small { font-size: 9px; }
+    .web-game-toolbar-actions { gap: 8px; }
+    .web-game-open-link { font-size: 10px; }
+}
