@@ -762,7 +762,7 @@ async function streamPrivateGameDownload(request, env, url) {
     const range = request.headers.get("Range") || "";
     const rangeIsValid = /^bytes=\d*-\d*(,\d*-\d*)*$/.test(range) && range.length <= 200;
     const upstreamHeaders = {
-        Authorization: "Bearer " + token,
+        Authorization: "Bearer " + currentAsset.token,
         Accept: "application/octet-stream",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "CACA-Game-Downloads"
