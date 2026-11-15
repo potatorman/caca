@@ -599,17 +599,25 @@ async function getPrivateReleaseAsset(env, parsedUrl) {
         return { error: "Private game downloads are not configured on the CACA Worker.", status: 503 };
     }
 
-    const releaseApiUrl = "https://api.github.com/repos/" +
-        encodeURIComponent(owner) + "/" + encodeURIComponent(repository) +
-        "/releases/tags/" + encodeURIComponent(parsedUrl.tag);
-    const response = await fetch(releaseApiUrl, {
-        headers: {
-            Authorization: "Bearer " + token,
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "CACA-Game-Downloads"
-        }
-    });
+    const apiBase = "https://api.github.com/repos/" +
+        encodeURIComponent(owner) + "/" + encodeURIComponent(repository);
+    const githubHeaders = {
+        Authorization: "Bearer " + token,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "CACA-Game-Downloads"
+    };
+
+    // Fail closed if the configured repository is public or the token cannot
+    // read it. This prevents the "private" catalog field pointing at public files.
+    const repositoryResponse = await fetch(apiBase, { headers: githubHeaders });
+    const repositoryData = await repositoryResponse.json().catch(() => null);
+    if (!repositoryResponse.ok || repositoryData?.private !== true) {
+        return { error: "The configured GitHub game repository must exist and be private.", status: 503 };
+    }
+
+    const releaseApiUrl = apiBase + "/releases/tags/" + encodeURIComponent(parsedUrl.tag);
+    const response = await fetch(releaseApiUrl, { headers: githubHeaders });
 
     if (response.status === 404) return { error: "The private game release or asset was not found.", status: 404 };
     if (!response.ok) {
@@ -825,7 +833,7 @@ export default {
 
         try {
             if (url.pathname === "/health" && request.method === "GET") {
-                return json({ ok: true, service: "caca-uno", version: 2 }, 200, origin);
+                return json({ ok: true, service: "caca-uno", version: 3, privateGameDownloads: true }, 200, origin);
             }
 
             if (url.pathname === "/api/lobby/manage" && request.method === "POST") {
