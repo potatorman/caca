@@ -34,7 +34,7 @@
     "FIREBASE_PROJECT_ID": "caca-dfe6c",
     "FIREBASE_WEB_API_KEY": "AIzaSyDJ6cu30qrIeq9yV_FZ7U8KXyUirEksdHY",
     "GAME_RELEASES_OWNER": "potatorman",
-    "GAME_RELEASES_REPO": "arcade-game-vault"
+    "GAME_RELEASES_REPO": "game-vault"
   },
   "observability": {
     "enabled": true
@@ -44,7 +44,7 @@
       "FIREBASE_PROJECT_ID": "caca-dfe6c",
       "FIREBASE_WEB_API_KEY": "AIzaSyDJ6cu30qrIeq9yV_FZ7U8KXyUirEksdHY",
       "GAME_RELEASES_OWNER": "potatorman",
-      "GAME_RELEASES_REPO": "arcade-game-vault"
+      "GAME_RELEASES_REPO": "game-vault"
     },
     "durable_objects": {
       "bindings": [
