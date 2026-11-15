@@ -134,7 +134,7 @@ Use a test downloadable game first:
 - [ ] A Firebase user without a CACA `users/{uid}` profile cannot receive a ticket.
 - [ ] An unpublished game cannot be downloaded.
 - [ ] Removing or changing `privateDownloadUrl` invalidates an already-issued ticket.
-- [ ] A game with no private URL still uses its existing public download link.
+- [ ] A legacy game with only a public URL is marked as unprotected and cannot be downloaded from the CACA library until moved to the private repository.
 
 ## Free-plan notes
 
@@ -142,4 +142,4 @@ This uses GitHub private Releases plus the existing Cloudflare Worker and Fireba
 
 ## Rollback
 
-To revert one game to its old public download, clear its `privateDownloadUrl` field and keep its existing public `downloadUrl`. The public repository and assets remain untouched.
+Do not clear `privateDownloadUrl` and restore a public URL for a game that must stay protected. Legacy public-only entries are disabled in the CACA library. Public assets already published outside CACA remain downloadable by anyone until you remove those public Release assets or make their repository private.
