@@ -4405,6 +4405,8 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 }
 .game-catalog-card {
     cursor: pointer;
+    aspect-ratio: 1 / 1;
+    min-height: 0;
     transition: border-color .16s ease, background .16s ease, transform .16s ease;
 }
 .game-catalog-card:hover:not(:disabled) { background: #14243a; border-color: #49688e; }
