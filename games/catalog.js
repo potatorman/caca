@@ -28,6 +28,8 @@ export const DEFAULT_CATALOG_ENTRY = Object.freeze({
     module: null,
     version: "",
     downloadUrl: null,
+    // Private GitHub Release URL; files are served through the authenticated CACA Worker.
+    privateDownloadUrl: null,
     downloadSize: null,
     systemRequirements: null,
     published: true,
@@ -70,6 +72,7 @@ export function firestoreDocToCatalog(id, data) {
         module: data.module ? String(data.module) : null,
         version: String(data.version || ""),
         downloadUrl: data.downloadUrl ? String(data.downloadUrl) : null,
+        privateDownloadUrl: data.privateDownloadUrl ? String(data.privateDownloadUrl) : null,
         downloadSize: data.downloadSize ? String(data.downloadSize) : null,
         systemRequirements: data.systemRequirements ? String(data.systemRequirements) : null,
         published: data.published !== false,
