@@ -2829,7 +2829,7 @@ function setWorkspaceTab(tab) {
 $("chatsNavButton").addEventListener("click", () => setWorkspaceTab("chats"));
 $("gamesNavButton").addEventListener("click", () => setWorkspaceTab("games"));
 $("closeGameCenterButton").addEventListener("click", () => setWorkspaceTab("chats"));
-const THREE_D_CITY_URL = "https://lo-th.github.io/3d.city/index.html";
+const THREE_D_CITY_URL = "./games/3d-city/index.html";
 
 function openThreeDCity() {
     const dialog = $("webGameDialog");

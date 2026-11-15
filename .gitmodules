@@ -1,0 +1,3 @@
+[submodule "games/3d-city"]
+	path = games/3d-city
+	url = https://github.com/lo-th/3d.city.git
