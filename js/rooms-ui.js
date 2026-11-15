@@ -2936,7 +2936,7 @@ function setWorkspaceTab(tab) {
         gamesView.hidden = !showGames;
         archiveView.hidden = !showArchive;
 
-        if (!gameCenterScopeListening) {
+        if (showGames && !gameCenterScopeListening) {
             listenToGameCenter(GAME_SCOPE_ID);
             gameCenterScopeListening = true;
         }
