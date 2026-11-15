@@ -1638,6 +1638,7 @@ function renderGameCatalog() {
 function renderDownloadGames() {
     const section = $("downloadGamesSection");
     const grid = $("downloadGamesGrid");
+    const emptyState = $("archiveEmptyState");
     if (!section || !grid) return;
 
     const games = _firestoreCatalogEntries.filter(game =>
@@ -1645,6 +1646,7 @@ function renderDownloadGames() {
         ["download", "download-mp"].includes(game.type)
     );
     section.hidden = games.length === 0;
+    if (emptyState) emptyState.hidden = games.length !== 0;
     if (!games.length) {
         grid.replaceChildren();
         return;
@@ -1695,7 +1697,7 @@ function renderDownloadGames() {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "download-game-button";
-        button.textContent = game.privateDownloadUrl ? "Arşiv parolasıyla indir" : "Özel bağlantı gerekli";
+        button.textContent = game.privateDownloadUrl ? "İndir" : "Özel bağlantı gerekli";
         button.disabled = !game.privateDownloadUrl;
 
         const status = document.createElement("p");
@@ -1717,86 +1719,142 @@ function renderDownloadGames() {
     }));
 }
 
-function promptForArchivePassword() {
-    return new Promise((resolve) => {
-        const dialog = $("archivePasswordDialog");
-        const form = $("archivePasswordForm");
-        const input = $("archivePasswordInput");
-        const cancelButton = $("archivePasswordCancel");
+let archiveAccessInMemory = { uid: "", token: "", expiresAt: 0 };
 
-        if (!dialog || !form || !input || typeof dialog.showModal !== "function") {
-            resolve(window.prompt("Özel oyun arşivini açmak için parolayı gir:"));
-            return;
-        }
+function getArchiveAccessToken() {
+    if (!currentUser) return "";
 
-        let submittedPassword = null;
-        const handleSubmit = (event) => {
-            event.preventDefault();
-            submittedPassword = input.value;
-            dialog.close();
-        };
-        const handleCancel = () => dialog.close();
-        const handleClose = () => {
-            form.removeEventListener("submit", handleSubmit);
-            cancelButton?.removeEventListener("click", handleCancel);
-            input.value = "";
-            resolve(submittedPassword);
-        };
+    const now = Date.now();
+    if (
+        archiveAccessInMemory.uid === currentUser.uid &&
+        typeof archiveAccessInMemory.token === "string" &&
+        archiveAccessInMemory.expiresAt > now + 30000
+    ) {
+        return archiveAccessInMemory.token;
+    }
 
-        form.addEventListener("submit", handleSubmit);
-        cancelButton?.addEventListener("click", handleCancel);
-        dialog.addEventListener("close", handleClose, { once: true });
-        dialog.showModal();
-        input.focus();
-    });
-}
-
-async function unlockPrivateArchive(idToken) {
     const storageKey = "caca.archive.access:" + currentUser.uid;
     try {
         const saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
         if (
             saved?.uid === currentUser.uid &&
             typeof saved.token === "string" &&
-            Number(saved.expiresAt) > Date.now() + 30000
+            Number(saved.expiresAt) > now + 30000
         ) {
+            archiveAccessInMemory = {
+                uid: currentUser.uid,
+                token: saved.token,
+                expiresAt: Number(saved.expiresAt)
+            };
             return saved.token;
         }
+        if (saved) sessionStorage.removeItem(storageKey);
     } catch {
-        // Storage can be unavailable in private browsing; prompt again when needed.
+        // The in-memory ticket still works when browser storage is unavailable.
     }
+    return "";
+}
 
-    const password = await promptForArchivePassword();
-    if (password === null) return null;
-    if (typeof password !== "string" || password.length === 0) {
-        throw new Error("Arşiv parolası girilmedi.");
-    }
+function storeArchiveAccessToken(token, expiresIn) {
+    const expiresAt = Date.now() + Math.max(60, Number(expiresIn) || 0) * 1000;
+    archiveAccessInMemory = {
+        uid: currentUser.uid,
+        token,
+        expiresAt
+    };
 
-    const response = await fetch(UNO_WORKER_URL + "/api/archive/unlock", {
-        method: "POST",
-        headers: {
-            Authorization: "Bearer " + idToken,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ password })
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || typeof payload.accessToken !== "string") {
-        throw new Error(payload.error || "Arşiv açılamadı. Daha sonra tekrar dene.");
-    }
-
-    const expiresIn = Math.max(60, Number(payload.expiresIn) || 0);
     try {
-        sessionStorage.setItem(storageKey, JSON.stringify({
+        sessionStorage.setItem("caca.archive.access:" + currentUser.uid, JSON.stringify({
             uid: currentUser.uid,
-            token: payload.accessToken,
-            expiresAt: Date.now() + expiresIn * 1000
+            token,
+            expiresAt
         }));
     } catch {
-        // The signed token still works for this download without session storage.
+        // Keep the signed ticket in memory for this page session.
     }
-    return payload.accessToken;
 }
+
+function clearArchiveAccessToken() {
+    archiveAccessInMemory = { uid: "", token: "", expiresAt: 0 };
+    if (!currentUser) return;
+    try {
+        sessionStorage.removeItem("caca.archive.access:" + currentUser.uid);
+    } catch {
+        // Nothing else is needed; the in-memory ticket has been cleared.
+    }
+}
+
+function updateArchiveLockScreen() {
+    const view = $("archiveView");
+    const content = $("archiveContent");
+    if (!view || !content) return false;
+
+    const unlocked = Boolean(getArchiveAccessToken());
+    view.classList.toggle("is-unlocked", unlocked);
+    content.inert = !unlocked;
+    content.setAttribute("aria-hidden", String(!unlocked));
+    if (unlocked && $("archiveUnlockStatus")) $("archiveUnlockStatus").textContent = "";
+    return unlocked;
+}
+
+function unlockPrivateArchive() {
+    return getArchiveAccessToken();
+}
+
+$("archiveUnlockForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const input = $("archiveUnlockInput");
+    const button = $("archiveUnlockButton");
+    const status = $("archiveUnlockStatus");
+    if (!input || !button || !status) return;
+
+    if (!currentUser) {
+        status.textContent = "Giriş yapman gerekiyor.";
+        return;
+    }
+
+    const password = input.value;
+    if (!password) return;
+
+    button.disabled = true;
+    status.textContent = "";
+    $("archiveUnlockForm").classList.add("is-loading");
+
+    try {
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(UNO_WORKER_URL + "/api/archive/unlock", {
+            method: "POST",
+            headers: {
+                Authorization: "Bearer " + idToken,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ password })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || typeof payload.accessToken !== "string") {
+            const error = new Error(
+                response.status === 401 || response.status === 403
+                    ? "Anahtar kabul edilmedi."
+                    : "Arşiv şu anda açılamadı. Tekrar dene."
+            );
+            error.status = response.status;
+            throw error;
+        }
+
+        storeArchiveAccessToken(payload.accessToken, payload.expiresIn);
+        input.value = "";
+        updateArchiveLockScreen();
+    } catch (error) {
+        status.textContent = error.message || "Arşiv şu anda açılamadı. Tekrar dene.";
+        input.value = "";
+        input.focus();
+    } finally {
+        input.value = "";
+        button.disabled = false;
+        $("archiveUnlockForm").classList.remove("is-loading");
+    }
+});
 
 async function startCatalogGameDownload(game, button, status) {
     if (!currentUser) {
@@ -1816,9 +1874,10 @@ async function startCatalogGameDownload(game, button, status) {
 
     try {
         const idToken = await currentUser.getIdToken();
-        const archiveAccessToken = await unlockPrivateArchive(idToken);
+        const archiveAccessToken = unlockPrivateArchive();
         if (!archiveAccessToken) {
-            status.textContent = "İndirme iptal edildi.";
+            updateArchiveLockScreen();
+            status.textContent = "Arşiv kilitli. Önce Arşiv sekmesinin kilidini aç.";
             return;
         }
 
@@ -1843,7 +1902,13 @@ async function startCatalogGameDownload(game, button, status) {
         window.location.assign(payload.downloadUrl);
     } catch (error) {
         // Never fall back to a public URL after a private download fails.
-        status.textContent = error.message || "İndirme başlatılamadı. Daha sonra tekrar dene.";
+        if (error.status === 401 || error.status === 403) {
+            clearArchiveAccessToken();
+            updateArchiveLockScreen();
+            status.textContent = "Arşiv kilidi yeniden açılmalı.";
+        } else {
+            status.textContent = error.message || "İndirme başlatılamadı. Daha sonra tekrar dene.";
+        }
     } finally {
         button.disabled = false;
         button.textContent = originalText;
@@ -2833,7 +2898,7 @@ document.addEventListener("caca:site-owner-opened", (event) => {
 
     // If Site Owner was opened from Games, keep the Chats snapshot captured
     // when Games was entered. The visible views are intentionally hidden then.
-    if (state.gamesWorkspace && gamesTabPreviousVisibility) return;
+    if ((state.gamesWorkspace || state.archiveWorkspace) && gamesTabPreviousVisibility) return;
 
     gamesTabPreviousVisibility = {
         sidebarHidden: Boolean(state.sidebarHidden),
@@ -2844,13 +2909,16 @@ document.addEventListener("caca:site-owner-opened", (event) => {
 
 function setWorkspaceTab(tab) {
     const showGames = tab === "games";
+    const showArchive = tab === "archive";
+    const showWideWorkspace = showGames || showArchive;
     const workspace = document.querySelector(".workspace-layout");
     const roomSidebar = document.querySelector(".room-sidebar");
     const dashboardView = $("dashboardView");
     const roomView = $("roomView");
     const gamesView = $("gamesView");
+    const archiveView = $("archiveView");
 
-    if (showGames) {
+    if (showWideWorkspace) {
         if (!gamesTabPreviousVisibility) {
             gamesTabPreviousVisibility = {
                 sidebarHidden: Boolean(roomSidebar?.hidden),
@@ -2861,9 +2929,14 @@ function setWorkspaceTab(tab) {
         if (roomSidebar) roomSidebar.hidden = true;
         if (dashboardView) dashboardView.hidden = true;
         if (roomView) roomView.hidden = true;
-        if (workspace) workspace.classList.add("is-games-workspace");
-        gamesView.hidden = false;
-        if (!gameCenterScopeListening) {
+        if (workspace) {
+            workspace.classList.toggle("is-games-workspace", showGames);
+            workspace.classList.toggle("is-archive-workspace", showArchive);
+        }
+        gamesView.hidden = !showGames;
+        archiveView.hidden = !showArchive;
+
+        if (showGames && !gameCenterScopeListening) {
             listenToGameCenter(GAME_SCOPE_ID);
             gameCenterScopeListening = true;
         }
@@ -2873,12 +2946,22 @@ function setWorkspaceTab(tab) {
                 renderGameCatalog();
             });
         }
-        renderGameCenter();
-        renderOpenGameLobbies();
-        if (gameSessionData?.status === "playing") joinGameAsSpectator();
+
+        if (showGames) {
+            renderGameCenter();
+            renderOpenGameLobbies();
+            if (gameSessionData?.status === "playing") joinGameAsSpectator();
+        } else {
+            renderDownloadGames();
+            updateArchiveLockScreen();
+        }
     } else {
         gamesView.hidden = true;
-        if (workspace) workspace.classList.remove("is-games-workspace");
+        archiveView.hidden = true;
+        if (workspace) {
+            workspace.classList.remove("is-games-workspace");
+            workspace.classList.remove("is-archive-workspace");
+        }
 
         if (gamesTabPreviousVisibility) {
             if (roomSidebar) roomSidebar.hidden = gamesTabPreviousVisibility.sidebarHidden;
@@ -2896,14 +2979,17 @@ function setWorkspaceTab(tab) {
     }
 
     $("settingsView").hidden = true;
-    $("chatsNavButton").classList.toggle("is-active", !showGames);
+    $("chatsNavButton").classList.toggle("is-active", tab === "chats");
     $("gamesNavButton").classList.toggle("is-active", showGames);
-    $("chatsNavButton").setAttribute("aria-pressed", String(!showGames));
+    $("archiveNavButton").classList.toggle("is-active", showArchive);
+    $("chatsNavButton").setAttribute("aria-pressed", String(tab === "chats"));
     $("gamesNavButton").setAttribute("aria-pressed", String(showGames));
+    $("archiveNavButton").setAttribute("aria-pressed", String(showArchive));
 }
 
 $("chatsNavButton").addEventListener("click", () => setWorkspaceTab("chats"));
 $("gamesNavButton").addEventListener("click", () => setWorkspaceTab("games"));
+$("archiveNavButton").addEventListener("click", () => setWorkspaceTab("archive"));
 $("closeGameCenterButton").addEventListener("click", () => setWorkspaceTab("chats"));
 const THREE_D_CITY_URL = "./games/3d-city/index.html";
 
@@ -6140,6 +6226,7 @@ onAuthStateChanged(auth, async (user) => {
         activeGameLobbyId = "";
 
         currentUser = null;
+        archiveAccessInMemory = { uid: "", token: "", expiresAt: 0 };
         isSiteOwner = false;
         jumpscareLibraryLoadedFor = null;
         jumpscareLibraryLoadPromise = null;
