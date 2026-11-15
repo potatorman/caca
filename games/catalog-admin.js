@@ -93,42 +93,15 @@ function buildAdminHTML() {
                             <textarea id="catalogFieldDescription" rows="3" maxlength="400" placeholder="Oyunculara bu oyunu tanıtan kısa bir açıklama yazın..."></textarea>
                         </label>
                         <label class="catalog-field">
-                            <span>Oyun türü</span>
+                            <span>İndirme türü</span>
                             <select id="catalogFieldType">
-                                <option value="browser">Tarayıcıda oynanır</option>
-                                <option value="download">İndirilebilir · Tek oyunculu</option>
-                                <option value="download-mp">İndirilebilir · Çok oyunculu</option>
+                                <option value="download">Tek oyunculu · İndirme gerekli</option>
+                                <option value="download-mp">Çok oyunculu · İndirme gerekli</option>
                             </select>
                         </label>
                         <label class="catalog-field">
                             <span>Versiyon</span>
                             <input id="catalogFieldVersion" type="text" placeholder="1.0.0" maxlength="20">
-                        </label>
-                    </div>
-                </section>
-
-                <section id="catalogBrowserFields" class="catalog-form-section">
-                    <div class="catalog-form-section-heading">
-                        <span>02</span>
-                        <div><strong>Oyun ayarları</strong><small>Lobi ve oyuncu sayısı</small></div>
-                    </div>
-                    <div class="catalog-form-grid">
-                        <label class="catalog-field">
-                            <span>Minimum oyuncu</span>
-                            <input id="catalogFieldMinPlayers" type="number" min="1" max="20" value="2">
-                        </label>
-                        <label class="catalog-field">
-                            <span>Maksimum oyuncu</span>
-                            <input id="catalogFieldMaxPlayers" type="number" min="1" max="20" value="10">
-                        </label>
-                        <label class="catalog-field catalog-field--full">
-                            <span>Oyun modülü</span>
-                            <input id="catalogFieldModule" type="text" placeholder="./oyun-adi/index.js" maxlength="100" spellcheck="false">
-                            <small class="catalog-field-hint">Örnek: ./oyun-adi/index.js</small>
-                        </label>
-                        <label class="catalog-toggle-field catalog-field--full">
-                            <input id="catalogFieldLobbyEnabled" type="checkbox">
-                            <span><strong>Lobi desteğini etkinleştir</strong><small>Bu oyun, oda oluşturma ekranında seçilebilir.</small></span>
                         </label>
                     </div>
                 </section>
@@ -141,8 +114,8 @@ function buildAdminHTML() {
                     <div class="catalog-form-grid">
                         <label class="catalog-field catalog-field--full">
                             <span>Private GitHub Release bağlantısı <small>Önerilen</small></span>
-                            <input id="catalogFieldPrivateDownloadUrl" type="url" placeholder="https://github.com/potatorman/arcade-game-vault/releases/download/v1.0.0/game.zip" maxlength="500">
-                            <small class="catalog-field-hint">Yalnızca giriş yapmış CACA üyeleri indirebilir. Dosyayı private potatorman/arcade-game-vault deposunda Release asset olarak yayınlayın ve doğrudan dosya bağlantısını yapıştırın.</small>
+                            <input id="catalogFieldPrivateDownloadUrl" type="url" placeholder="https://github.com/potatorman/game-vault/releases/download/v1.0.0/game.zip" maxlength="500">
+                            <small class="catalog-field-hint">Yalnızca giriş yapmış CACA üyeleri indirebilir. Dosyayı private potatorman/game-vault deposunda Release asset olarak yayınlayın ve doğrudan dosya bağlantısını yapıştırın.</small>
                         </label>
                         <label class="catalog-field catalog-field--full">
                             <span>Mevcut public indirme bağlantısı <small>Geçiş yedeği</small></span>
@@ -263,8 +236,14 @@ function createEntryRow(entry, isSystem) {
         const editBtn = document.createElement("button");
         editBtn.type = "button";
         editBtn.className = "catalog-action-button catalog-edit-btn";
-        editBtn.textContent = "Düzenle";
-        editBtn.addEventListener("click", () => openEditDialog(entry.id));
+        if (entry.type === "browser") {
+            editBtn.textContent = "Eski tür";
+            editBtn.disabled = true;
+            editBtn.title = "Bu eski tarayıcı kaydı indirme arşivi formunda düzenlenemez.";
+        } else {
+            editBtn.textContent = "Düzenle";
+            editBtn.addEventListener("click", () => openEditDialog(entry.id));
+        }
         actions.appendChild(editBtn);
 
         const deleteBtn = document.createElement("button");
@@ -287,6 +266,16 @@ function createEntryRow(entry, isSystem) {
 // ── Dialog ─────────────────────────────────────────────────────────────────
 
 function openEditDialog(gameId = null) {
+    if (gameId) {
+        const existingEntry = _entries.find(e => e.id === gameId);
+        if (!existingEntry) return;
+        if (existingEntry.type === "browser") {
+            const catalogStatus = $("catalogStatus");
+            if (catalogStatus) catalogStatus.textContent =
+                "Bu eski tarayıcı kaydı korunuyor. Yeni arşiv kayıtları yalnızca indirilebilir oyun olabilir.";
+            return;
+        }
+    }
     _editingId = gameId;
     const dialog = $("catalogEditDialog");
     const title = $("catalogEditTitle");
@@ -304,10 +293,6 @@ function openEditDialog(gameId = null) {
         $("catalogFieldDescription").value = entry.description;
         $("catalogFieldType").value = entry.type;
         $("catalogFieldVersion").value = entry.version;
-        $("catalogFieldMinPlayers").value = entry.minPlayers;
-        $("catalogFieldMaxPlayers").value = entry.maxPlayers;
-        $("catalogFieldLobbyEnabled").checked = entry.lobbyEnabled;
-        $("catalogFieldModule").value = entry.module || "";
         $("catalogFieldDownloadUrl").value = entry.downloadUrl || "";
         $("catalogFieldPrivateDownloadUrl").value = entry.privateDownloadUrl || "";
         $("catalogFieldDownloadSize").value = entry.downloadSize || "";
@@ -320,12 +305,8 @@ function openEditDialog(gameId = null) {
         $("catalogFieldName").value = "";
         $("catalogFieldIcon").value = "🎮";
         $("catalogFieldDescription").value = "";
-        $("catalogFieldType").value = "browser";
+        $("catalogFieldType").value = "download";
         $("catalogFieldVersion").value = "";
-        $("catalogFieldMinPlayers").value = "2";
-        $("catalogFieldMaxPlayers").value = "10";
-        $("catalogFieldLobbyEnabled").checked = false;
-        $("catalogFieldModule").value = "";
         $("catalogFieldDownloadUrl").value = "";
         $("catalogFieldPrivateDownloadUrl").value = "";
         $("catalogFieldDownloadSize").value = "";
@@ -345,10 +326,10 @@ function closeEditDialog() {
 
 function updateTypeFields() {
     const type = $("catalogFieldType")?.value;
-    const browserFields = $("catalogBrowserFields");
     const downloadFields = $("catalogDownloadFields");
-    if (browserFields) browserFields.hidden = type !== "browser";
-    if (downloadFields) downloadFields.hidden = type === "browser";
+    if (downloadFields) {
+        downloadFields.hidden = !["download", "download-mp"].includes(type);
+    }
 }
 
 // ── Write operations ───────────────────────────────────────────────────────
@@ -370,13 +351,13 @@ async function saveEntry() {
         published: $("catalogFieldPublished").checked,
         coverUrl: $("catalogFieldCoverUrl").value.trim() || "",
         screenshotUrls: [],
-        minPlayers: type === "browser" ? Number($("catalogFieldMinPlayers").value) : 1,
-        maxPlayers: type === "browser" ? Number($("catalogFieldMaxPlayers").value) : 1,
-        lobbyEnabled: type === "browser" && $("catalogFieldLobbyEnabled").checked,
-        module: type === "browser" ? ($("catalogFieldModule").value.trim() || null) : null,
-        downloadUrl: type !== "browser" ? ($("catalogFieldDownloadUrl").value.trim() || null) : null,
-        privateDownloadUrl: type !== "browser" ? ($("catalogFieldPrivateDownloadUrl").value.trim() || null) : null,
-        downloadSize: type !== "browser" ? ($("catalogFieldDownloadSize").value.trim() || null) : null,
+        minPlayers: 1,
+        maxPlayers: 1,
+        lobbyEnabled: false,
+        module: null,
+        downloadUrl: $("catalogFieldDownloadUrl").value.trim() || null,
+        privateDownloadUrl: $("catalogFieldPrivateDownloadUrl").value.trim() || null,
+        downloadSize: $("catalogFieldDownloadSize").value.trim() || null,
     };
 
     const validationError = validateCatalogEntry(data);

@@ -160,22 +160,8 @@ export function validateCatalogEntry(data) {
     if (!data.name || String(data.name).length < 2 || String(data.name).length > 40) {
         return "Oyun adı 2-40 karakter olmalı.";
     }
-    if (!["browser", "download", "download-mp"].includes(data.type)) {
-        return "Oyun türü geçersiz.";
-    }
-    if (data.type === "browser" && data.module &&
-        !/^\.\/[a-z0-9/-]+\.js$/.test(data.module)) {
-        return "Modül yolu ./ ile başlamalı ve .js ile bitmeli.";
-    }
-    const min = Number(data.minPlayers);
-    const max = Number(data.maxPlayers);
-    if (data.type === "browser" && data.lobbyEnabled) {
-        if (!Number.isInteger(min) || min < 1 || min > 20) {
-            return "Minimum oyuncu sayısı 1-20 arasında olmalı.";
-        }
-        if (!Number.isInteger(max) || max < min || max > 20) {
-            return "Maksimum oyuncu sayısı minimum değerden büyük, en fazla 20 olmalı.";
-        }
+    if (!["download", "download-mp"].includes(data.type)) {
+        return "Yalnızca indirilebilir tek oyunculu veya çok oyunculu oyun eklenebilir.";
     }
     return null;
 }
