@@ -127,13 +127,14 @@ function buildAdminHTML() {
 
                 <div id="catalogDownloadFields" hidden>
                     <label class="catalog-field">
-                        <span>İndirme URL'si</span>
-                        <input id="catalogFieldDownloadUrl" type="url" placeholder="https://..." maxlength="500">
+                        <span>İndirme URL'si <small>(GitHub Release dosyasının doğrudan bağlantısı)</small></span>
+                        <input id="catalogFieldDownloadUrl" type="url" placeholder="https://github.com/.../releases/download/.../oyun.zip" maxlength="500">
+                        <small>ZIP dosyasını potatorman/arcade-game-zips deposunda Release asset olarak yayınlayın. Release sayfasının değil, doğrudan .zip dosyasının bağlantısını yapıştırın. Her dosya 2 GiB'den küçük olmalıdır.</small>
                     </label>
                     <div class="catalog-field-row">
                         <label class="catalog-field">
-                            <span>İndirme boyutu</span>
-                            <input id="catalogFieldDownloadSize" type="text" placeholder="250 MB" maxlength="30">
+                            <span>İndirme boyutu <small>(yalnızca bilgilendirme; yükleme sınırı değildir)</small></span>
+                            <input id="catalogFieldDownloadSize" type="text" placeholder="Örn. 250 MB" maxlength="30">
                         </label>
                     </div>
                     <label class="catalog-field">
