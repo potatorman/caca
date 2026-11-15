@@ -673,6 +673,31 @@
 
 <section id="gamesView" class="games-view" hidden><div class="games-workspace"><div id="gamesPageMount" class="games-page-mount"></div><aside class="open-lobbies-panel"><div class="open-lobbies-heading"><h3>Açık Lobiler</h3><span id="openGameLobbyCount">0</span></div><p class="open-lobbies-hint">Katılabileceğin oyun lobileri</p><div id="openGameLobbiesList" class="open-game-lobbies-list"><p class="open-lobbies-empty">Henüz açık lobi yok.</p></div></aside></div><section id="downloadGamesSection" class="games-downloads-section" hidden aria-labelledby="downloadGamesHeading"><div class="games-downloads-heading"><div><span class="small-label">OYUN KÜTÜPHANESİ</span><h2 id="downloadGamesHeading">İndirilebilir oyunlar</h2><p>Oyunları CACA hesabınla güvenli şekilde indir.</p></div></div><div id="downloadGamesGrid" class="download-games-grid"></div></section></section>
 
+<dialog id="webGameDialog" class="web-game-dialog" aria-labelledby="webGameDialogTitle">
+    <div class="web-game-dialog-shell">
+        <header class="web-game-toolbar">
+            <div class="web-game-toolbar-title">
+                <span class="web-game-toolbar-icon" aria-hidden="true">🏙️</span>
+                <div>
+                    <strong id="webGameDialogTitle">3D.CITY</strong>
+                    <small>Tek oyunculu şehir kurma oyunu · by lo-th</small>
+                </div>
+            </div>
+            <div class="web-game-toolbar-actions">
+                <a class="web-game-open-link" href="https://lo-th.github.io/3d.city/index.html"
+                    target="_blank" rel="noopener noreferrer">Yeni sekmede aç ↗</a>
+                <button id="closeWebGameDialog" class="web-game-close" type="button"
+                    aria-label="Oyunu kapat">×</button>
+            </div>
+        </header>
+        <iframe id="webGameFrame" class="web-game-frame" src="about:blank"
+            title="3D.CITY şehir kurma oyunu"
+            allow="fullscreen; gamepad; pointer-lock"
+            allowfullscreen loading="lazy"
+            referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    </div>
+</dialog>
+
                             <section id="siteOwnerView" class="site-owner-view" hidden>
                                 <div class="site-owner-page-heading">
                                     <div>

@@ -1584,6 +1584,29 @@ function renderGameCatalog() {
         button.append(name, players);
         return button;
     }));
+    const cityCard = document.createElement("button");
+    cityCard.type = "button";
+    cityCard.className = "game-catalog-card game-catalog-webgame";
+    cityCard.setAttribute("aria-label", "3D.CITY tek oyunculu oyununu aç");
+
+    const cityTop = document.createElement("div");
+    cityTop.className = "game-catalog-card-top";
+    const cityIcon = document.createElement("span");
+    cityIcon.className = "game-catalog-icon";
+    cityIcon.textContent = "🏙️";
+    const cityBadge = document.createElement("span");
+    cityBadge.className = "game-catalog-status";
+    cityBadge.textContent = "TEK OYUNCULU";
+    cityTop.append(cityIcon, cityBadge);
+
+    const cityName = document.createElement("strong");
+    cityName.className = "game-catalog-name";
+    cityName.textContent = "3D.CITY";
+    const cityDescription = document.createElement("span");
+    cityDescription.className = "game-catalog-description";
+    cityDescription.textContent = "Kendi 3D şehrini kur. Tarayıcıda oyna; oda veya lobi gerekmez.";
+    cityCard.append(cityTop, cityName, cityDescription);
+    grid.appendChild(cityCard);
 
     const selected = games.find((game) => game.id === selectedGameId);
     const maxSelect = $("gameMaxPlayersSelect");
@@ -2806,7 +2829,40 @@ function setWorkspaceTab(tab) {
 $("chatsNavButton").addEventListener("click", () => setWorkspaceTab("chats"));
 $("gamesNavButton").addEventListener("click", () => setWorkspaceTab("games"));
 $("closeGameCenterButton").addEventListener("click", () => setWorkspaceTab("chats"));
+const THREE_D_CITY_URL = "https://lo-th.github.io/3d.city/index.html";
+
+function openThreeDCity() {
+    const dialog = $("webGameDialog");
+    const frame = $("webGameFrame");
+    if (!dialog || !frame) {
+        window.open(THREE_D_CITY_URL, "_blank", "noopener,noreferrer");
+        return;
+    }
+    frame.src = THREE_D_CITY_URL;
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else window.open(THREE_D_CITY_URL, "_blank", "noopener,noreferrer");
+}
+
+function closeThreeDCity() {
+    const dialog = $("webGameDialog");
+    if (dialog?.open) dialog.close();
+}
+
+$("closeWebGameDialog")?.addEventListener("click", closeThreeDCity);
+$("webGameDialog")?.addEventListener("close", () => {
+    const frame = $("webGameFrame");
+    if (frame) frame.src = "about:blank";
+});
+$("webGameDialog")?.addEventListener("click", (event) => {
+    if (event.target === $("webGameDialog")) closeThreeDCity();
+});
+
 $("gameCatalogGrid").addEventListener("click", (event) => {
+    const webGameCard = event.target.closest(".game-catalog-webgame");
+    if (webGameCard) {
+        openThreeDCity();
+        return;
+    }
     const card = event.target.closest(".game-catalog-card[data-game-id]");
     if (!card || card.disabled) return;
     selectedGameId = card.dataset.gameId;
