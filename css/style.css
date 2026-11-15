@@ -8855,3 +8855,196 @@ dialog.catalog-edit-dialog[open] {
         min-width: 0;
     }
 }
+
+
+
+/* Downloadable game catalog */
+.games-downloads-section {
+    width: min(1480px, 100%);
+    margin: 20px auto 0;
+    padding: clamp(16px, 2.2vw, 24px);
+    color: #eaf2ff;
+    background: linear-gradient(145deg, rgba(18, 34, 54, .96), rgba(12, 23, 38, .98));
+    border: 1px solid #293e59;
+    border-radius: 16px;
+}
+
+.games-downloads-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 17px;
+}
+
+.games-downloads-heading .small-label {
+    display: block;
+    margin: 0 0 6px;
+    color: #77b5f3;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .16em;
+}
+
+.games-downloads-heading h2 {
+    margin: 0;
+    color: #f0f6ff;
+    font-size: clamp(18px, 2.3vw, 23px);
+    font-weight: 900;
+    letter-spacing: -.035em;
+}
+
+.games-downloads-heading p {
+    margin: 6px 0 0;
+    color: #8fa7c4;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.download-games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+    gap: 13px;
+}
+
+.download-game-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    background: #122137;
+    border: 1px solid #2a405b;
+    border-radius: 12px;
+    transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+
+.download-game-card:hover {
+    transform: translateY(-2px);
+    border-color: #456c9a;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
+}
+
+.download-game-cover {
+    display: grid;
+    width: 100%;
+    height: 142px;
+    object-fit: cover;
+    color: #b6d5f5;
+    background: linear-gradient(145deg, #1b3655, #102139);
+    border: 0;
+}
+
+.download-game-cover--placeholder {
+    place-items: center;
+    font-size: 52px;
+}
+
+.download-game-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    padding: 14px;
+}
+
+.download-game-body h3 {
+    margin: 0;
+    color: #f1f6ff;
+    font-size: 14px;
+    font-weight: 850;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.download-game-description {
+    display: -webkit-box;
+    min-height: 40px;
+    margin: 7px 0 10px;
+    overflow: hidden;
+    color: #95aac4;
+    font-size: 10px;
+    line-height: 1.55;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.download-game-meta {
+    min-height: 15px;
+    color: #7f9bbd;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.5;
+}
+
+.download-game-actions {
+    width: 100%;
+    margin-top: auto;
+    padding-top: 13px;
+}
+
+.download-game-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 38px;
+    margin: 0;
+    padding: 0 14px;
+    color: #fff;
+    background: #3478ee;
+    border: 1px solid #4d8cf5;
+    border-radius: 9px;
+    font-size: 11px;
+    font-weight: 850;
+    cursor: pointer;
+    transition: background .15s ease, transform .15s ease;
+}
+
+.download-game-button:hover:not(:disabled) {
+    background: #4387fb;
+    transform: translateY(-1px);
+}
+
+.download-game-button:disabled {
+    color: #8196b0;
+    background: #1a2a40;
+    border-color: #30445e;
+    cursor: not-allowed;
+}
+
+.download-game-status {
+    min-height: 0;
+    margin: 7px 0 0;
+    color: #f1c987;
+    font-size: 9px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.download-game-status:empty {
+    display: none;
+}
+
+@media (max-width: 620px) {
+    .games-downloads-section {
+        margin-top: 13px;
+        padding: 13px;
+        border-radius: 13px;
+    }
+
+    .games-downloads-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .download-games-grid {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
+        gap: 10px;
+    }
+
+    .download-game-cover {
+        height: 118px;
+    }
+}
