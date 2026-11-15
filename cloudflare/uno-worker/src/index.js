@@ -10,6 +10,7 @@ import {
     firestoreTimestamp
 } from "./firebase.js";
 import { signTicket, verifyTicket } from "./ticket.js";
+import { findUploadedReleaseAsset, parsePrivateReleaseAssetUrl } from "./game-downloads.js";
 import { UnoRoom } from "./UnoRoom.js";
 import { VampirKoyluRoom } from "./VampirKoyluRoom.js";
 import { getUnoDurableObjectName, getVampirKoyluDurableObjectName, isValidVampirKoyluSessionId } from "./session-identity.js";
@@ -587,6 +588,237 @@ async function readJson(request) {
     }
 }
 
+async function getPrivateReleaseAsset(env, parsedUrl) {
+    const token = typeof env.GITHUB_RELEASES_TOKEN === "string"
+        ? env.GITHUB_RELEASES_TOKEN.trim()
+        : "";
+    const owner = String(env.GAME_RELEASES_OWNER || "");
+    const repository = String(env.GAME_RELEASES_REPO || "");
+
+    if (!token || !owner || !repository) {
+        return { error: "Private game downloads are not configured on the CACA Worker.", status: 503 };
+    }
+
+    const apiBase = "https://api.github.com/repos/" +
+        encodeURIComponent(owner) + "/" + encodeURIComponent(repository);
+    const githubHeaders = {
+        Authorization: "Bearer " + token,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "CACA-Game-Downloads"
+    };
+
+    // Fail closed if the configured repository is public or the token cannot
+    // read it. This prevents the "private" catalog field pointing at public files.
+    const repositoryResponse = await fetch(apiBase, { headers: githubHeaders });
+    const repositoryData = await repositoryResponse.json().catch(() => null);
+    if (!repositoryResponse.ok || repositoryData?.private !== true) {
+        return { error: "The configured GitHub game repository must exist and be private.", status: 503 };
+    }
+
+    const releaseApiUrl = apiBase + "/releases/tags/" + encodeURIComponent(parsedUrl.tag);
+    const response = await fetch(releaseApiUrl, { headers: githubHeaders });
+
+    if (response.status === 404) return { error: "The private game release or asset was not found.", status: 404 };
+    if (!response.ok) {
+        return { error: "GitHub could not verify the private game release.", status: 502 };
+    }
+
+    const release = await response.json().catch(() => null);
+    if (!release || release.draft === true || release.prerelease === true) {
+        return { error: "This game release is not published.", status: 404 };
+    }
+
+    const asset = findUploadedReleaseAsset(release, parsedUrl.filename);
+    if (!asset) return { error: "The requested file is not attached to this release.", status: 404 };
+
+    return { asset, owner, repository, token };
+}
+
+async function requireCacaMember(env, uid) {
+    const profile = await getFirestoreDocument(env, "users/" + uid);
+    return Boolean(
+        profile &&
+        typeof profile.data?.username === "string" &&
+        profile.data.username.length > 0
+    );
+}
+
+function validateDownloadGameDocument(game) {
+    return Boolean(
+        game &&
+        game.published === true &&
+        ["download", "download-mp"].includes(game.type)
+    );
+}
+
+async function issuePrivateGameDownloadTicket(request, env, url, origin) {
+    const user = await authenticateFirebaseToken(getBearerToken(request), env);
+    if (!await requireCacaMember(env, user.uid)) {
+        return json({ error: "A valid CACA member profile is required to download games." }, 403, origin);
+    }
+
+    const body = await readJson(request);
+    const gameId = typeof body.gameId === "string" ? body.gameId.trim() : "";
+    if (!/^[a-z0-9-]{2,32}$/.test(gameId)) {
+        return json({ error: "Invalid game ID." }, 400, origin);
+    }
+
+    const gameDocument = await getFirestoreDocument(env, "gamesCatalog/" + gameId);
+    const game = gameDocument?.data;
+    if (!validateDownloadGameDocument(game)) {
+        return json({ error: "This downloadable game is not available." }, 404, origin);
+    }
+
+    const privateUrl = typeof game.privateDownloadUrl === "string"
+        ? game.privateDownloadUrl
+        : "";
+    const parsedUrl = parsePrivateReleaseAssetUrl(
+        privateUrl,
+        env.GAME_RELEASES_OWNER,
+        env.GAME_RELEASES_REPO
+    );
+    if (!parsedUrl) {
+        return json({ error: "A private GitHub Release asset is not configured for this game." }, 409, origin);
+    }
+
+    const releaseAsset = await getPrivateReleaseAsset(env, parsedUrl);
+    if (releaseAsset.error) {
+        return json({ error: releaseAsset.error }, releaseAsset.status, origin);
+    }
+
+    const ticket = await signTicket({
+        kind: "caca-private-game-download",
+        uid: user.uid,
+        gameId,
+        assetId: Number(releaseAsset.asset.id),
+        filename: releaseAsset.asset.name,
+        privateUrl,
+        exp: Math.floor(Date.now() / 1000) + 60
+    }, env.CACA_TICKET_SECRET);
+
+    const downloadUrl = new URL("/api/download", url.origin);
+    downloadUrl.searchParams.set("ticket", ticket);
+
+    return json({
+        downloadUrl: downloadUrl.href,
+        expiresIn: 60,
+        filename: releaseAsset.asset.name,
+        size: Number(releaseAsset.asset.size) || null
+    }, 200, origin);
+}
+
+async function streamPrivateGameDownload(request, env, url) {
+    const ticket = await verifyTicket(url.searchParams.get("ticket"), env.CACA_TICKET_SECRET);
+    if (
+        ticket.kind !== "caca-private-game-download" ||
+        typeof ticket.uid !== "string" ||
+        !/^[a-z0-9-]{2,32}$/.test(ticket.gameId || "") ||
+        !Number.isSafeInteger(Number(ticket.assetId)) ||
+        Number(ticket.assetId) <= 0 ||
+        typeof ticket.filename !== "string" ||
+        typeof ticket.privateUrl !== "string"
+    ) {
+        return json({ error: "Private game download ticket is invalid." }, 401);
+    }
+
+    if (!await requireCacaMember(env, ticket.uid)) {
+        return json({ error: "A valid CACA member profile is required to download games." }, 403);
+    }
+
+    // Re-check publication and the exact asset URL at download time. Unpublishing
+    // a game or changing its private URL invalidates already-issued short tickets.
+    const gameDocument = await getFirestoreDocument(env, "gamesCatalog/" + ticket.gameId);
+    const game = gameDocument?.data;
+    if (
+        !validateDownloadGameDocument(game) ||
+        game.privateDownloadUrl !== ticket.privateUrl
+    ) {
+        return json({ error: "This private game download is no longer available." }, 404);
+    }
+
+    const parsedUrl = parsePrivateReleaseAssetUrl(
+        ticket.privateUrl,
+        env.GAME_RELEASES_OWNER,
+        env.GAME_RELEASES_REPO
+    );
+    if (!parsedUrl || parsedUrl.filename !== ticket.filename) {
+        return json({ error: "Private game download metadata is invalid." }, 400);
+    }
+
+    // Re-check repository visibility and the published release asset at
+    // redemption time, not only when the ticket was first issued.
+    const currentAsset = await getPrivateReleaseAsset(env, parsedUrl);
+    if (currentAsset.error) {
+        return json({ error: currentAsset.error }, currentAsset.status);
+    }
+    if (
+        Number(currentAsset.asset.id) !== Number(ticket.assetId) ||
+        currentAsset.asset.name !== ticket.filename
+    ) {
+        return json({ error: "The private game release asset changed. Request a new download link." }, 409);
+    }
+
+    const range = request.headers.get("Range") || "";
+    const rangeIsValid = /^bytes=\d*-\d*(,\d*-\d*)*$/.test(range) && range.length <= 200;
+    const upstreamHeaders = {
+        Authorization: "Bearer " + currentAsset.token,
+        Accept: "application/octet-stream",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "CACA-Game-Downloads"
+    };
+    if (rangeIsValid) upstreamHeaders.Range = range;
+
+    // GitHub returns either the asset bytes or a redirect to a short-lived,
+    // signed release-assets URL. fetch follows that redirect; the body remains
+    // a stream and is never buffered in Worker memory.
+    const upstream = await fetch(
+        "https://api.github.com/repos/" +
+            encodeURIComponent(env.GAME_RELEASES_OWNER) + "/" +
+            encodeURIComponent(env.GAME_RELEASES_REPO) +
+            "/releases/assets/" + encodeURIComponent(String(ticket.assetId)),
+        {
+            method: "GET",
+            headers: upstreamHeaders,
+            redirect: "follow"
+        }
+    );
+
+    if (!upstream.ok) {
+        const status = upstream.status === 404 ? 404 : upstream.status === 416 ? 416 : 502;
+        return json({
+            error: status === 404
+                ? "The private game file no longer exists."
+                : status === 416
+                    ? "The requested download range is not available."
+                    : "GitHub could not provide the private game file."
+        }, status);
+    }
+
+    const safeAsciiName = ticket.filename
+        .replace(/[^A-Za-z0-9._ -]/g, "_")
+        .replace(/["\\\\]/g, "_")
+        .slice(0, 180) || "game-download.zip";
+    const responseHeaders = new Headers({
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": 'attachment; filename="' + safeAsciiName +
+            '"; filename*=UTF-8\'\'' + encodeURIComponent(ticket.filename),
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer"
+    });
+
+    for (const headerName of ["content-length", "content-range", "etag", "last-modified", "accept-ranges"]) {
+        const value = upstream.headers.get(headerName);
+        if (value) responseHeaders.set(headerName, value);
+    }
+
+    return new Response(upstream.body, {
+        status: upstream.status === 206 ? 206 : 200,
+        headers: responseHeaders
+    });
+}
+
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
@@ -607,7 +839,7 @@ export default {
 
         try {
             if (url.pathname === "/health" && request.method === "GET") {
-                return json({ ok: true, service: "caca-uno", version: 2 }, 200, origin);
+                return json({ ok: true, service: "caca-uno", version: 3, privateGameDownloads: true }, 200, origin);
             }
 
             if (url.pathname === "/api/lobby/manage" && request.method === "POST") {
@@ -636,6 +868,13 @@ export default {
             }
             if (url.pathname === "/api/vampir-koylu/action" && request.method === "POST") {
                 return await sendHttpAction(request, env, origin, "vampir-koylu");
+            }
+
+            if (url.pathname === "/api/download-ticket" && request.method === "POST") {
+                return await issuePrivateGameDownloadTicket(request, env, url, origin);
+            }
+            if (url.pathname === "/api/download" && request.method === "GET") {
+                return await streamPrivateGameDownload(request, env, url);
             }
 
             if (url.pathname === "/ws" && request.method === "GET") {

@@ -19,3 +19,6 @@ The shared room lobby, account system, profiles, invitations and chat are handle
 
 Deployment, preview and secret setup instructions are in
 [`cloudflare/uno-worker/README.md`](cloudflare/uno-worker/README.md).
+
+Private game downloads (private GitHub Releases with CACA member checks) are documented in
+[`cloudflare/uno-worker/PRIVATE_GAME_DOWNLOADS.md`](cloudflare/uno-worker/PRIVATE_GAME_DOWNLOADS.md).

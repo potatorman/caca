@@ -15,7 +15,7 @@ import {
     query,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
-import { firestoreDocToCatalog, validateCatalogEntry, DEFAULT_CATALOG_ENTRY } from "./catalog.js";
+import { firestoreDocToCatalog, validateCatalogEntry } from "./catalog.js";
 import { GAME_REGISTRY } from "./registry.js";
 
 const $ = id => document.getElementById(id);
@@ -41,13 +41,13 @@ function buildAdminHTML() {
         <div>
             <span class="small-label">OYUN KATALOĞU</span>
             <h3>Oyun yönetimi</h3>
-            <p>Yeni oyun ekle, mevcut oyunları düzenle veya yayından kaldır. Sistem oyunları (UNO, Vampir Köylü) buradan değiştirilemez.</p>
+            <p>İndirilebilir oyunları ve tarayıcı oyunlarını tek yerden yönetin.</p>
         </div>
         <button id="catalogAddButton" class="primary-button catalog-add-button" type="button">+ Yeni oyun ekle</button>
     </div>
 
     <div id="catalogSystemGames" class="catalog-system-games">
-        <div class="catalog-system-label"><span class="small-label">SİSTEM OYUNLARI (SALT OKUNUR)</span></div>
+        <div class="catalog-system-label"><span class="small-label">SİSTEM OYUNLARI · SALT OKUNUR</span></div>
         <div id="catalogSystemList" class="catalog-entries-list"></div>
     </div>
 
@@ -59,106 +59,129 @@ function buildAdminHTML() {
 
     <dialog id="catalogEditDialog" class="catalog-edit-dialog" aria-labelledby="catalogEditTitle">
         <div class="catalog-edit-card">
-            <div class="catalog-edit-heading">
-                <div>
-                    <span class="small-label">OYUN DÜZENLE</span>
-                    <h4 id="catalogEditTitle">Yeni oyun</h4>
+            <header class="catalog-edit-heading">
+                <div class="catalog-edit-heading-copy">
+                    <span class="small-label">OYUN KATALOĞU</span>
+                    <h4 id="catalogEditTitle">Yeni oyun ekle</h4>
+                    <p>Oyunun temel bilgilerini ve yayın ayarlarını girin.</p>
                 </div>
-                <button id="catalogEditClose" class="icon-button" type="button" aria-label="Kapat">×</button>
-            </div>
+                <button id="catalogEditClose" class="catalog-edit-close" type="button" aria-label="Kapat">×</button>
+            </header>
 
             <div class="catalog-edit-form">
-                <div class="catalog-field-row">
-                    <label class="catalog-field">
-                        <span>Oyun ID <small>(değiştirilemez, küçük harf-rakam-tire)</small></span>
-                        <input id="catalogFieldId" type="text" placeholder="ornek-oyun" maxlength="32" autocomplete="off" spellcheck="false">
-                    </label>
-                    <label class="catalog-field">
-                        <span>İkon (emoji)</span>
-                        <input id="catalogFieldIcon" type="text" placeholder="🎮" maxlength="8">
-                    </label>
-                </div>
-
-                <label class="catalog-field">
-                    <span>Oyun adı</span>
-                    <input id="catalogFieldName" type="text" placeholder="Oyun Adı" maxlength="40">
-                </label>
-
-                <label class="catalog-field">
-                    <span>Açıklama</span>
-                    <textarea id="catalogFieldDescription" rows="3" maxlength="400" placeholder="Kısa oyun açıklaması..."></textarea>
-                </label>
-
-                <div class="catalog-field-row">
-                    <label class="catalog-field">
-                        <span>Tür</span>
-                        <select id="catalogFieldType">
-                            <option value="browser">Browser (tarayıcıda oynanır)</option>
-                            <option value="download">İndirilebilir (tek oyuncu)</option>
-                            <option value="download-mp">İndirilebilir (çok oyunculu)</option>
-                        </select>
-                    </label>
-                    <label class="catalog-field">
-                        <span>Versiyon</span>
-                        <input id="catalogFieldVersion" type="text" placeholder="1.0.0" maxlength="20">
-                    </label>
-                </div>
-
-                <div id="catalogBrowserFields">
-                    <div class="catalog-field-row">
+                <section class="catalog-form-section">
+                    <div class="catalog-form-section-heading">
+                        <span>01</span>
+                        <div><strong>Genel bilgiler</strong><small>Oyunun katalogda görünecek bilgileri</small></div>
+                    </div>
+                    <div class="catalog-form-grid">
                         <label class="catalog-field">
-                            <span>Min. oyuncu</span>
+                            <span>Oyun ID</span>
+                            <input id="catalogFieldId" type="text" placeholder="ornek-oyun" maxlength="32" autocomplete="off" spellcheck="false">
+                            <small class="catalog-field-hint">2–32 karakter; küçük harf, rakam ve tire. Kaydedildikten sonra değiştirilemez.</small>
+                        </label>
+                        <label class="catalog-field">
+                            <span>İkon</span>
+                            <input id="catalogFieldIcon" type="text" placeholder="🎮" maxlength="8">
+                        </label>
+                        <label class="catalog-field catalog-field--full">
+                            <span>Oyun adı</span>
+                            <input id="catalogFieldName" type="text" placeholder="Oyunun adı" maxlength="40">
+                        </label>
+                        <label class="catalog-field catalog-field--full">
+                            <span>Kısa açıklama</span>
+                            <textarea id="catalogFieldDescription" rows="3" maxlength="400" placeholder="Oyunculara bu oyunu tanıtan kısa bir açıklama yazın..."></textarea>
+                        </label>
+                        <label class="catalog-field">
+                            <span>Oyun türü</span>
+                            <select id="catalogFieldType">
+                                <option value="browser">Tarayıcıda oynanır</option>
+                                <option value="download">İndirilebilir · Tek oyunculu</option>
+                                <option value="download-mp">İndirilebilir · Çok oyunculu</option>
+                            </select>
+                        </label>
+                        <label class="catalog-field">
+                            <span>Versiyon</span>
+                            <input id="catalogFieldVersion" type="text" placeholder="1.0.0" maxlength="20">
+                        </label>
+                    </div>
+                </section>
+
+                <section id="catalogBrowserFields" class="catalog-form-section">
+                    <div class="catalog-form-section-heading">
+                        <span>02</span>
+                        <div><strong>Oyun ayarları</strong><small>Lobi ve oyuncu sayısı</small></div>
+                    </div>
+                    <div class="catalog-form-grid">
+                        <label class="catalog-field">
+                            <span>Minimum oyuncu</span>
                             <input id="catalogFieldMinPlayers" type="number" min="1" max="20" value="2">
                         </label>
                         <label class="catalog-field">
-                            <span>Maks. oyuncu</span>
+                            <span>Maksimum oyuncu</span>
                             <input id="catalogFieldMaxPlayers" type="number" min="1" max="20" value="10">
                         </label>
-                    </div>
-                    <label class="catalog-field catalog-toggle-field">
-                        <input id="catalogFieldLobbyEnabled" type="checkbox">
-                        <span><strong>Lobi desteği</strong> <small>Oyunlar sekmesinde lobi oluşturulabilir</small></span>
-                    </label>
-                    <label class="catalog-field">
-                        <span>Modül yolu <small>(./oyun-adi/index.js)</small></span>
-                        <input id="catalogFieldModule" type="text" placeholder="./oyun-adi/index.js" maxlength="100" spellcheck="false">
-                    </label>
-                </div>
-
-                <div id="catalogDownloadFields" hidden>
-                    <label class="catalog-field">
-                        <span>İndirme URL'si</span>
-                        <input id="catalogFieldDownloadUrl" type="url" placeholder="https://..." maxlength="500">
-                    </label>
-                    <div class="catalog-field-row">
-                        <label class="catalog-field">
-                            <span>İndirme boyutu</span>
-                            <input id="catalogFieldDownloadSize" type="text" placeholder="250 MB" maxlength="30">
+                        <label class="catalog-field catalog-field--full">
+                            <span>Oyun modülü</span>
+                            <input id="catalogFieldModule" type="text" placeholder="./oyun-adi/index.js" maxlength="100" spellcheck="false">
+                            <small class="catalog-field-hint">Örnek: ./oyun-adi/index.js</small>
+                        </label>
+                        <label class="catalog-toggle-field catalog-field--full">
+                            <input id="catalogFieldLobbyEnabled" type="checkbox">
+                            <span><strong>Lobi desteğini etkinleştir</strong><small>Bu oyun, oda oluşturma ekranında seçilebilir.</small></span>
                         </label>
                     </div>
-                    <label class="catalog-field">
-                        <span>Sistem gereksinimleri</span>
-                        <textarea id="catalogFieldSysReq" rows="2" maxlength="300" placeholder="Windows 10+, 4 GB RAM..."></textarea>
-                    </label>
-                </div>
+                </section>
 
-                <label class="catalog-field">
-                    <span>Kapak görseli URL'si <small>(isteğe bağlı)</small></span>
-                    <input id="catalogFieldCoverUrl" type="url" placeholder="https://..." maxlength="500">
-                </label>
+                <section id="catalogDownloadFields" class="catalog-form-section" hidden>
+                    <div class="catalog-form-section-heading">
+                        <span>02</span>
+                        <div><strong>İndirme bilgileri</strong><small>Oyuncuların indireceği dosya</small></div>
+                    </div>
+                    <div class="catalog-form-grid">
+                        <label class="catalog-field catalog-field--full">
+                            <span>Private GitHub Release bağlantısı <small>Önerilen</small></span>
+                            <input id="catalogFieldPrivateDownloadUrl" type="url" placeholder="https://github.com/potatorman/arcade-game-vault/releases/download/v1.0.0/game.zip" maxlength="500">
+                            <small class="catalog-field-hint">Yalnızca giriş yapmış CACA üyeleri indirebilir. Dosyayı private potatorman/arcade-game-vault deposunda Release asset olarak yayınlayın ve doğrudan dosya bağlantısını yapıştırın.</small>
+                        </label>
+                        <label class="catalog-field catalog-field--full">
+                            <span>Mevcut public indirme bağlantısı <small>Geçiş yedeği</small></span>
+                            <input id="catalogFieldDownloadUrl" type="url" placeholder="https://github.com/.../releases/download/.../oyun.zip" maxlength="500">
+                            <small class="catalog-field-hint">Private indirme kurulana kadar mevcut public bağlantıyı burada bırakın. Private bağlantı eklenirse CACA önce onu kullanır; bu alan eski indirmeleri korur.</small>
+                        </label>
+                        <label class="catalog-field">
+                            <span>Dosya boyutu</span>
+                            <input id="catalogFieldDownloadSize" type="text" placeholder="Örn. 250 MB" maxlength="30">
+                            <small class="catalog-field-hint">Yalnızca bilgilendirme amaçlıdır.</small>
+                        </label>
+                    </div>
+                </section>
 
-                <label class="catalog-field catalog-toggle-field">
-                    <input id="catalogFieldPublished" type="checkbox" checked>
-                    <span><strong>Yayında</strong> <small>Yayında değilse yalnızca Site Owner görebilir</small></span>
-                </label>
-
-                <p id="catalogEditStatus" class="catalog-edit-status" role="status" aria-live="polite"></p>
-
-                <div class="catalog-edit-actions">
-                    <button id="catalogSaveButton" class="primary-button" type="button">Kaydet</button>
-                    <button id="catalogEditCancelButton" class="secondary-button" type="button">Vazgeç</button>
-                </div>
+                <section class="catalog-form-section">
+                    <div class="catalog-form-section-heading">
+                        <span>03</span>
+                        <div><strong>Görünürlük</strong><small>Kapak ve yayın durumu</small></div>
+                    </div>
+                    <div class="catalog-form-grid">
+                        <label class="catalog-field catalog-field--full">
+                            <span>Kapak görseli bağlantısı <small>İsteğe bağlı</small></span>
+                            <input id="catalogFieldCoverUrl" type="url" placeholder="https://..." maxlength="500">
+                        </label>
+                        <label class="catalog-toggle-field catalog-field--full">
+                            <input id="catalogFieldPublished" type="checkbox" checked>
+                            <span><strong>Oyunu yayınla</strong><small>Kapalıysa oyunu yalnızca Site Owner görebilir.</small></span>
+                        </label>
+                    </div>
+                </section>
             </div>
+
+            <footer class="catalog-edit-footer">
+                <p id="catalogEditStatus" class="catalog-edit-status" role="status" aria-live="polite"></p>
+                <div class="catalog-edit-actions">
+                    <button id="catalogEditCancelButton" class="secondary-button" type="button">Vazgeç</button>
+                    <button id="catalogSaveButton" class="primary-button" type="button">Oyunu kaydet</button>
+                </div>
+            </footer>
         </div>
     </dialog>
 </div>`;
@@ -286,8 +309,8 @@ function openEditDialog(gameId = null) {
         $("catalogFieldLobbyEnabled").checked = entry.lobbyEnabled;
         $("catalogFieldModule").value = entry.module || "";
         $("catalogFieldDownloadUrl").value = entry.downloadUrl || "";
+        $("catalogFieldPrivateDownloadUrl").value = entry.privateDownloadUrl || "";
         $("catalogFieldDownloadSize").value = entry.downloadSize || "";
-        $("catalogFieldSysReq").value = entry.systemRequirements || "";
         $("catalogFieldCoverUrl").value = entry.coverUrl || "";
         $("catalogFieldPublished").checked = entry.published;
     } else {
@@ -304,8 +327,8 @@ function openEditDialog(gameId = null) {
         $("catalogFieldLobbyEnabled").checked = false;
         $("catalogFieldModule").value = "";
         $("catalogFieldDownloadUrl").value = "";
+        $("catalogFieldPrivateDownloadUrl").value = "";
         $("catalogFieldDownloadSize").value = "";
-        $("catalogFieldSysReq").value = "";
         $("catalogFieldCoverUrl").value = "";
         $("catalogFieldPublished").checked = true;
     }
@@ -352,8 +375,8 @@ async function saveEntry() {
         lobbyEnabled: type === "browser" && $("catalogFieldLobbyEnabled").checked,
         module: type === "browser" ? ($("catalogFieldModule").value.trim() || null) : null,
         downloadUrl: type !== "browser" ? ($("catalogFieldDownloadUrl").value.trim() || null) : null,
+        privateDownloadUrl: type !== "browser" ? ($("catalogFieldPrivateDownloadUrl").value.trim() || null) : null,
         downloadSize: type !== "browser" ? ($("catalogFieldDownloadSize").value.trim() || null) : null,
-        systemRequirements: type !== "browser" ? ($("catalogFieldSysReq").value.trim() || null) : null
     };
 
     const validationError = validateCatalogEntry(data);
