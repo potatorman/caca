@@ -9048,3 +9048,17 @@ dialog.catalog-edit-dialog[open] {
         height: 118px;
     }
 }
+
+
+/* Keep the downloadable library inside the Games workspace scroll area. */
+.workspace-layout.is-games-workspace .games-view {
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #385675 transparent;
+}
+
+.workspace-layout.is-games-workspace .games-downloads-section {
+    position: relative;
+    z-index: 1;
+}
