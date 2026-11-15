@@ -16,7 +16,7 @@ The GitHub token is stored only as a Cloudflare encrypted secret. It is never se
 ## Important migration safety
 
 - Keep `potatorman/arcade-game-zips` **public** for now. Existing public Release URLs must continue working.
-- Create a separate private repository named `potatorman/arcade-game-vault`.
+- Create a separate private repository named `potatorman/game-vault`.
 - Upload copies of game archives to private Releases. Do not delete the old public assets during setup.
 - Existing catalog records keep using their current `downloadUrl` when `privateDownloadUrl` is empty.
 - A catalog record switches to the private route only when its `privateDownloadUrl` field is filled in and saved.
@@ -30,7 +30,7 @@ The GitHub token is stored only as a Cloudflare encrypted secret. It is never se
 On GitHub, create:
 
 - Owner: `potatorman`
-- Repository: `arcade-game-vault`
+- Repository: `game-vault`
 - Visibility: **Private**
 - Initialize it with a README if GitHub asks whether to initialize the repository.
 
@@ -41,7 +41,7 @@ This is a separate repository. Do not convert `arcade-game-zips` to private yet.
 In GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens:
 
 - Resource owner: `potatorman`
-- Repository access: **Only select repositories** → `arcade-game-vault`
+- Repository access: **Only select repositories** → `game-vault`
 - Repository permissions: **Contents: Read-only**
 - No Issues, Pull requests, Actions, Administration or other permissions are required.
 - Give the token an expiry you can maintain and rotate it before expiry.
@@ -62,7 +62,7 @@ Do not put the token in `wrangler.jsonc`, GitHub source files, Firestore or brow
 The Worker configuration already declares these non-secret variables in production and Preview environments:
 
 - `GAME_RELEASES_OWNER=potatorman`
-- `GAME_RELEASES_REPO=arcade-game-vault`
+- `GAME_RELEASES_REPO=game-vault`
 
 The existing `FIREBASE_SERVICE_ACCOUNT_JSON` and `CACA_TICKET_SECRET` secrets are reused. No additional Firebase roles or paid storage service are required for this download path.
 
@@ -89,13 +89,13 @@ The Worker should report its current health response. A successful health check 
 
 For every game archive:
 
-1. Open `potatorman/arcade-game-vault`.
+1. Open `potatorman/game-vault`.
 2. Create a published GitHub Release with a unique tag, for example `browserquest-v1.0.0`.
 3. Attach the ZIP as a Release asset and publish.
 4. Copy the direct asset URL, not the Release page URL. It should look like:
 
 ```
-https://github.com/potatorman/arcade-game-vault/releases/download/browserquest-v1.0.0/BrowserQuest-v1.0.0.zip
+https://github.com/potatorman/game-vault/releases/download/browserquest-v1.0.0/BrowserQuest-v1.0.0.zip
 ```
 
 Each individual GitHub Release asset must be smaller than 2 GiB.
