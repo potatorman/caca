@@ -113,7 +113,7 @@ function buildAdminHTML() {
                     </div>
                     <div class="catalog-form-grid">
                         <label class="catalog-field catalog-field--full">
-                            <span>Private GitHub Release bağlantısı <small>Önerilen</small></span>
+                            <span>Private GitHub Release bağlantısı <small>Zorunlu</small></span>
                             <input id="catalogFieldPrivateDownloadUrl" type="url" placeholder="https://github.com/potatorman/game-vault/releases/download/v1.0.0/game.zip" maxlength="500">
                             <small class="catalog-field-hint">CACA hesabı ve arşiv parolası gerekir. ZIP dosyasını private potatorman/game-vault deposunda Release asset olarak yayınlayıp doğrudan dosya bağlantısını yapıştırın.</small>
                         </label>

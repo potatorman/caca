@@ -125,6 +125,7 @@ Use a test downloadable game first:
 
 - [ ] Its private Release exists and contains the exact ZIP asset.
 - [ ] The Cloudflare Worker has `GITHUB_RELEASES_TOKEN` as an encrypted secret.
+- [ ] The Cloudflare Worker has `GAME_ARCHIVE_PASSWORD` as an encrypted secret.
 - [ ] A signed-in CACA member with the correct archive password receives an eight-hour access ticket and can download the ZIP.
 - [ ] A wrong password is rejected by the Worker.
 - [ ] An archive-access ticket cannot be used by a different Firebase UID.
