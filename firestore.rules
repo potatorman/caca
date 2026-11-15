@@ -2072,6 +2072,14 @@ service cloud.firestore {
 
     }
 
+    match /gamesCatalog/{gameId} {
+      allow get, list: if signedIn();
+      allow create, update: if isSiteOwner()
+        && request.resource.data.type in ['browser', 'download', 'download-mp']
+        && request.resource.data.published is bool;
+      allow delete: if isSiteOwner();
+    }
+
     match /roomInvites/{inviteCode} {
       // A signed-in user may look up an exact invite code to join a room.
       allow get: if signedIn();
