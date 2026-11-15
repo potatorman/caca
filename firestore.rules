@@ -2073,7 +2073,7 @@ service cloud.firestore {
     }
 
     match /gamesCatalog/{gameId} {
-      allow get, list: if signedIn();
+      allow get, list: if isSiteOwner() || (signedIn() && resource.data.published == true);
       allow create, update: if isSiteOwner()
         && request.resource.data.type in ['browser', 'download', 'download-mp']
         && request.resource.data.published is bool;
