@@ -746,11 +746,17 @@ async function streamPrivateGameDownload(request, env, url) {
         return json({ error: "Private game download metadata is invalid." }, 400);
     }
 
-    const token = typeof env.GITHUB_RELEASES_TOKEN === "string"
-        ? env.GITHUB_RELEASES_TOKEN.trim()
-        : "";
-    if (!token) {
-        return json({ error: "Private game downloads are not configured on the CACA Worker." }, 503);
+    // Re-check repository visibility and the published release asset at
+    // redemption time, not only when the ticket was first issued.
+    const currentAsset = await getPrivateReleaseAsset(env, parsedUrl);
+    if (currentAsset.error) {
+        return json({ error: currentAsset.error }, currentAsset.status);
+    }
+    if (
+        Number(currentAsset.asset.id) !== Number(ticket.assetId) ||
+        currentAsset.asset.name !== ticket.filename
+    ) {
+        return json({ error: "The private game release asset changed. Request a new download link." }, 409);
     }
 
     const range = request.headers.get("Range") || "";
