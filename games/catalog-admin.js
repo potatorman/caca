@@ -140,9 +140,14 @@ function buildAdminHTML() {
                     </div>
                     <div class="catalog-form-grid">
                         <label class="catalog-field catalog-field--full">
-                            <span>İndirme bağlantısı</span>
+                            <span>Private GitHub Release bağlantısı <small>Önerilen</small></span>
+                            <input id="catalogFieldPrivateDownloadUrl" type="url" placeholder="https://github.com/potatorman/arcade-game-vault/releases/download/v1.0.0/game.zip" maxlength="500">
+                            <small class="catalog-field-hint">Yalnızca giriş yapmış CACA üyeleri indirebilir. Dosyayı private potatorman/arcade-game-vault deposunda Release asset olarak yayınlayın ve doğrudan dosya bağlantısını yapıştırın.</small>
+                        </label>
+                        <label class="catalog-field catalog-field--full">
+                            <span>Mevcut public indirme bağlantısı <small>Geçiş yedeği</small></span>
                             <input id="catalogFieldDownloadUrl" type="url" placeholder="https://github.com/.../releases/download/.../oyun.zip" maxlength="500">
-                            <small class="catalog-field-hint">GitHub Release sayfasını değil, doğrudan ZIP dosyasının bağlantısını ekleyin. Önerilen depo: potatorman/arcade-game-zips. Dosya 2 GiB'den küçük olmalıdır.</small>
+                            <small class="catalog-field-hint">Private indirme kurulana kadar mevcut public bağlantıyı burada bırakın. Private bağlantı eklenirse CACA önce onu kullanır; bu alan eski indirmeleri korur.</small>
                         </label>
                         <label class="catalog-field">
                             <span>Dosya boyutu</span>
@@ -304,6 +309,7 @@ function openEditDialog(gameId = null) {
         $("catalogFieldLobbyEnabled").checked = entry.lobbyEnabled;
         $("catalogFieldModule").value = entry.module || "";
         $("catalogFieldDownloadUrl").value = entry.downloadUrl || "";
+        $("catalogFieldPrivateDownloadUrl").value = entry.privateDownloadUrl || "";
         $("catalogFieldDownloadSize").value = entry.downloadSize || "";
         $("catalogFieldCoverUrl").value = entry.coverUrl || "";
         $("catalogFieldPublished").checked = entry.published;
@@ -321,6 +327,7 @@ function openEditDialog(gameId = null) {
         $("catalogFieldLobbyEnabled").checked = false;
         $("catalogFieldModule").value = "";
         $("catalogFieldDownloadUrl").value = "";
+        $("catalogFieldPrivateDownloadUrl").value = "";
         $("catalogFieldDownloadSize").value = "";
         $("catalogFieldCoverUrl").value = "";
         $("catalogFieldPublished").checked = true;
@@ -368,6 +375,7 @@ async function saveEntry() {
         lobbyEnabled: type === "browser" && $("catalogFieldLobbyEnabled").checked,
         module: type === "browser" ? ($("catalogFieldModule").value.trim() || null) : null,
         downloadUrl: type !== "browser" ? ($("catalogFieldDownloadUrl").value.trim() || null) : null,
+        privateDownloadUrl: type !== "browser" ? ($("catalogFieldPrivateDownloadUrl").value.trim() || null) : null,
         downloadSize: type !== "browser" ? ($("catalogFieldDownloadSize").value.trim() || null) : null,
     };
 
