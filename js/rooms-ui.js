@@ -2,6 +2,7 @@ import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY, getGameDefinition } from "../games/registry.js";
+import { getMergedCatalog, subscribeToCatalog } from "../games/catalog.js";
 import { UNO_WORKER_URL } from "../games/uno/worker-config.js";
 import {
     reconcileMatchPlayers as reconcileUnoMatchPlayers,
@@ -142,6 +143,8 @@ let roomGameOpenGeneration = 0;
 let gameSessionResultsTimer = null;
 let gameSessionResultsTimerKey = "";
 let selectedGameId = GAME_REGISTRY.find((game) => game.lobbyEnabled !== false)?.id || "";
+let _firestoreCatalogEntries = [];
+let _catalogUnsubscribe = null;
 const gameSessionStartInProgress = new Set();
 let gameSessionCountdownTimer = null;
 let gameSessionCountdownEndAt = null;
@@ -1555,7 +1558,7 @@ function renderGameCatalog() {
     const createButton = $("createGameSessionButton");
     if (!grid || !createButton) return;
 
-    const games = GAME_REGISTRY.filter((game) => game.lobbyEnabled !== false);
+    const games = getMergedCatalog(_firestoreCatalogEntries).filter((game) => game.lobbyEnabled !== false);
     if (!games.some((game) => game.id === selectedGameId)) selectedGameId = games[0]?.id || "";
     grid.replaceChildren(...games.map((game) => {
         const button = document.createElement("button");
@@ -2616,6 +2619,12 @@ function setWorkspaceTab(tab) {
         if (!gameCenterScopeListening) {
             listenToGameCenter(GAME_SCOPE_ID);
             gameCenterScopeListening = true;
+        }
+        if (!_catalogUnsubscribe) {
+            _catalogUnsubscribe = subscribeToCatalog(db, (entries) => {
+                _firestoreCatalogEntries = entries;
+                renderGameCatalog();
+            });
         }
         renderGameCenter();
         renderOpenGameLobbies();
