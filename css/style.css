@@ -9447,3 +9447,29 @@ dialog.catalog-edit-dialog[open] {
     background: rgba(91, 160, 231, .23);
     border-color: rgba(143, 195, 245, .48);
 }
+
+
+/* Confirmation shown before switching persistent game lobbies. */
+.game-lobby-switch-actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    margin-top: 5px;
+}
+.game-lobby-switch-actions button {
+    min-width: 130px;
+    min-height: 42px;
+    padding: 0 18px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 800;
+}
+.game-lobby-switch-actions .moderation-notice-close { margin-top: 0; }
+.game-lobby-switch-stay {
+    color: #dce8f8;
+    background: #202b3d;
+    border: 1px solid #435672;
+}
+.game-lobby-switch-stay:hover { background: #2a3a52; }
