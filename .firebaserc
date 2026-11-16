@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "default": "caca-dfe6c"
+  },
+  "targets": {
+    "caca-dfe6c": {
+      "hosting": {
+        "main": [
+          "caca-dfe6c"
+        ],
+        "rendechat": [
+          "rendechat"
+        ]
+      }
+    }
+  }
+}
