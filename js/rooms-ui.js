@@ -333,6 +333,7 @@ function stopMemberListener() {
     messageRenderVersion += 1;
     activeRoomId = null;
     isGlobalChatActive = false;
+    syncGlobalChatOwnerControls();
     $("roomView")?.classList.remove("is-global-chat");
     $("globalChatNavButton")?.classList.remove("active");
     if ($("leaveGlobalChatButton")) $("leaveGlobalChatButton").hidden = true;
@@ -5187,10 +5188,23 @@ function listenToMembers(roomId, ownerId) {
             const renderVersion = ++memberRenderVersion;
             const membersList = $("membersList");
             const heading = $("membersHeading");
+            const previousOwnMemberRecord = currentRoomMemberRecord;
+            const previousOwnRole = previousOwnMemberRecord?.role || null;
+            const previousOwnExpiry = getAdminExpiryMs(previousOwnMemberRecord);
             const ownMemberSnapshot = snapshot.docs.find(memberDoc => memberDoc.id === currentUser.uid);
             currentRoomMemberRecord = ownMemberSnapshot
                 ? { id: ownMemberSnapshot.id, ...ownMemberSnapshot.data() }
                 : null;
+            const currentOwnRole = currentRoomMemberRecord?.role || null;
+            const currentOwnExpiry = getAdminExpiryMs(currentRoomMemberRecord);
+            if (
+                previousOwnMemberRecord &&
+                (previousOwnRole !== currentOwnRole || previousOwnExpiry !== currentOwnExpiry)
+            ) {
+                // Refresh existing message action menus immediately when this
+                // user's admin permission is granted, renewed, or removed.
+                listenToMessages(roomId);
+            }
             syncCurrentAdminExpiry(roomId);
             if (activeRoomOwnerId === currentUser?.uid) {
                 scheduleOwnerAdminExpiryCleanup(
