@@ -119,6 +119,7 @@ export async function openStarfallGame({
     let resultAutoReturnTimer = null;
     let boardRevealTimer = null;
     let boardRevealStarted = false;
+    let boardRevealHasRun = false;
     let lastMoveKey = "";
 
     function showMessage(message, isError = false) {
@@ -366,9 +367,10 @@ export async function openStarfallGame({
         connection = await connectToMatch(db, roomId, session.lobbyId, round, uid, {
             onState(nextState) {
                 if (closed || !nextState) return;
-                const firstPlayingState = !state && nextState.status === "playing";
+                const firstPlayingState = !boardRevealHasRun && nextState.status === "playing";
                 state = nextState;
-                if (firstPlayingState && !boardRevealStarted) {
+                if (firstPlayingState) {
+                    boardRevealHasRun = true;
                     boardRevealStarted = true;
                     role("board").classList.add("is-revealing");
                     boardRevealTimer = setTimeout(() => {
