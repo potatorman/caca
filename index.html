@@ -211,15 +211,73 @@
                         </aside>
 
                         <main class="workspace-main">
-                            <section id="dashboardView" class="dashboard-home">
-                                <div class="dashboard-welcome-card">
-                                    <div class="welcome-icon"><span class="rendechat-cheese" aria-hidden="true">🧀</span></div>
-                                    <span class="small-label">RENDECHAT WORKSPACE</span>
-                                    <h1>Sohbete hazır mısın?</h1>
-                                    <p>Soldan bir oda seçerek sohbete katıl. Henüz bir odan yoksa yeni bir oda oluşturabilir veya davet koduyla katılabilirsin.</p>
-                                    <div class="welcome-hints">
-                                        <div><span class="hint-dot"></span> Gerçek zamanlı mesajlaşma</div>
-                                        <div><span class="hint-dot"></span> Oda üyeleriyle tek yerde buluş</div>
+                            <section id="dashboardView" class="dashboard-home" aria-labelledby="dashboardHomeTitle">
+                                <div class="dashboard-home-layout">
+                                    <section class="dashboard-hero" aria-labelledby="dashboardHomeTitle">
+                                        <div class="dashboard-hero-copy">
+                                            <span class="small-label">RENDECHAT WORKSPACE</span>
+                                            <h1 id="dashboardHomeTitle">Burası senin alanın.</h1>
+                                            <p>İnsanlarınla aynı yerde buluş. Topluluk sohbetine katıl, kendi odanı oluştur ve birlikte oyun oynamak için hazır ol.</p>
+                                            <div class="dashboard-hero-tags" aria-label="RendeChat özellikleri">
+                                                <span><i aria-hidden="true">✦</i> Canlı sohbet</span>
+                                                <span><i aria-hidden="true">◇</i> Özel alanlar</span>
+                                                <span><i aria-hidden="true">⌁</i> Birlikte oyun</span>
+                                            </div>
+                                        </div>
+                                        <div class="dashboard-hero-visual" aria-hidden="true">
+                                            <span class="dashboard-hero-orbit dashboard-hero-orbit-one"></span>
+                                            <span class="dashboard-hero-orbit dashboard-hero-orbit-two"></span>
+                                            <span class="dashboard-hero-cheese">🧀</span>
+                                            <span class="dashboard-hero-wordmark">RENDECHAT</span>
+                                        </div>
+                                    </section>
+
+                                    <section class="dashboard-discover" aria-labelledby="dashboardDiscoverTitle">
+                                        <div class="dashboard-section-heading">
+                                            <div>
+                                                <span class="small-label">KEŞFET</span>
+                                                <h2 id="dashboardDiscoverTitle">Buradan başlayabilirsin.</h2>
+                                                <p>RendeChat'te insanlarınla yapabileceklerin.</p>
+                                            </div>
+                                            <span class="dashboard-section-note">YOUR SPACE. YOUR PEOPLE.</span>
+                                        </div>
+
+                                        <div class="dashboard-feature-grid">
+                                            <article class="dashboard-feature-card">
+                                                <div class="dashboard-feature-top">
+                                                    <span class="dashboard-feature-icon" aria-hidden="true">◎</span>
+                                                    <span class="dashboard-feature-number">01</span>
+                                                </div>
+                                                <span class="dashboard-feature-label">TOPLULUK</span>
+                                                <h3>Global Sohbet</h3>
+                                                <p>RendeChat topluluğuna katıl, herkesle aynı yerde sohbet et ve yeni insanlarla tanış.</p>
+                                            </article>
+
+                                            <article class="dashboard-feature-card">
+                                                <div class="dashboard-feature-top">
+                                                    <span class="dashboard-feature-icon" aria-hidden="true">◇</span>
+                                                    <span class="dashboard-feature-number">02</span>
+                                                </div>
+                                                <span class="dashboard-feature-label">SANA AİT</span>
+                                                <h3>Özel Odalar</h3>
+                                                <p>Arkadaşların için kendi alanını oluştur veya sana gönderilen davet koduyla bir odaya katıl.</p>
+                                            </article>
+
+                                            <article class="dashboard-feature-card">
+                                                <div class="dashboard-feature-top">
+                                                    <span class="dashboard-feature-icon" aria-hidden="true">⌁</span>
+                                                    <span class="dashboard-feature-number">03</span>
+                                                </div>
+                                                <span class="dashboard-feature-label">BİRLİKTE</span>
+                                                <h3>Oyun Zamanı</h3>
+                                                <p>Oyunlar bölümünü keşfet, bir oyun seç ve arkadaşlarınla birlikte vakit geçir.</p>
+                                            </article>
+                                        </div>
+                                    </section>
+
+                                    <div class="dashboard-quick-tip" role="note">
+                                        <span class="dashboard-tip-icon" aria-hidden="true">✦</span>
+                                        <p><strong>Hızlı başlangıç:</strong> Sol menüden Global Sohbet'e geçebilir, yeni bir oda oluşturabilir veya davet koduyla katılabilirsin.</p>
                                     </div>
                                 </div>
                             </section>
