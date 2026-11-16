@@ -304,14 +304,17 @@ export class PuzzleRoom extends DurableObject {
     }
 
     async finishMatch(match, now = Date.now()) {
-        if (match.status === "results") return;
-        match.status = "results";
-        match.phase = "results";
-        match.phaseStartedAt = now;
-        match.phaseEndsAt = null;
-        match.finishedAt = now;
-        const highest = Math.max(0, ...match.activePlayerIds.map((uid) => Number(match.scores[uid]) || 0));
-        match.winnerIds = match.activePlayerIds.filter((uid) => (Number(match.scores[uid]) || 0) === highest);
+        // advancePuzzleRound() may already have moved the final round to results.
+        // Always sync that state to Firestore and broadcast it, exactly once per call.
+        if (match.status !== "results") {
+            match.status = "results";
+            match.phase = "results";
+            match.phaseStartedAt = now;
+            match.phaseEndsAt = null;
+            match.finishedAt = now;
+            const highest = Math.max(0, ...match.activePlayerIds.map((uid) => Number(match.scores[uid]) || 0));
+            match.winnerIds = match.activePlayerIds.filter((uid) => (Number(match.scores[uid]) || 0) === highest);
+        }
         await this.ctx.storage.put("match", match);
         await this.syncFinishedResult(match);
         await this.scheduleAlarm(match);
