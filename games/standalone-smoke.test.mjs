@@ -8,6 +8,7 @@ function installBrowserMocks() {
     const listeners = new Map();
     const pendingFrames = new Map();
     let nextFrameId = 1;
+    let frameTime = 0;
 
     const canvas = {
         width: 800,
@@ -54,11 +55,13 @@ function installBrowserMocks() {
         window: globalThis.window,
         Image: globalThis.Image,
         requestAnimationFrame: globalThis.requestAnimationFrame,
-        cancelAnimationFrame: globalThis.cancelAnimationFrame
+        cancelAnimationFrame: globalThis.cancelAnimationFrame,
+        performance: globalThis.performance
     };
 
     globalThis.document = document;
     globalThis.window = { screen: { availHeight: 900 } };
+    globalThis.performance = { now: () => 0 };
     globalThis.Image = class {
         constructor() {
             this.width = 128;
@@ -78,6 +81,20 @@ function installBrowserMocks() {
     return {
         listeners,
         pendingFrames,
+        dispatchKeyboard(type, keyCode) {
+            const event = { type, keyCode, which: keyCode, preventDefault() {} };
+            document.dispatchEvent(event);
+        },
+        runFrames(count) {
+            for (let index = 0; index < count; index += 1) {
+                const next = pendingFrames.entries().next().value;
+                if (!next) break;
+                const [id, callback] = next;
+                pendingFrames.delete(id);
+                frameTime += 17;
+                callback(frameTime);
+            }
+        },
         restore() {
             for (const [key, value] of Object.entries(previous)) {
                 if (value === undefined) delete globalThis[key];
@@ -94,6 +111,11 @@ test("Breakout starts a frame loop and releases it and its key listeners on clos
         game.start();
         assert.equal(mock.pendingFrames.size, 1, "one animation frame should be scheduled");
         assert.equal(mock.listeners.get("keyup")?.size, 1, "welcome controls should be registered");
+
+        mock.dispatchKeyboard("keyup", 49);
+        assert.equal(mock.listeners.get("keydown")?.size, 1, "court controls should be registered after starting");
+        mock.runFrames(8);
+        assert.equal(mock.pendingFrames.size, 1, "gameplay should keep its animation loop alive");
 
         game.stop();
         assert.equal(mock.pendingFrames.size, 0, "animation frame should be cancelled");
@@ -114,6 +136,11 @@ test("Space Invaders starts a frame loop and releases it and its key listeners o
         game.start();
         assert.equal(mock.pendingFrames.size, 1, "one animation frame should be scheduled");
         assert.ok((mock.listeners.get("keyup")?.size || 0) > 0, "welcome controls should be registered");
+
+        mock.dispatchKeyboard("keyup", 49);
+        mock.runFrames(175);
+        assert.equal(mock.pendingFrames.size, 1, "the active gameplay state should continue rendering");
+        assert.ok((mock.listeners.get("keydown")?.size || 0) > 0, "gameplay keyboard controls should be registered");
 
         game.stop();
         assert.equal(mock.pendingFrames.size, 0, "animation frame should be cancelled");
