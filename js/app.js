@@ -168,7 +168,7 @@ function showLoggedIn(
     // Hide left branding panel
     document.body.classList.add("logged-in");
 
-    console.log("CACA: Dashboard opened.");
+    console.log("RendeChat: Dashboard opened.");
 }
 
 // SHOW LOGIN
@@ -182,7 +182,7 @@ function showLoggedOut() {
     // Restore left branding panel
     document.body.classList.remove("logged-in");
 
-    console.log("CACA: Login screen opened.");
+    console.log("RendeChat: Login screen opened.");
 }
 
 // SWITCH LOGIN / REGISTER
@@ -205,7 +205,7 @@ function switchMode(mode) {
 
     $("formDescription").textContent = isLogin
         ? "Hesabına giriş yap ve sohbete devam et."
-        : "Yeni hesabını oluştur ve CACA'ya katıl.";
+        : "Yeni hesabını oluştur ve RendeChat'e katıl.";
 
     showAuthMessage("");
 }
