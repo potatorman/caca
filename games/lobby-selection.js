@@ -12,14 +12,17 @@ export function isUserInGameLobby(session, userId) {
             .some((field) => Array.isArray(session[field]) && session[field].includes(userId));
 }
 
-export function selectGameLobbyForUser(sessions, userId, previouslySelectedLobbyId = "") {
+export function selectGameLobbyForUser(sessions, userId, previouslySelectedLobbyId = "", dismissedAutoOpenLobbyId = "") {
     const active = [...sessions.values()].filter(isActiveGameLobby);
     const joinedActiveLobby = active.find((session) => isUserInGameLobby(session, userId)) || null;
     const ownedActiveLobby = active.find((session) => session.hostId === userId) || null;
     const explicitSelection = previouslySelectedLobbyId
         ? sessions.get(previouslySelectedLobbyId)
         : null;
-    const selectedSession = joinedActiveLobby ||
+    const autoSelectedSession = joinedActiveLobby?.lobbyId === dismissedAutoOpenLobbyId
+        ? null
+        : joinedActiveLobby;
+    const selectedSession = autoSelectedSession ||
         (isActiveGameLobby(explicitSelection) ? explicitSelection : null);
 
     return { joinedActiveLobby, ownedActiveLobby, selectedSession };
