@@ -150,6 +150,8 @@ let observedUnoRosterRoundKey = "";
 let observedUnoRosterIds = [];
 let observedVampirRosterRoundKey = "";
 let observedVampirRosterIds = [];
+let observedPuzzleRosterRoundKey = "";
+let observedPuzzleRosterIds = [];
 let activeRoomGameKey = "";
 let openingRoomGameKey = "";
 let roomGameOpenGeneration = 0;
@@ -2882,6 +2884,39 @@ function reconcileVampirKoyluRosterChange(roomId, sessionData) {
         });
 }
 
+function reconcilePuzzleRosterChange(roomId, sessionData) {
+    if (!sessionData ||
+        !PUZZLE_GAME_IDS.has(sessionData.gameId) ||
+        sessionData.status !== "playing" ||
+        !currentUser) return;
+
+    const roundKey = roomId + ":" + sessionData.lobbyId + ":" +
+        String(sessionData.round) + ":" + sessionData.gameId;
+    const currentIds = Array.isArray(sessionData.matchPlayerIds)
+        ? sessionData.matchPlayerIds
+        : [];
+    if (observedPuzzleRosterRoundKey !== roundKey) {
+        observedPuzzleRosterRoundKey = roundKey;
+        observedPuzzleRosterIds = [...currentIds];
+        return;
+    }
+
+    const previousIds = observedPuzzleRosterIds;
+    observedPuzzleRosterIds = [...currentIds];
+    const onlyPlayersLeft = currentIds.length < previousIds.length &&
+        currentIds.every((id) => previousIds.includes(id));
+    if (!onlyPlayersLeft || !currentIds.length || currentUser.uid !== currentIds[0]) return;
+
+    reconcilePuzzleMatchPlayers(
+        db, roomId, sessionData.lobbyId, sessionData.round, sessionData.gameId, currentUser.uid
+    ).catch((error) => {
+        console.warn("RendeChat puzzle roster reconciliation failed:", error);
+        if (GAME_SCOPE_ID === roomId) {
+            setGameCenterStatus("Oyuncu ayrılışı eşitlenemedi: " + (error.message || "Bilinmeyen hata"), true);
+        }
+    });
+}
+
 function listenToGameCenter(roomId) {
     roomGameOpenGeneration += 1;
     openingRoomGameKey = "";
@@ -2889,6 +2924,8 @@ function listenToGameCenter(roomId) {
     observedUnoRosterIds = [];
     observedVampirRosterRoundKey = "";
     observedVampirRosterIds = [];
+    observedPuzzleRosterRoundKey = "";
+    observedPuzzleRosterIds = [];
     clearGameSessionCountdown();
     clearGameSessionResultsTimer();
     if (unsubscribeGameSession) unsubscribeGameSession();
@@ -2981,6 +3018,7 @@ function listenToGameCenter(roomId) {
             recordGameLobbyCooldown(roomId, selected);
             reconcileUnoRosterChange(roomId, selected);
             reconcileVampirKoyluRosterChange(roomId, selected);
+            reconcilePuzzleRosterChange(roomId, selected);
             syncGameSessionCountdown(roomId, selected);
             syncGameSessionResultsReset(roomId, selected);
             for (const session of next.values()) maybeStartGameWhenReady(roomId, session);
