@@ -293,13 +293,21 @@ export async function openStarfallGame({
         }
     }
 
+    function disposeView() {
+        if (closed) return;
+        closed = true;
+        if (messageTimer) clearTimeout(messageTimer);
+        connection?.close();
+        root.remove();
+    }
+
     async function returnToLobby() {
         if (busy || closed || !onReturnToLobby) return;
         busy = true;
         action("return").disabled = true;
         try {
             await onReturnToLobby();
-            closeView();
+            disposeView();
         } catch (error) {
             showMessage(error.message || "Lobiye dönülemedi.", true);
             busy = false;
@@ -331,10 +339,7 @@ export async function openStarfallGame({
             await returnToLobby();
             return;
         }
-        closed = true;
-        if (messageTimer) clearTimeout(messageTimer);
-        connection?.close();
-        root.remove();
+        disposeView();
     }
 
     action("close").addEventListener("click", () => void closeView());
