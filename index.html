@@ -287,7 +287,7 @@
                                     <div class="room-heading-group">
                                         <button id="backToDashboard" class="back-button" type="button" title="Oda seçimine dön">← Odalar</button>
                                         <div class="room-heading-copy">
-                                            <span class="small-label">ACTIVE ROOM</span>
+                                            <span class="small-label">AKTİF SOHBET</span>
                                             <h2 id="activeRoomName">Oda adı</h2>
                                         </div>
                                         <div class="invite-code-box compact-code">
@@ -297,7 +297,7 @@
                                     </div>
 
                                     <div class="room-toolbar-actions">
-                                        <button id="membersToggleButton" class="members-toggle-button" type="button" aria-controls="roomMembersPanel" aria-expanded="true">Üyeler <span aria-hidden="true">▥</span></button>
+                                        <button id="membersToggleButton" class="members-toggle-button" type="button" aria-controls="roomMembersPanel" aria-expanded="true" title="Üye panelini göster veya gizle">Üyeler <span aria-hidden="true">▥</span></button>
                                         <button id="roomManagementButton" class="room-management-button" type="button" hidden>Yönetim Paneli</button>
                                         <button id="adminPanelButton" class="room-management-button admin-panel-button" type="button" hidden>Admin Panel</button>
                                         <button id="leaveGlobalChatButton" class="danger-button global-chat-leave-button" type="button" hidden>Global Chat'tan ayrıl</button>
@@ -640,16 +640,20 @@
                                 </section>
 
                                 <div id="roomChatLayout" class="room-chat-layout">
-                                    <section class="chat-panel">
-                                        <div class="chat-panel-heading">
-                                            <div>
-                                                <strong id="chatPanelTitle">Genel sohbet</strong>
-                                                <span id="chatPanelSubtitle">Bu odadaki herkesle konuş</span>
+                                    <section class="chat-panel" aria-labelledby="chatPanelTitle" aria-describedby="chatPanelSubtitle">
+                                        <header class="chat-panel-heading">
+                                            <div class="chat-heading-main">
+                                                <span class="chat-heading-icon" aria-hidden="true">◎</span>
+                                                <div class="chat-heading-copy">
+                                                    <span class="chat-heading-eyebrow">SOHBET AKIŞI</span>
+                                                    <strong id="chatPanelTitle">Genel sohbet</strong>
+                                                    <span id="chatPanelSubtitle">Bu odadaki herkesle konuş</span>
+                                                </div>
                                             </div>
                                             <span class="chat-live-indicator"><i></i> Canlı</span>
-                                        </div>
+                                        </header>
 
-                                        <div id="chatMessages" class="chat-messages" aria-live="polite" aria-label="Sohbet mesajları">
+                                        <div id="chatMessages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Sohbet mesajları">
                                             <div class="chat-empty-state">
                                                 <div class="chat-empty-icon">✦</div>
                                                 <strong>İlk mesajı sen gönder</strong>
@@ -661,7 +665,7 @@
                                             <textarea id="chatInput" rows="1" wrap="soft" maxlength="2000" placeholder="Mesajını yaz..." aria-label="Mesajını yaz" required></textarea>
                                             <div id="emojiAutocomplete" class="emoji-autocomplete" role="listbox" aria-label="Emoji önerileri" hidden></div>
                                             <div class="composer-footer">
-                                                <span>Enter gönderir · Shift + Enter yeni satır</span>
+                                                <span class="chat-composer-hint">Enter gönderir · Shift + Enter yeni satır</span>
                                                 <div class="composer-actions">
                                                     <div class="emoji-picker-wrap">
                                                         <button id="emojiPickerButton" class="emoji-picker-button" type="button" aria-label="Emoji ekle" aria-expanded="false" aria-controls="emojiPicker" title="Emoji ekle">
@@ -699,7 +703,7 @@
                                         <p id="chatStatus" class="chat-status" role="status" aria-live="polite"></p>
                                     </section>
 
-                                    <aside id="roomMembersPanel" class="members-panel">
+                                    <aside id="roomMembersPanel" class="members-panel" aria-label="Sohbet üyeleri">
                                         <div id="privateMembersContent">
                                             <div class="members-panel-heading">
                                                 <div>
