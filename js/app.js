@@ -196,8 +196,10 @@ function switchMode(mode) {
     registerForm.hidden = isLogin;
 
     loginTab.classList.toggle("active", isLogin);
+    loginTab.setAttribute("aria-pressed", String(isLogin));
 
     registerTab.classList.toggle("active", !isLogin);
+    registerTab.setAttribute("aria-pressed", String(!isLogin));
 
     $("formHeading").textContent = isLogin
         ? "Tekrar hoş geldin."
