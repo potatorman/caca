@@ -300,10 +300,32 @@
                                         <button id="membersToggleButton" class="members-toggle-button" type="button" aria-controls="roomMembersPanel" aria-expanded="true" title="Üye panelini göster veya gizle">Üyeler <span aria-hidden="true">▥</span></button>
                                         <button id="roomManagementButton" class="room-management-button" type="button" hidden>Yönetim Paneli</button>
                                         <button id="adminPanelButton" class="room-management-button admin-panel-button" type="button" hidden>Admin Panel</button>
+                                        <button id="globalChatOwnerPanelButton" class="room-management-button global-chat-owner-button" type="button" hidden>Site Owner Paneli</button>
                                         <button id="leaveGlobalChatButton" class="danger-button global-chat-leave-button" type="button" hidden>Global Chat'tan ayrıl</button>
                                         <button id="leaveRoomButton" class="danger-button" type="button">Odadan çık</button>
                                     </div>
                                 </div>
+
+                                <section id="globalChatOwnerPanel" class="room-management-panel global-chat-owner-panel" role="dialog" aria-modal="true" aria-labelledby="globalChatOwnerPanelTitle" hidden>
+                                    <div class="room-management-card global-chat-owner-card">
+                                        <div class="room-management-heading">
+                                            <div>
+                                                <span class="small-label">GLOBAL CHAT · SITE OWNER</span>
+                                                <h3 id="globalChatOwnerPanelTitle">Global Chat yönetimi</h3>
+                                                <p>Bu panel yalnızca Global Chat geçmişini temizlemek için kullanılır.</p>
+                                            </div>
+                                            <button id="closeGlobalChatOwnerPanelButton" class="icon-button" type="button" aria-label="Site Owner panelini kapat">×</button>
+                                        </div>
+                                        <section class="room-management-section global-chat-owner-clear-section">
+                                            <div>
+                                                <strong>Sohbet geçmişi</strong>
+                                                <p>Global Chat içindeki tüm mesajları siler. Üyelikler ve hesaplar etkilenmez.</p>
+                                            </div>
+                                            <button id="clearGlobalChatHistoryButton" class="room-management-danger-button" type="button">Tüm geçmişi sil</button>
+                                        </section>
+                                        <p id="globalChatOwnerStatus" class="room-management-status" role="status" aria-live="polite"></p>
+                                    </div>
+                                </section>
 
                                 <section id="roomManagementPanel" class="room-management-panel" role="dialog" aria-modal="true" aria-labelledby="roomManagementTitle" hidden>
                                     <div class="room-management-card">

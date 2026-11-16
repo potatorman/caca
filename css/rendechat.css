@@ -3867,3 +3867,82 @@ body.logged-in .archive-view .archive-lock-screen {
     transition: none;
   }
 }
+
+/* Stage 6 — focused site-owner controls inside Global Chat. */
+body.logged-in .global-chat-owner-card {
+  width: min(100%, 560px);
+  color: #f0edff;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(152, 120, 255, .13), transparent 48%),
+    #151521;
+  border-color: rgba(152, 120, 255, .34);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .56), 0 0 0 1px rgba(152, 120, 255, .05);
+}
+
+body.logged-in .global-chat-owner-card .room-management-heading {
+  padding-bottom: 17px;
+}
+
+body.logged-in .global-chat-owner-card .room-management-heading h3 {
+  color: #f3f0ff;
+  font-size: 19px;
+}
+
+body.logged-in .global-chat-owner-card .room-management-heading p {
+  max-width: 390px;
+  color: #a8a3bd;
+}
+
+body.logged-in .global-chat-owner-card .small-label {
+  color: #b9a8ff;
+  letter-spacing: .13em;
+}
+
+body.logged-in .global-chat-owner-clear-section {
+  align-items: center;
+  background: rgba(92, 54, 65, .2);
+  border-color: rgba(204, 104, 132, .23);
+}
+
+body.logged-in .global-chat-owner-clear-section strong {
+  color: #f3e8ed;
+}
+
+body.logged-in .global-chat-owner-clear-section p {
+  max-width: 330px;
+  color: #b5a6af;
+}
+
+body.logged-in .global-chat-owner-clear-section .room-management-danger-button {
+  color: #ffe8ee;
+  background: rgba(151, 57, 84, .3);
+  border-color: rgba(211, 105, 137, .42);
+}
+
+body.logged-in .global-chat-owner-clear-section .room-management-danger-button:hover {
+  background: rgba(177, 65, 98, .42);
+  border-color: rgba(231, 129, 157, .6);
+}
+
+body.logged-in .room-toolbar .global-chat-owner-button {
+  color: #e7deff;
+  background: rgba(152, 120, 255, .14);
+  border-color: rgba(166, 143, 255, .34);
+}
+
+body.logged-in .room-toolbar .global-chat-owner-button:hover {
+  color: #fff;
+  background: rgba(152, 120, 255, .24);
+  border-color: rgba(188, 168, 255, .58);
+}
+
+@media (max-width: 600px) {
+  body.logged-in .global-chat-owner-clear-section {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  body.logged-in .global-chat-owner-clear-section .room-management-danger-button {
+    width: 100%;
+  }
+}

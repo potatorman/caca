@@ -333,6 +333,7 @@ function stopMemberListener() {
     messageRenderVersion += 1;
     activeRoomId = null;
     isGlobalChatActive = false;
+    syncGlobalChatOwnerControls();
     $("roomView")?.classList.remove("is-global-chat");
     $("globalChatNavButton")?.classList.remove("active");
     if ($("leaveGlobalChatButton")) $("leaveGlobalChatButton").hidden = true;
@@ -612,16 +613,52 @@ function startMessageEdit(messageId, originalText, bubble) {
 
 async function deleteChatMessage(messageId) {
     if (!currentUser || (!activeRoomId && !isGlobalChatActive)) return;
-    if (!window.confirm("Bu mesajı kalıcı olarak silmek istiyor musun?")) return;
+
+    const userId = currentUser.uid;
+    const wasGlobalChat = isGlobalChatActive;
+    const roomId = activeRoomId;
+    const messageReference = wasGlobalChat
+        ? doc(db, "globalChatMessages", messageId)
+        : doc(db, "rooms", roomId, "messages", messageId);
 
     try {
-        await deleteDoc(getActiveMessageReference(messageId));
+        const messageSnapshot = await getDoc(messageReference);
+        if (!messageSnapshot.exists()) {
+            showChatStatus("Bu mesaj artık mevcut değil.");
+            return;
+        }
+
+        // Site owners may remove any individual Global Chat message.
+        // In private rooms, creators may remove every message; active admins
+        // may remove member and other admin messages, but not the creator's.
+        const senderId = messageSnapshot.data().senderId;
+        const canDelete = (
+            wasGlobalChat && isSiteOwner
+        ) || senderId === userId || (
+            !wasGlobalChat &&
+            roomId === activeRoomId &&
+            (
+                activeRoomOwnerId === userId ||
+                (isCurrentUserRoomAdmin() && senderId !== activeRoomOwnerId)
+            )
+        );
+
+        if (!canDelete) {
+            showChatStatus("Bu mesajı silme yetkin yok.");
+            return;
+        }
+        if (!window.confirm("Bu mesajı kalıcı olarak silmek istiyor musun?")) return;
+
+        if (currentUser?.uid !== userId ||
+            (wasGlobalChat ? !isGlobalChatActive : activeRoomId !== roomId)) return;
+
+        await deleteDoc(messageReference);
         showChatStatus("Mesaj silindi.", true);
     } catch (error) {
         console.error("CACA message delete failed:", error);
         showChatStatus(
             error.code === "permission-denied"
-                ? "Mesaj silme izni yok. Firestore Rules içindeki mesaj delete iznini kontrol et."
+                ? "Mesajı silme iznin yok. Oda sahibi veya aktif oda yöneticisi olman gerekir."
                 : "Mesaj silinemedi: " + (error.message || "Bilinmeyen hata")
         );
     }
@@ -755,6 +792,86 @@ async function clearRoomChatHistory() {
     }
 }
 $("clearChatHistoryButton").addEventListener("click", clearRoomChatHistory);
+
+async function clearGlobalChatHistory() {
+    if (!currentUser || !isSiteOwner || !isGlobalChatActive) return;
+
+    const ownerUid = currentUser.uid;
+    if (!window.confirm(
+        "Global Chat içindeki TÜM mesajları kalıcı olarak silmek istiyor musun?\n\n" +
+        "Üyelikler ve hesaplar etkilenmez. Bu işlem geri alınamaz."
+    )) return;
+
+    const button = $("clearGlobalChatHistoryButton");
+    const status = $("globalChatOwnerStatus");
+    const oldLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Geçmiş siliniyor...";
+    status.textContent = "Global Chat mesajları siliniyor...";
+    let deletedCount = 0;
+
+    try {
+        while (isGlobalChatActive && currentUser?.uid === ownerUid) {
+            const oldestMessages = await getDocs(query(
+                collection(db, "globalChatMessages"),
+                orderBy("createdAt", "asc"),
+                limit(10)
+            ));
+            if (oldestMessages.empty) break;
+
+            const batch = writeBatch(db);
+            oldestMessages.docs.forEach((messageDoc) => batch.delete(messageDoc.ref));
+            await batch.commit();
+            deletedCount += oldestMessages.size;
+            status.textContent = `${deletedCount} mesaj silindi...`;
+        }
+
+        if (isGlobalChatActive && currentUser?.uid === ownerUid) {
+            const result = deletedCount
+                ? `Global Chat geçmişi temizlendi. ${deletedCount} mesaj silindi.`
+                : "Global Chat zaten boş.";
+            status.textContent = result;
+            showChatStatus(result, true);
+        }
+    } catch (error) {
+        console.error("CACA global chat history clear failed:", error);
+        status.textContent = error.code === "permission-denied"
+            ? "Global Chat geçmişini temizleme yetkin yok."
+            : "Global Chat temizlenemedi: " + (error.message || "Bilinmeyen hata");
+    } finally {
+        button.disabled = false;
+        button.textContent = oldLabel;
+    }
+}
+
+function setGlobalChatOwnerPanelOpen(isOpen) {
+    const panel = $("globalChatOwnerPanel");
+    if (!panel || (isOpen && (!currentUser || !isSiteOwner || !isGlobalChatActive))) return;
+    panel.hidden = !isOpen;
+    if (isOpen) {
+        $("globalChatOwnerStatus").textContent = "";
+        $("closeGlobalChatOwnerPanelButton").focus();
+    } else {
+        $("globalChatOwnerPanelButton")?.focus();
+    }
+}
+
+function syncGlobalChatOwnerControls() {
+    const button = $("globalChatOwnerPanelButton");
+    const panel = $("globalChatOwnerPanel");
+    if (!button || !panel) return;
+
+    const canManageGlobalChat = Boolean(currentUser && isSiteOwner && isGlobalChatActive);
+    button.hidden = !canManageGlobalChat;
+    if (!canManageGlobalChat) panel.hidden = true;
+}
+
+$("globalChatOwnerPanelButton")?.addEventListener("click", () => setGlobalChatOwnerPanelOpen(true));
+$("closeGlobalChatOwnerPanelButton")?.addEventListener("click", () => setGlobalChatOwnerPanelOpen(false));
+$("globalChatOwnerPanel")?.addEventListener("click", (event) => {
+    if (event.target === $("globalChatOwnerPanel")) setGlobalChatOwnerPanelOpen(false);
+});
+$("clearGlobalChatHistoryButton")?.addEventListener("click", clearGlobalChatHistory);
 
 // REAL-TIME ROOM CHAT
 
@@ -967,7 +1084,13 @@ function listenToMessages(roomId) {
                     content.appendChild(editedLabel);
                 }
 
-                const canDelete = isMine || isSiteOwner || (!isGlobalChatActive && activeRoomOwnerId === currentUser?.uid);
+                const canDelete = isGlobalChatActive
+                    ? (isMine || isSiteOwner)
+                    : (
+                        isMine ||
+                        activeRoomOwnerId === currentUser?.uid ||
+                        (isCurrentUserRoomAdmin() && message.senderId !== activeRoomOwnerId)
+                    );
                 if (canDelete) {
                     const actions = document.createElement("div");
                     actions.className = "message-actions";
@@ -5066,10 +5189,23 @@ function listenToMembers(roomId, ownerId) {
             const renderVersion = ++memberRenderVersion;
             const membersList = $("membersList");
             const heading = $("membersHeading");
+            const previousOwnMemberRecord = currentRoomMemberRecord;
+            const previousOwnRole = previousOwnMemberRecord?.role || null;
+            const previousOwnExpiry = getAdminExpiryMs(previousOwnMemberRecord);
             const ownMemberSnapshot = snapshot.docs.find(memberDoc => memberDoc.id === currentUser.uid);
             currentRoomMemberRecord = ownMemberSnapshot
                 ? { id: ownMemberSnapshot.id, ...ownMemberSnapshot.data() }
                 : null;
+            const currentOwnRole = currentRoomMemberRecord?.role || null;
+            const currentOwnExpiry = getAdminExpiryMs(currentRoomMemberRecord);
+            if (
+                previousOwnMemberRecord &&
+                (previousOwnRole !== currentOwnRole || previousOwnExpiry !== currentOwnExpiry)
+            ) {
+                // Refresh existing message action menus immediately when this
+                // user's admin permission is granted, renewed, or removed.
+                listenToMessages(roomId);
+            }
             syncCurrentAdminExpiry(roomId);
             if (activeRoomOwnerId === currentUser?.uid) {
                 scheduleOwnerAdminExpiryCleanup(
@@ -5686,6 +5822,7 @@ function showPrivateRoomChat(roomId) {
     if (!roomId || roomId !== activeRoomId) return;
 
     isGlobalChatActive = false;
+    syncGlobalChatOwnerControls();
     setGlobalMembersMode(false);
     document.dispatchEvent(new CustomEvent("caca:global-chat-close"));
     $("roomView").classList.remove("is-global-chat");
@@ -5727,6 +5864,7 @@ async function openGlobalChat() {
 
         setWorkspaceTab("chats");
         isGlobalChatActive = true;
+        syncGlobalChatOwnerControls();
         $("roomView").classList.add("is-global-chat");
         $("dashboardView").hidden = true;
         $("roomView").hidden = false;
@@ -5777,6 +5915,7 @@ async function leaveGlobalChat() {
         }
         messageRenderVersion += 1;
         isGlobalChatActive = false;
+        syncGlobalChatOwnerControls();
         $("roomView").classList.remove("is-global-chat");
         $("leaveGlobalChatButton").hidden = true;
         setGlobalChatNavigationActive(false);
@@ -5893,6 +6032,7 @@ async function openRoom(roomId) {
 
         // Restore the private-room toolbar after leaving Global Chat.
         isGlobalChatActive = false;
+        syncGlobalChatOwnerControls();
         setGlobalMembersMode(false);
         document.dispatchEvent(new CustomEvent("caca:global-chat-close"));
         $("roomView").classList.remove("is-global-chat");
@@ -6199,6 +6339,11 @@ $("copyRoomCode").addEventListener("click", async () => {
 
 document.addEventListener("caca:site-owner-activated", () => {
     isSiteOwner = true;
+    syncGlobalChatOwnerControls();
+});
+document.addEventListener("caca:site-owner-role-changed", (event) => {
+    isSiteOwner = event.detail?.isSiteOwner === true;
+    syncGlobalChatOwnerControls();
 });
 
 onAuthStateChanged(auth, async (user) => {
@@ -6219,6 +6364,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = null;
         archiveAccessInMemory = { uid: "", token: "", expiresAt: 0 };
         isSiteOwner = false;
+        syncGlobalChatOwnerControls();
         jumpscareLibraryLoadedFor = null;
         jumpscareLibraryLoadPromise = null;
         currentJumpscareSlots = { slot1: null, slot2: null, slot3: null };
@@ -6239,6 +6385,10 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     if (currentUser?.uid !== user.uid) {
+        // Do not carry the previous account's owner controls across an
+        // account switch while the new profile is still loading.
+        isSiteOwner = false;
+        syncGlobalChatOwnerControls();
         jumpscareLibraryLoadedFor = null;
         jumpscareLibraryLoadPromise = null;
         currentJumpscareSlots = { slot1: null, slot2: null, slot3: null };
@@ -6258,6 +6408,7 @@ onAuthStateChanged(auth, async (user) => {
 
         const profile = profileSnapshot.data();
         isSiteOwner = profile.siteRole === "site_owner";
+        syncGlobalChatOwnerControls();
         globalChatOptedIn = profile.globalChatOptIn === true;
         currentUsername = profile.nickname || profile.username;
         currentAvatarId = AVATARS[profile.avatarId]

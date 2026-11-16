@@ -208,12 +208,13 @@ function openOwnerChat(type, id, title) {
             body.textContent = typeof message.text === "string" ? message.text : "";
             content.append(meta, body);
 
+            row.append(avatar, content);
             const remove = document.createElement("button");
             remove.type = "button";
             remove.className = "owner-message-delete";
             remove.textContent = "Sil";
             remove.addEventListener("click", () => deleteOwnerMessage(messageDoc.id));
-            row.append(avatar, content, remove);
+            row.appendChild(remove);
             list.appendChild(row);
         }
         list.scrollTop = list.scrollHeight;
