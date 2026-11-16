@@ -12,9 +12,11 @@
       },
       {
         "name": "VAMPIR_KOYLU_ROOMS",
-        "class_name": "VampirKoyluRoom",
-            "name": "STARFALL_ROOMS",
-            "class_name": "StarfallRoom"
+        "class_name": "VampirKoyluRoom"
+      },
+      {
+        "name": "STARFALL_ROOMS",
+        "class_name": "StarfallRoom"
       }
     ]
   },
