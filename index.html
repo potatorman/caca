@@ -14,6 +14,7 @@
 
     <link rel="stylesheet" href="./css/style.css">
     <link rel="stylesheet" href="./css/rendechat.css">
+    <link rel="stylesheet" href="./css/rendechat-owner.css">
 </head>
 <body>
 
@@ -865,12 +866,15 @@
 
                             <section id="siteOwnerView" class="site-owner-view" hidden>
                                 <div class="site-owner-page-heading">
-                                    <div>
-                                        <span class="small-label">RENDECHAT CONTROL CENTER</span>
-                                        <h2>Site Owner</h2>
-                                        <p>Tüm özel odaları ve Global Chat mesajlarını görüntüle, gerektiğinde mesajları kaldır.</p>
+                                    <div class="site-owner-heading-copy">
+                                        <div class="site-owner-heading-kicker">
+                                            <span class="site-owner-heading-cheese" aria-hidden="true">🧀</span>
+                                            <span class="small-label">RENDECHAT · OWNER WORKSPACE</span>
+                                        </div>
+                                        <h2>Kontrol Merkezi</h2>
+                                        <p>Global sohbeti, özel odaları, oyun kataloğunu ve hesap erişimlerini tek yerden yönet.</p>
                                     </div>
-                                    <span class="site-owner-page-badge">SITE OWNER ACCESS</span>
+                                    <span class="site-owner-page-badge"><span aria-hidden="true">●</span> YETKİLİ OTURUM</span>
                                 </div>
                                 <div class="site-owner-filter-bar">
                                     <label class="site-owner-filter-field" for="ownerUserSearch">
@@ -932,6 +936,11 @@
                                         </div>
                                     </section>
                                 </div>
+                                <div class="site-owner-management-intro">
+                                    <strong>Yönetim araçları</strong>
+                                    <span>Oyun kataloğu · Owner erişimi · Kullanıcı hesapları</span>
+                                </div>
+                                <div class="site-owner-management-stack">
                                 <section id="ownerGameCatalogSection" class="owner-game-catalog-section"></section>
                                 <section class="site-owner-admins-panel">
                                     <div class="site-owner-users-heading">
@@ -969,6 +978,7 @@
                                         <p class="owner-console-empty">Hesaplar yükleniyor...</p>
                                     </div>
                                 </section>
+                                </div>
                             </section>
                     <!-- ACCOUNT SETTINGS -->
 
