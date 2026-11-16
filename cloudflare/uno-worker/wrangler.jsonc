@@ -12,7 +12,9 @@
       },
       {
         "name": "VAMPIR_KOYLU_ROOMS",
-        "class_name": "VampirKoyluRoom"
+        "class_name": "VampirKoyluRoom",
+            "name": "STARFALL_ROOMS",
+            "class_name": "StarfallRoom"
       }
     ]
   },
@@ -27,6 +29,12 @@
       "tag": "v2",
       "new_sqlite_classes": [
         "VampirKoyluRoom"
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [
+        "StarfallRoom"
       ]
     }
   ],
@@ -54,7 +62,9 @@
         },
         {
           "name": "VAMPIR_KOYLU_ROOMS",
-          "class_name": "VampirKoyluRoom"
+          "class_name": "VampirKoyluRoom",
+            "name": "STARFALL_ROOMS",
+            "class_name": "StarfallRoom"
         }
       ]
     }
