@@ -438,7 +438,7 @@ export class StarfallRoom extends DurableObject {
         if (
             !session ||
             session.gameId !== "starfall" ||
-            session.status !== "playing" ||
+            !["playing", "results"].includes(session.status) ||
             Number(session.round) !== identity.round
         ) {
             throw new Error("Bu Starfall turu artık aktif değil.");
@@ -454,6 +454,54 @@ export class StarfallRoom extends DurableObject {
         const nextHost = session.hostId === uid
             ? (nextLobbyPlayers[0] || nextActivePlayers[0] || "")
             : session.hostId;
+
+        // Result-screen exits are roster changes, not forfeits: the winner and
+        // score stay final, while departed users are excluded from the rematch.
+        if (session.status === "results") {
+            match.activePlayerIds = nextActivePlayers;
+            match.returnedIds = uniqueIds(match.returnedIds)
+                .filter((playerId) => nextActivePlayers.includes(playerId));
+
+            if (!nextActivePlayers.length) {
+                const nextPlayers = uniqueIds([
+                    ...nextLobbyPlayers,
+                    ...uniqueIds(session.spectatorIds),
+                    ...uniqueIds(session.nextRoundPlayerIds)
+                ]);
+                if (!nextPlayers.length) {
+                    await deleteFirestoreDocument(this.env, this.sessionPath(identity));
+                } else {
+                    await patchFirestoreDocument(this.env, this.sessionPath(identity), {
+                        status: "lobby",
+                        round: identity.round + 1,
+                        hostId: nextPlayers.includes(nextHost) ? nextHost : nextPlayers[0],
+                        playerIds: nextPlayers,
+                        readyIds: [],
+                        matchPlayerIds: [],
+                        spectatorIds: [],
+                        nextRoundPlayerIds: [],
+                        nextRoundReadyIds: [],
+                        resultReturnIds: [],
+                        startedAt: null,
+                        countdownEndsAt: null,
+                        finishedAt: null,
+                        updatedAt: nowTimestamp()
+                    });
+                }
+                await this.saveMatch(match, false);
+                return { left: true, finished: true, results: true, reset: true };
+            }
+
+            await patchFirestoreDocument(this.env, this.sessionPath(identity), {
+                hostId: nextHost || nextActivePlayers[0],
+                playerIds: nextLobbyPlayers,
+                matchPlayerIds: nextActivePlayers,
+                resultReturnIds: [...match.returnedIds],
+                updatedAt: nowTimestamp()
+            });
+            await this.saveMatch(match);
+            return { left: true, finished: true, results: true, reset: false };
+        }
 
         match.activePlayerIds = nextActivePlayers;
         match.turnsRemainingByPlayer[uid] = 0;
