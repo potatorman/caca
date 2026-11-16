@@ -11,7 +11,7 @@ import {
 } from "./firebase.js";
 import { signTicket, verifyTicket } from "./ticket.js";
 import { findUploadedReleaseAsset, parsePrivateReleaseAssetUrl } from "./game-downloads.js";
-import { constantTimeStringEqual, isValidArchiveAccessTicket } from "./archive-access.js";
+import { isValidArchiveAccessTicket } from "./archive-access.js";
 import { UnoRoom } from "./UnoRoom.js";
 import { VampirKoyluRoom } from "./VampirKoyluRoom.js";
 import { getUnoDurableObjectName, getVampirKoyluDurableObjectName, isValidVampirKoyluSessionId } from "./session-identity.js";
@@ -648,25 +648,12 @@ async function requireCacaMember(env, uid) {
 async function issueArchiveAccessTicket(request, env, origin) {
     const user = await authenticateFirebaseToken(getBearerToken(request), env);
     if (!await requireCacaMember(env, user.uid)) {
-        return json({ error: "A valid CACA member profile is required to open the archive." }, 403, origin);
+        return json({ error: "A valid signed-in CACA member profile is required to open the game library." }, 403, origin);
     }
 
-    const configuredPassword = typeof env.GAME_ARCHIVE_PASSWORD === "string"
-        ? env.GAME_ARCHIVE_PASSWORD
-        : "";
-    if (configuredPassword.length < 12) {
-        return json({ error: "The archive password is not configured on the CACA Worker." }, 503, origin);
-    }
-
-    const body = await readJson(request);
-    const submittedPassword = typeof body.password === "string" ? body.password : "";
-    if (
-        submittedPassword.length > 128 ||
-        !constantTimeStringEqual(submittedPassword, configuredPassword)
-    ) {
-        return json({ error: "Arşiv parolası yanlış." }, 403, origin);
-    }
-
+    // The shared archive password has been removed. Access is granted to
+    // authenticated CACA members, while the ticket remains signed, short-lived
+    // and bound to the Firebase UID for private game-download authorization.
     const expiresIn = 8 * 60 * 60;
     const accessToken = await signTicket({
         kind: "caca-archive-access",
@@ -699,7 +686,7 @@ async function issuePrivateGameDownloadTicket(request, env, url, origin) {
         // Missing, expired and invalid access tickets all fail closed.
     }
     if (!isValidArchiveAccessTicket(archiveAccessTicket, user.uid)) {
-        return json({ error: "Arşiv parolası gerekli veya süresi dolmuş." }, 403, origin);
+        return json({ error: "Kütüphane erişim bileti gerekli veya süresi dolmuş." }, 403, origin);
     }
 
     const gameId = typeof body.gameId === "string" ? body.gameId.trim() : "";
@@ -913,7 +900,12 @@ export default {
                 return await sendHttpAction(request, env, origin, "vampir-koylu");
             }
 
-            if (url.pathname === "/api/archive/unlock" && request.method === "POST") {
+            if (
+                (url.pathname === "/api/archive/access" || url.pathname === "/api/archive/unlock") &&
+                request.method === "POST"
+            ) {
+                // Keep the old path as a compatibility alias; neither route
+                // accepts or checks a shared password anymore.
                 return await issueArchiveAccessTicket(request, env, origin);
             }
             if (url.pathname === "/api/download-ticket" && request.method === "POST") {
