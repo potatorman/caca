@@ -2910,19 +2910,18 @@ function listenToGameCenter(roomId) {
             // person's lobby just because it exists in the shared Active Lobbies list.
             const previouslySelectedLobbyId = activeGameLobbyId;
             gameSessionsById = next;
-            const {
-                joinedActiveLobby,
-                ownedActiveLobby,
-                selectedSession
-            } = selectGameLobbyForUser(next, currentUser?.uid, previouslySelectedLobbyId);
             if (dismissedAutoOpenGameLobbyId && !next.has(dismissedAutoOpenGameLobbyId)) {
                 dismissedAutoOpenGameLobbyId = "";
             }
-            const visibleSelectedSession = joinedActiveLobby?.lobbyId === dismissedAutoOpenGameLobbyId
-                ? (previouslySelectedLobbyId && previouslySelectedLobbyId !== dismissedAutoOpenGameLobbyId
-                    ? selectedSession
-                    : null)
-                : selectedSession;
+            const {
+                ownedActiveLobby,
+                selectedSession
+            } = selectGameLobbyForUser(
+                next,
+                currentUser?.uid,
+                previouslySelectedLobbyId,
+                dismissedAutoOpenGameLobbyId
+            );
             hasOwnedActiveGameLobby = Boolean(ownedActiveLobby);
             if (ownedActiveLobby) {
                 // Migrate lobbies created before the per-user lock was introduced.
@@ -2937,7 +2936,7 @@ function listenToGameCenter(roomId) {
             }
             // Participants return straight to their own lobby. Everyone else
             // stays on the Games overview until they deliberately choose a lobby.
-            activeGameLobbyId = visibleSelectedSession?.lobbyId || "";
+            activeGameLobbyId = selectedSession?.lobbyId || "";
             renderGameCatalog();
             for (const [id, entry] of backgroundGameCountdownTimers) {
                 const current = next.get(id);
