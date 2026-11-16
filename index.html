@@ -897,28 +897,20 @@
     </div>
 </section>
 
-<dialog id="webGameDialog" class="web-game-dialog" aria-labelledby="webGameDialogTitle">
-    <div class="web-game-dialog-shell">
-        <header class="web-game-toolbar">
-            <div class="web-game-toolbar-title">
-                <span class="web-game-toolbar-icon" aria-hidden="true">🏙️</span>
+<dialog id="standaloneGameDialog" class="standalone-game-dialog" aria-labelledby="standaloneGameDialogTitle">
+    <div class="standalone-game-dialog-shell">
+        <header class="standalone-game-toolbar">
+            <div class="standalone-game-toolbar-title">
+                <span class="standalone-game-toolbar-icon" aria-hidden="true">🎮</span>
                 <div>
-                    <strong id="webGameDialogTitle">3D.CITY</strong>
-                    <small>Tek oyunculu şehir kurma oyunu · by lo-th</small>
+                    <strong id="standaloneGameDialogTitle">Oyun</strong>
+                    <small id="standaloneGameDialogMeta">RendeChat · Bağımsız oyun</small>
                 </div>
             </div>
-            <div class="web-game-toolbar-actions">
-                <a class="web-game-open-link" href="./games/3d-city/index.html"
-                    target="_blank" rel="noopener noreferrer">Yeni sekmede aç ↗</a>
-                <button id="closeWebGameDialog" class="web-game-close" type="button"
-                    aria-label="Oyunu kapat">×</button>
-            </div>
+            <button id="closeStandaloneGameDialog" class="standalone-game-close" type="button"
+                aria-label="Oyunu kapat">×</button>
         </header>
-        <iframe id="webGameFrame" class="web-game-frame" src="about:blank"
-            title="3D.CITY şehir kurma oyunu"
-            allow="fullscreen; gamepad; pointer-lock"
-            allowfullscreen loading="lazy"
-            referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        <div id="standaloneGameStage" class="standalone-game-stage"></div>
     </div>
 </dialog>
 

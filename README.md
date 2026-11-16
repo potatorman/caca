@@ -6,6 +6,8 @@ CACA is a Turkish-first browser chat and room game project.
 
 - **UNO** — real-time multiplayer card game.
 - **Vampir Köylü** — 5–12 player social deduction game with Vampir, Doktor and Köylü roles.
+- **Breakout** — MIT-licensed classic arcade game, playable inside RendeChat (solo or local turn-based two-player).
+- **Space Invaders** — MIT-licensed arcade game with local one- or two-player turn-based play.
 
 Vampir Köylü supports optional host-controlled bot filling:
 - Toggle bot filling on or off in **Lobi Ayarları**.

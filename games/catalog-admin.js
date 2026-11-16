@@ -95,6 +95,7 @@ function buildAdminHTML() {
                         <label class="catalog-field">
                             <span>İndirme türü</span>
                             <select id="catalogFieldType">
+                                <option value="browser">Tarayıcı oyunu · RendeChat içinde aç</option>
                                 <option value="download">Tek oyunculu · İndirme gerekli</option>
                                 <option value="download-mp">Çok oyunculu · İndirme gerekli</option>
                             </select>
@@ -106,7 +107,33 @@ function buildAdminHTML() {
                     </div>
                 </section>
 
-                <section id="catalogDownloadFields" class="catalog-form-section" hidden>
+                <section id="catalogBrowserFields" class="catalog-form-section" hidden>
+                    <div class="catalog-form-section-heading">
+                        <span>02</span>
+                        <div><strong>Tarayıcı oyunu</strong><small>RendeChat ekranına yerel oyun modülü olarak bağlanır</small></div>
+                    </div>
+                    <div class="catalog-form-grid">
+                        <label class="catalog-field catalog-field--full">
+                            <span>Yerel modül yolu</span>
+                            <input id="catalogFieldModule" type="text" placeholder="./ornek-oyun/index.js" maxlength="180" spellcheck="false">
+                            <small class="catalog-field-hint">Kod games/ klasöründe bulunmalı ve default export veya {id}Game şeklinde open({ container }) fonksiyonunu sunmalı. Harici URL, iframe ve CDN kabul edilmez.</small>
+                        </label>
+                        <label class="catalog-field">
+                            <span>Lisans</span>
+                            <input id="catalogFieldLicense" type="text" placeholder="MIT, GPL-3.0, CC-BY-4.0" maxlength="40">
+                        </label>
+                        <label class="catalog-field">
+                            <span>Geliştirici / kredi</span>
+                            <input id="catalogFieldCredits" type="text" placeholder="Geliştirici adı" maxlength="120">
+                        </label>
+                        <label class="catalog-field catalog-field--full">
+                            <span>Kaynak depo veya proje bağlantısı</span>
+                            <input id="catalogFieldSourceUrl" type="url" placeholder="https://github.com/..." maxlength="500">
+                        </label>
+                    </div>
+                </section>
+
+<section id="catalogDownloadFields" class="catalog-form-section" hidden>
                     <div class="catalog-form-section-heading">
                         <span>02</span>
                         <div><strong>İndirme bilgileri</strong><small>Oyuncuların indireceği dosya</small></div>
@@ -236,14 +263,8 @@ function createEntryRow(entry, isSystem) {
         const editBtn = document.createElement("button");
         editBtn.type = "button";
         editBtn.className = "catalog-action-button catalog-edit-btn";
-        if (entry.type === "browser") {
-            editBtn.textContent = "Eski tür";
-            editBtn.disabled = true;
-            editBtn.title = "Bu eski tarayıcı kaydı indirme arşivi formunda düzenlenemez.";
-        } else {
-            editBtn.textContent = "Düzenle";
-            editBtn.addEventListener("click", () => openEditDialog(entry.id));
-        }
+        editBtn.textContent = "Düzenle";
+        editBtn.addEventListener("click", () => openEditDialog(entry.id));
         actions.appendChild(editBtn);
 
         const deleteBtn = document.createElement("button");
@@ -269,12 +290,6 @@ function openEditDialog(gameId = null) {
     if (gameId) {
         const existingEntry = _entries.find(e => e.id === gameId);
         if (!existingEntry) return;
-        if (existingEntry.type === "browser") {
-            const catalogStatus = $("catalogStatus");
-            if (catalogStatus) catalogStatus.textContent =
-                "Bu eski tarayıcı kaydı korunuyor. Yeni arşiv kayıtları yalnızca indirilebilir oyun olabilir.";
-            return;
-        }
     }
     _editingId = gameId;
     const dialog = $("catalogEditDialog");
@@ -296,6 +311,10 @@ function openEditDialog(gameId = null) {
         $("catalogFieldDownloadUrl").value = entry.downloadUrl || "";
         $("catalogFieldPrivateDownloadUrl").value = entry.privateDownloadUrl || "";
         $("catalogFieldDownloadSize").value = entry.downloadSize || "";
+        $("catalogFieldModule").value = entry.module || "";
+        $("catalogFieldLicense").value = entry.license || "";
+        $("catalogFieldCredits").value = entry.credits || "";
+        $("catalogFieldSourceUrl").value = entry.sourceUrl || "";
         $("catalogFieldCoverUrl").value = entry.coverUrl || "";
         $("catalogFieldPublished").checked = entry.published;
     } else {
@@ -310,6 +329,10 @@ function openEditDialog(gameId = null) {
         $("catalogFieldDownloadUrl").value = "";
         $("catalogFieldPrivateDownloadUrl").value = "";
         $("catalogFieldDownloadSize").value = "";
+        $("catalogFieldModule").value = "";
+        $("catalogFieldLicense").value = "";
+        $("catalogFieldCredits").value = "";
+        $("catalogFieldSourceUrl").value = "";
         $("catalogFieldCoverUrl").value = "";
         $("catalogFieldPublished").checked = true;
     }
@@ -327,9 +350,10 @@ function closeEditDialog() {
 function updateTypeFields() {
     const type = $("catalogFieldType")?.value;
     const downloadFields = $("catalogDownloadFields");
-    if (downloadFields) {
-        downloadFields.hidden = !["download", "download-mp"].includes(type);
-    }
+    const browserFields = $("catalogBrowserFields");
+    const isDownload = ["download", "download-mp"].includes(type);
+    if (downloadFields) downloadFields.hidden = !isDownload;
+    if (browserFields) browserFields.hidden = type !== "browser";
 }
 
 // ── Write operations ───────────────────────────────────────────────────────
@@ -347,14 +371,19 @@ async function saveEntry() {
         icon: $("catalogFieldIcon").value.trim() || "🎮",
         description: $("catalogFieldDescription").value.trim(),
         type,
+        launchMode: type === "browser" ? "standalone" : "lobby",
         version: $("catalogFieldVersion").value.trim(),
         published: $("catalogFieldPublished").checked,
         coverUrl: $("catalogFieldCoverUrl").value.trim() || "",
         screenshotUrls: [],
+        category: "",
         minPlayers: 1,
         maxPlayers: 1,
         lobbyEnabled: false,
-        module: null,
+        module: type === "browser" ? $("catalogFieldModule").value.trim() : null,
+        license: $("catalogFieldLicense").value.trim(),
+        credits: $("catalogFieldCredits").value.trim(),
+        sourceUrl: $("catalogFieldSourceUrl").value.trim(),
         downloadUrl: $("catalogFieldDownloadUrl").value.trim() || null,
         privateDownloadUrl: $("catalogFieldPrivateDownloadUrl").value.trim() || null,
         downloadSize: $("catalogFieldDownloadSize").value.trim() || null,

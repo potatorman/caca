@@ -2083,15 +2083,79 @@ service cloud.firestore {
     match /gamesCatalog/{gameId} {
       allow get, list: if isSiteOwner() || (signedIn() && resource.data.published == true);
       allow create: if isSiteOwner()
-        && request.resource.data.type in ['download', 'download-mp']
-        && request.resource.data.published is bool;
-      // Keep existing legacy browser entries manageable by server migrations,
-      // but prevent creating any new browser-playable catalog entries.
+        && request.resource.data.published is bool
+        && (
+          request.resource.data.type in ['download', 'download-mp']
+          || (
+            request.resource.data.type == 'browser'
+            && request.resource.data.launchMode == 'standalone'
+            && request.resource.data.module is string
+            && request.resource.data.module.matches('^\\./[a-z0-9][a-z0-9/_-]*\\.js
+
+    match /roomInvites/{inviteCode} {
+      // A signed-in user may look up an exact invite code to join a room.
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'roomId',
+          'roomName',
+          'createdAt'
+        ])
+        && request.resource.data.roomId is string
+        && request.resource.data.roomName is string
+        && request.resource.data.createdAt is timestamp
+        && existsAfter(roomPath(request.resource.data.roomId))
+        && getAfter(roomPath(request.resource.data.roomId)).data.ownerId == request.auth.uid;
+
+      allow update: if false;
+      allow delete: if signedIn()
+        && isRoomOwner(resource.data.roomId);
+    }
+  }
+}
+)
+          )
+        );
+      // Existing legacy browser entries remain manageable; new browser games
+      // must be standalone local modules, never external URLs or iframe targets.
       allow update: if isSiteOwner()
         && request.resource.data.published is bool
         && (
           request.resource.data.type in ['download', 'download-mp']
-          || (resource.data.type == 'browser' && request.resource.data.type == 'browser')
+          || (
+            resource.data.type == 'browser'
+            && request.resource.data.type == 'browser'
+            && request.resource.data.launchMode == 'standalone'
+            && request.resource.data.module is string
+            && request.resource.data.module.matches('^\\./[a-z0-9][a-z0-9/_-]*\\.js
+
+    match /roomInvites/{inviteCode} {
+      // A signed-in user may look up an exact invite code to join a room.
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'roomId',
+          'roomName',
+          'createdAt'
+        ])
+        && request.resource.data.roomId is string
+        && request.resource.data.roomName is string
+        && request.resource.data.createdAt is timestamp
+        && existsAfter(roomPath(request.resource.data.roomId))
+        && getAfter(roomPath(request.resource.data.roomId)).data.ownerId == request.auth.uid;
+
+      allow update: if false;
+      allow delete: if signedIn()
+        && isRoomOwner(resource.data.roomId);
+    }
+  }
+}
+)
+          )
         );
       allow delete: if isSiteOwner();
     }

@@ -3946,3 +3946,67 @@ body.logged-in .room-toolbar .global-chat-owner-button:hover {
     width: 100%;
   }
 }
+
+
+/* Standalone open-source games — mounted into RendeChat, never framed or redirected. */
+.standalone-game-dialog {
+    width: min(1120px, calc(100vw - 28px));
+    max-width: none;
+    max-height: min(94vh, 980px);
+    padding: 0;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 22px;
+    color: var(--text-primary, #f7f5fb);
+    background: var(--surface-elevated, #15151f);
+    box-shadow: 0 28px 90px rgba(0,0,0,.58);
+    overflow: hidden;
+}
+.standalone-game-dialog::backdrop { background: rgba(4,4,10,.78); backdrop-filter: blur(8px); }
+.standalone-game-dialog-shell { display:flex; flex-direction:column; max-height:min(94vh,980px); }
+.standalone-game-toolbar {
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 20px; border-bottom:1px solid rgba(255,255,255,.09);
+    background:rgba(255,255,255,.025);
+}
+.standalone-game-toolbar-title { display:flex; align-items:center; gap:12px; min-width:0; }
+.standalone-game-toolbar-title > div { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.standalone-game-toolbar-title strong { font-size:1rem; letter-spacing:.01em; }
+.standalone-game-toolbar-title small { color:var(--text-muted,#9693a8); font-size:.76rem; }
+.standalone-game-toolbar-icon { display:grid; place-items:center; width:42px; height:42px; flex:0 0 42px; border-radius:13px; background:rgba(255,255,255,.07); font-size:1.4rem; }
+.standalone-game-close {
+    display:grid; place-items:center; width:40px; height:40px; flex:0 0 40px;
+    border:1px solid rgba(255,255,255,.12); border-radius:12px; color:inherit;
+    background:rgba(255,255,255,.06); font-size:1.55rem; cursor:pointer;
+}
+.standalone-game-close:hover { background:rgba(255,255,255,.12); }
+.standalone-game-stage { min-height:260px; padding:18px; overflow:auto; }
+.standalone-game-loading,.standalone-game-error { padding:28px; text-align:center; color:var(--text-muted,#a9a6b8); }
+.standalone-game-error { color:#ff9a9a; }
+.standalone-game-content { display:flex; flex-direction:column; align-items:center; gap:14px; width:100%; }
+.standalone-game-copy { max-width:760px; text-align:center; color:var(--text-muted,#aaa7b8); font-size:.86rem; line-height:1.5; }
+.standalone-game-copy p { margin:0 0 6px; }
+.standalone-game-board { display:grid; place-items:center; width:100%; min-height:240px; outline:none; }
+.standalone-game-board canvas {
+    display:block; max-width:min(100%,720px); max-height:min(68vh,760px);
+    width:auto; height:auto; border:1px solid rgba(255,255,255,.12);
+    border-radius:12px; background:#080910; box-shadow:0 15px 40px rgba(0,0,0,.35);
+    touch-action:none;
+}
+.standalone-game-touch-controls { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; }
+.standalone-game-touch-controls button {
+    min-width:58px; min-height:44px; padding:8px 14px; border:1px solid rgba(255,255,255,.16);
+    border-radius:12px; color:inherit; background:rgba(255,255,255,.07); font:inherit;
+    font-weight:650; cursor:pointer; touch-action:none; user-select:none;
+}
+.standalone-game-touch-controls button:active { background:rgba(255,255,255,.18); transform:translateY(1px); }
+.standalone-game-note { margin:0; text-align:center; color:var(--text-muted,#9693a8); font-size:.76rem; }
+.game-catalog-standalone { cursor:pointer; }
+.game-catalog-standalone:hover { transform:translateY(-2px); }
+@media (max-width:640px) {
+    .standalone-game-dialog { width:calc(100vw - 12px); max-height:96vh; border-radius:16px; }
+    .standalone-game-dialog-shell { max-height:96vh; }
+    .standalone-game-toolbar { padding:12px 14px; }
+    .standalone-game-stage { padding:10px; }
+    .standalone-game-board canvas { max-height:58vh; max-width:100%; }
+    .standalone-game-touch-controls button { min-height:50px; min-width:72px; }
+}

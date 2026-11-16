@@ -20,12 +20,18 @@ export const DEFAULT_CATALOG_ENTRY = Object.freeze({
     screenshotUrls: [],
     // "browser" | "download" | "download-mp"
     type: "browser",
-    // Whether this game appears in the lobby game picker (browser games only)
+    // "lobby" uses the room session system; "standalone" mounts inside RendeChat.
+    launchMode: "lobby",
+    // Whether this game appears in the room lobby picker.
     lobbyEnabled: false,
     minPlayers: 2,
     maxPlayers: 10,
     // Relative module path for browser games, e.g. "./uno/index.js"
     module: null,
+    category: "",
+    credits: "",
+    license: "",
+    sourceUrl: "",
     version: "",
     downloadUrl: null,
     // Private GitHub Release URL; files are served through the authenticated CACA Worker.
@@ -39,17 +45,23 @@ export const DEFAULT_CATALOG_ENTRY = Object.freeze({
 
 // Coerce a raw GAME_REGISTRY entry into the catalog shape.
 function registryEntryToCatalog(entry) {
+    const launchMode = entry.launchMode === "standalone" ? "standalone" : "lobby";
     return {
         ...DEFAULT_CATALOG_ENTRY,
         id: entry.id,
         name: entry.name,
         description: entry.description || "",
         icon: entry.icon || "🎮",
+        category: entry.category || "",
         type: "browser",
-        lobbyEnabled: entry.lobbyEnabled !== false,
-        minPlayers: Number(entry.minPlayers) || 2,
-        maxPlayers: Number(entry.maxPlayers) || 10,
+        launchMode,
+        lobbyEnabled: launchMode === "lobby" && entry.lobbyEnabled !== false,
+        minPlayers: Number(entry.minPlayers) || 1,
+        maxPlayers: Number(entry.maxPlayers) || Number(entry.minPlayers) || 1,
         module: entry.module || null,
+        credits: entry.credits || "",
+        license: entry.license || "",
+        sourceUrl: entry.sourceUrl || "",
         published: entry.status === "ready" || entry.status == null,
         _source: "registry"
     };
@@ -57,19 +69,28 @@ function registryEntryToCatalog(entry) {
 
 // Coerce a raw Firestore document into the catalog shape.
 export function firestoreDocToCatalog(id, data) {
+    const type = ["browser", "download", "download-mp"].includes(data.type) ? data.type : "browser";
+    const launchMode = type === "browser"
+        ? (data.launchMode === "standalone" ? "standalone" : "lobby")
+        : "lobby";
     return {
         ...DEFAULT_CATALOG_ENTRY,
         id,
         name: String(data.name || ""),
         description: String(data.description || ""),
         icon: String(data.icon || "🎮"),
+        category: String(data.category || ""),
         coverUrl: String(data.coverUrl || ""),
         screenshotUrls: Array.isArray(data.screenshotUrls) ? data.screenshotUrls : [],
-        type: ["browser", "download", "download-mp"].includes(data.type) ? data.type : "browser",
-        lobbyEnabled: data.type === "browser" && data.lobbyEnabled === true,
-        minPlayers: Number(data.minPlayers) || 2,
-        maxPlayers: Number(data.maxPlayers) || 10,
+        type,
+        launchMode,
+        lobbyEnabled: type === "browser" && launchMode === "lobby" && data.lobbyEnabled === true,
+        minPlayers: Number(data.minPlayers) || 1,
+        maxPlayers: Number(data.maxPlayers) || Number(data.minPlayers) || 1,
         module: data.module ? String(data.module) : null,
+        credits: String(data.credits || ""),
+        license: String(data.license || ""),
+        sourceUrl: String(data.sourceUrl || ""),
         version: String(data.version || ""),
         downloadUrl: data.downloadUrl ? String(data.downloadUrl) : null,
         privateDownloadUrl: data.privateDownloadUrl ? String(data.privateDownloadUrl) : null,
@@ -155,13 +176,24 @@ export function validateCatalogEntry(data) {
         return "Oyun ID'si 2-32 karakter, küçük harf, rakam ve tire içermeli.";
     }
     if (GAME_REGISTRY.some(e => e.id === data.id)) {
-        return "Bu ID sistem oyunlarından biriyle çakışıyor (uno, vampir-koylu).";
+        return "Bu ID sistem oyunlarından biriyle çakışıyor.";
     }
     if (!data.name || String(data.name).length < 2 || String(data.name).length > 40) {
         return "Oyun adı 2-40 karakter olmalı.";
     }
+
+    if (data.type === "browser") {
+        if (data.launchMode !== "standalone") {
+            return "Firestore üzerinden eklenen tarayıcı oyunları şu anda bağımsız açılış modunda olmalı. Oda oyunları için sunucu oyun adaptörü gerekir.";
+        }
+        if (typeof data.module !== "string" || !/^\.\/[a-z0-9][a-z0-9/_-]*\.js$/.test(data.module)) {
+            return "Oyun modülü games/ altında yerel bir .js modül yolu olmalı (ör. ./ornek-oyun/index.js).";
+        }
+        return null;
+    }
+
     if (!["download", "download-mp"].includes(data.type)) {
-        return "Yalnızca indirilebilir tek oyunculu veya çok oyunculu oyun eklenebilir.";
+        return "Oyun türü desteklenmiyor.";
     }
     if (typeof data.privateDownloadUrl !== "string" || !data.privateDownloadUrl.trim()) {
         return "Güvenli indirme için private game-vault Release bağlantısı zorunludur.";

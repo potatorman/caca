@@ -1684,82 +1684,75 @@ function recordGameLobbyCooldown(roomId, sessionData) {
     }, 200);
 }
 
+function createGameCatalogCard(game, standalone = false) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "game-catalog-card " +
+        (standalone ? "game-catalog-standalone" : "game-catalog-choice");
+    if (standalone) {
+        button.dataset.standaloneGameId = game.id;
+        button.setAttribute("aria-label", game.name + " oyununu RendeChat içinde aç");
+    } else {
+        button.dataset.gameId = game.id;
+        button.setAttribute("aria-pressed", String(game.id === selectedGameId));
+        button.classList.toggle("is-selected", game.id === selectedGameId);
+    }
+
+    const top = document.createElement("div");
+    top.className = "game-catalog-choice-top";
+    const icon = document.createElement("span");
+    icon.className = "game-catalog-choice-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = game.icon || "🎮";
+    const category = document.createElement("span");
+    category.className = "game-catalog-choice-category";
+    category.textContent = game.category || (standalone ? "BAĞIMSIZ OYUN" : "ODA OYUNU");
+    top.append(icon, category);
+
+    const name = document.createElement("strong");
+    name.className = "game-catalog-choice-name";
+    name.textContent = game.name;
+    const description = document.createElement("span");
+    description.className = "game-catalog-choice-description";
+    description.textContent = game.description || "Arkadaşlarınla birlikte oyna.";
+    const players = document.createElement("span");
+    players.className = "game-catalog-choice-players";
+    players.textContent = standalone
+        ? (Number(game.maxPlayers) > 1
+            ? Number(game.minPlayers || 1) + "–" + Number(game.maxPlayers) + " kişi · aynı cihazda"
+            : "Tek oyunculu · RendeChat içinde")
+        : Number(game.minPlayers) + "–" + Number(game.maxPlayers) + " oyuncu";
+    button.append(top, name, description, players);
+    return button;
+}
+
 function renderGameCatalog() {
     renderDownloadGames();
     const grid = $("gameCatalogGrid");
     const createButton = $("createGameSessionButton");
     if (!grid || !createButton) return;
 
-    const games = getMergedCatalog(_firestoreCatalogEntries)
-        .filter((game) => game.lobbyEnabled !== false);
+    const catalog = getMergedCatalog(_firestoreCatalogEntries);
+    const games = catalog.filter((game) =>
+        game.type === "browser" &&
+        game.launchMode !== "standalone" &&
+        game.lobbyEnabled !== false
+    );
+    const standaloneGames = catalog.filter((game) =>
+        game.type === "browser" &&
+        game.launchMode === "standalone" &&
+        Boolean(game.module) &&
+        game.published !== false
+    );
+
     if (!games.some((game) => game.id === selectedGameId)) {
         selectedGameId = games[0]?.id || "";
     }
 
-    grid.replaceChildren(...games.map((game) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "game-catalog-card game-catalog-choice";
-        button.dataset.gameId = game.id;
-        button.setAttribute("aria-pressed", String(game.id === selectedGameId));
-        button.classList.toggle("is-selected", game.id === selectedGameId);
-
-        const top = document.createElement("div");
-        top.className = "game-catalog-choice-top";
-
-        const icon = document.createElement("span");
-        icon.className = "game-catalog-choice-icon";
-        icon.setAttribute("aria-hidden", "true");
-        icon.textContent = game.icon || "🎮";
-
-        const category = document.createElement("span");
-        category.className = "game-catalog-choice-category";
-        category.textContent = game.id === "uno"
-            ? "KART OYUNU"
-            : game.id === "vampir-koylu"
-                ? "SOSYAL STRATEJİ"
-                : "TARAYICI OYUNU";
-        top.append(icon, category);
-
-        const name = document.createElement("strong");
-        name.className = "game-catalog-choice-name";
-        name.textContent = game.name;
-
-        const description = document.createElement("span");
-        description.className = "game-catalog-choice-description";
-        description.textContent = game.description || "Arkadaşlarınla birlikte oyna.";
-
-        const players = document.createElement("span");
-        players.className = "game-catalog-choice-players";
-        players.textContent = `${game.minPlayers}–${game.maxPlayers} oyuncu`;
-
-        button.append(top, name, description, players);
-        return button;
-    }));
-
-    const cityCard = document.createElement("button");
-    cityCard.type = "button";
-    cityCard.className = "game-catalog-card game-catalog-webgame";
-    cityCard.setAttribute("aria-label", "3D.CITY tek oyunculu oyununu aç");
-
-    const cityTop = document.createElement("div");
-    cityTop.className = "game-catalog-card-top";
-    const cityIcon = document.createElement("span");
-    cityIcon.className = "game-catalog-icon";
-    cityIcon.textContent = "🏙️";
-    const cityBadge = document.createElement("span");
-    cityBadge.className = "game-catalog-status";
-    cityBadge.textContent = "TEK OYUNCULU";
-    cityTop.append(cityIcon, cityBadge);
-
-    const cityName = document.createElement("strong");
-    cityName.className = "game-catalog-name";
-    cityName.textContent = "3D.CITY";
-    const cityDescription = document.createElement("span");
-    cityDescription.className = "game-catalog-description";
-    cityDescription.textContent = "Kendi 3D şehrini kur. Tarayıcıda oyna; oda veya lobi gerekmez.";
-    cityCard.append(cityTop, cityName, cityDescription);
-    grid.appendChild(cityCard);
+    grid.replaceChildren(
+        ...games.map((game) => createGameCatalogCard(game, false)),
+        ...standaloneGames.map((game) => createGameCatalogCard(game, true))
+    );
 
     const selected = games.find((game) => game.id === selectedGameId);
     const maxSelect = $("gameMaxPlayersSelect");
@@ -1769,7 +1762,7 @@ function renderGameCatalog() {
             { length: selected.maxPlayers - selected.minPlayers + 1 },
             (_, index) => {
                 const count = selected.minPlayers + index;
-                return new Option(`${count} oyuncu`, String(count));
+                return new Option(String(count) + " oyuncu", String(count));
             }
         ));
         maxSelect.value = String(
@@ -1784,8 +1777,8 @@ function renderGameCatalog() {
     createButton.textContent = hasOwnedActiveGameLobby
         ? "Zaten bir aktif lobin var"
         : cooldown > 0
-            ? `Yeni lobi için ${Math.ceil(cooldown / 1000)} sn bekle`
-            : `${selected?.name || "Oyun"} lobisi oluştur`;
+            ? "Yeni lobi için " + Math.ceil(cooldown / 1000) + " sn bekle"
+            : (selected?.name || "Oyun") + " lobisi oluştur";
 }
 function renderDownloadGames() {
     const section = $("downloadGamesSection");
@@ -3105,40 +3098,96 @@ $("chatsNavButton").addEventListener("click", () => setWorkspaceTab("chats"));
 $("gamesNavButton").addEventListener("click", () => setWorkspaceTab("games"));
 $("archiveNavButton").addEventListener("click", () => setWorkspaceTab("archive"));
 $("closeGameCenterButton").addEventListener("click", () => setWorkspaceTab("chats"));
-const THREE_D_CITY_URL = "./games/3d-city/index.html";
+let activeStandaloneGame = null;
+let standaloneLaunchGeneration = 0;
 
-function openThreeDCity() {
-    const dialog = $("webGameDialog");
-    const frame = $("webGameFrame");
-    if (!dialog || !frame) {
-        window.open(THREE_D_CITY_URL, "_blank", "noopener,noreferrer");
-        return;
+function disposeStandaloneGame() {
+    if (activeStandaloneGame) {
+        try { activeStandaloneGame.close?.(); }
+        catch (error) { console.warn("CACA standalone game close failed:", error); }
+        activeStandaloneGame = null;
     }
-    frame.src = THREE_D_CITY_URL;
-    if (typeof dialog.showModal === "function") dialog.showModal();
-    else window.open(THREE_D_CITY_URL, "_blank", "noopener,noreferrer");
+    $("standaloneGameStage")?.replaceChildren();
 }
 
-function closeThreeDCity() {
-    const dialog = $("webGameDialog");
+function closeStandaloneGame() {
+    standaloneLaunchGeneration += 1;
+    disposeStandaloneGame();
+    const dialog = $("standaloneGameDialog");
     if (dialog?.open) dialog.close();
 }
 
-$("closeWebGameDialog")?.addEventListener("click", closeThreeDCity);
-$("webGameDialog")?.addEventListener("close", () => {
-    const frame = $("webGameFrame");
-    if (frame) frame.src = "about:blank";
+async function launchStandaloneGame(entry) {
+    const dialog = $("standaloneGameDialog");
+    const stage = $("standaloneGameStage");
+    if (!dialog || !stage || !entry?.module) {
+        setGameCenterStatus("Bu oyunun RendeChat modülü bulunamadı.", true);
+        return;
+    }
+
+    if (dialog.open) dialog.close();
+    disposeStandaloneGame();
+    const requestId = ++standaloneLaunchGeneration;
+    $("standaloneGameDialogTitle").textContent = entry.name || "Oyun";
+    const credits = [entry.license, entry.credits].filter(Boolean).join(" · ");
+    $("standaloneGameDialogMeta").textContent = credits
+        ? "RendeChat içinde oynanır · " + credits
+        : "RendeChat içinde oynanır";
+    const loading = document.createElement("p");
+    loading.className = "standalone-game-loading";
+    loading.textContent = "Oyun yükleniyor…";
+    stage.replaceChildren(loading);
+    if (typeof dialog.showModal === "function") dialog.showModal();
+
+    try {
+        const modulePath = entry.module.startsWith("./")
+            ? "../games/" + entry.module.slice(2)
+            : entry.module;
+        const gameModule = await import(modulePath);
+        const game = gameModule.default || gameModule[entry.id + "Game"] || gameModule.game;
+        if (!game || typeof game.open !== "function") {
+            throw new Error("Oyun modülü open({ container }) arayüzünü dışa aktarmıyor.");
+        }
+        if (requestId !== standaloneLaunchGeneration || !dialog.open) return;
+
+        stage.replaceChildren();
+        const instance = await game.open({ container: stage, entry });
+        if (requestId !== standaloneLaunchGeneration || !dialog.open) {
+            instance?.close?.();
+            return;
+        }
+        if (!instance || typeof instance.close !== "function") {
+            throw new Error("Oyun modülü kapatılabilir bir oyun örneği döndürmedi.");
+        }
+        activeStandaloneGame = instance;
+    } catch (error) {
+        if (requestId !== standaloneLaunchGeneration || !dialog.open) return;
+        const message = document.createElement("p");
+        message.className = "standalone-game-error";
+        message.textContent = "Oyun açılamadı: " + (error?.message || "Bilinmeyen hata");
+        stage.replaceChildren(message);
+        console.error("CACA standalone game launch failed:", error);
+    }
+}
+
+$("closeStandaloneGameDialog")?.addEventListener("click", closeStandaloneGame);
+$("standaloneGameDialog")?.addEventListener("close", () => {
+    standaloneLaunchGeneration += 1;
+    disposeStandaloneGame();
 });
-$("webGameDialog")?.addEventListener("click", (event) => {
-    if (event.target === $("webGameDialog")) closeThreeDCity();
+$("standaloneGameDialog")?.addEventListener("click", (event) => {
+    if (event.target === $("standaloneGameDialog")) closeStandaloneGame();
 });
 
 $("gameCatalogGrid").addEventListener("click", (event) => {
-    const webGameCard = event.target.closest(".game-catalog-webgame");
-    if (webGameCard) {
-        openThreeDCity();
+    const standaloneCard = event.target.closest(".game-catalog-standalone[data-standalone-game-id]");
+    if (standaloneCard) {
+        const entry = getMergedCatalog(_firestoreCatalogEntries)
+            .find((game) => game.id === standaloneCard.dataset.standaloneGameId);
+        if (entry) void launchStandaloneGame(entry);
         return;
     }
+
     const card = event.target.closest(".game-catalog-card[data-game-id]");
     if (!card || card.disabled) return;
     selectedGameId = card.dataset.gameId;
