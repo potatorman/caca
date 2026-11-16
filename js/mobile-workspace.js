@@ -26,6 +26,14 @@ if (appView && roomSidebar && mobileRoomsToggle && mobileDrawerBackdrop) {
         mobileMemberDefaultApplied = true;
     }
 
+    function restoreDesktopMemberPanel() {
+        if (!mobileMemberDefaultApplied || !roomChatLayout || !membersToggle) return;
+        roomChatLayout.classList.remove("members-collapsed");
+        membersToggle.setAttribute("aria-expanded", "true");
+        membersToggle.innerHTML = 'Üyeler <span aria-hidden="true">▥</span>';
+        mobileMemberDefaultApplied = false;
+    }
+
     function syncDrawerState() {
         const mobile = mobileViewport.matches;
         const membersOpen = Boolean(
@@ -90,13 +98,15 @@ if (appView && roomSidebar && mobileRoomsToggle && mobileDrawerBackdrop) {
     });
 
     roomSidebar.addEventListener("click", (event) => {
-        if (event.target.closest("#globalChatNavButton, .room-list-item")) {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest("#globalChatNavButton, .room-list-item")) {
             closeRoomDrawer(false);
         }
     });
 
     roomSidebar.addEventListener("submit", (event) => {
-        if (event.target.matches("#createRoomForm, #joinRoomForm")) {
+        if (event.target instanceof HTMLFormElement &&
+            event.target.matches("#createRoomForm, #joinRoomForm")) {
             closeRoomDrawer(false);
         }
     });
@@ -129,6 +139,7 @@ if (appView && roomSidebar && mobileRoomsToggle && mobileDrawerBackdrop) {
     const onViewportChange = () => {
         if (!mobileViewport.matches) {
             roomDrawerOpen = false;
+            restoreDesktopMemberPanel();
             appView.classList.remove("mobile-members-open", "mobile-rooms-open");
             mobileDrawerBackdrop.hidden = true;
             mobileRoomsToggle.setAttribute("aria-expanded", "false");

@@ -43,7 +43,8 @@ jobs:
             ../../js/global-chat-members.js \
             ../../js/site-owner.js \
             ../../js/settings.js \
-            ../../js/app.js
+            ../../js/app.js \
+            ../../js/mobile-workspace.js
           do
             node --input-type=module --check < "$file"
           done
