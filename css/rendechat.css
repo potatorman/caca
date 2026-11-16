@@ -836,3 +836,159 @@ summary:focus-visible {
     animation-iteration-count: 1 !important;
   }
 }
+
+
+/* Desktop full-bleed layout — remove the browser-frame treatment entirely. */
+@media (min-width: 801px) {
+  html,
+  body {
+    width: 100%;
+    min-width: 0;
+    min-height: 100%;
+    margin: 0;
+  }
+
+  body,
+  body:not(.logged-in) {
+    display: block;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body:not(.logged-in) .layout {
+    display: grid;
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  body:not(.logged-in) .brand-area,
+  body:not(.logged-in) .auth-area {
+    min-width: 0;
+    min-height: 100%;
+  }
+
+  body:not(.logged-in) .brand-area {
+    padding: clamp(42px, 6vw, 92px);
+  }
+
+  body:not(.logged-in) .auth-area {
+    padding: clamp(38px, 6vw, 88px);
+  }
+
+  body.logged-in {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body.logged-in .layout {
+    display: grid;
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  body.logged-in .auth-area,
+  body.logged-in .auth-card,
+  body.logged-in #appView {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .dashboard-header {
+    padding-left: clamp(18px, 2vw, 34px);
+    padding-right: clamp(18px, 2vw, 34px);
+  }
+
+  .workspace-main {
+    padding: clamp(18px, 2vw, 32px);
+  }
+}
+
+/* The RendeChat brand mark is deliberately a little playful: cheese. */
+.brand-logo {
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 0;
+  letter-spacing: 0;
+}
+
+.brand-logo::after {
+  display: none;
+}
+
+.rendechat-cheese {
+  display: inline-block;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 43px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-indent: 0;
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, .18));
+  transform: rotate(-7deg);
+  user-select: none;
+}
+
+.brand-logo .rendechat-cheese {
+  font-size: 43px;
+}
+
+.dashboard-brand .brand-logo .rendechat-cheese {
+  font-size: 29px;
+}
+
+.welcome-icon {
+  background: rgba(152, 120, 255, .12);
+  border: 1px solid rgba(179, 156, 255, .25);
+  box-shadow: 0 10px 30px rgba(90, 70, 160, .16);
+}
+
+.welcome-icon .rendechat-cheese {
+  font-size: 40px;
+}
+
+.arena-stage-mark {
+  width: 128px;
+  height: 128px;
+  color: inherit;
+  background: rgba(152, 120, 255, .07);
+  border: 1px solid rgba(179, 156, 255, .18);
+  border-radius: 28px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .14);
+}
+
+.arena-stage-mark .rendechat-cheese {
+  font-size: 65px;
+}
+
+.arena-stage-mark i,
+.arena-stage-mark b {
+  display: none !important;
+}
