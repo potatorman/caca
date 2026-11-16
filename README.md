@@ -4,7 +4,8 @@ CACA is a Turkish-first browser chat and room game project.
 
 ## Games
 
-- **UNO** — real-time multiplayer card game.
+- **UNO** — 2–10 player real-time multiplayer card game.
+- **Starfall Grid** — original 2–8 player territory-scoring strategy game with a shared 6×6 board, star bonuses and connected-cell scoring.
 - **Vampir Köylü** — 5–12 player social deduction game with Vampir, Doktor and Köylü roles.
 
 Vampir Köylü supports optional host-controlled bot filling:
