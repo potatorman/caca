@@ -14,9 +14,10 @@ import { findUploadedReleaseAsset, parsePrivateReleaseAssetUrl } from "./game-do
 import { isValidArchiveAccessTicket } from "./archive-access.js";
 import { UnoRoom } from "./UnoRoom.js";
 import { VampirKoyluRoom } from "./VampirKoyluRoom.js";
+import { PuzzleRoom } from "./PuzzleRoom.js";
 import { getUnoDurableObjectName, getVampirKoyluDurableObjectName, isValidVampirKoyluSessionId } from "./session-identity.js";
 
-export { UnoRoom, VampirKoyluRoom };
+export { UnoRoom, VampirKoyluRoom, PuzzleRoom };
 
 const jsonHeaders = {
     "Content-Type": "application/json; charset=utf-8",
@@ -98,11 +99,16 @@ async function authorizeRoomUser(env, uid, roomId, lobbyId, round, gameId = "uno
 }
 
 function getRoomStub(env, gameId, roomId, lobbyId, round, sessionId = null) {
-    const binding = gameId === "vampir-koylu" ? env.VAMPIR_KOYLU_ROOMS : env.UNO_ROOMS;
+    const puzzleGame = gameId === "odd-signal" || gameId === "pattern-party";
+    const binding = gameId === "vampir-koylu"
+        ? env.VAMPIR_KOYLU_ROOMS
+        : puzzleGame ? env.PUZZLE_ROOMS : env.UNO_ROOMS;
     if (!binding) throw new Error("Bu oyun için Durable Object bağlantısı bulunamadı.");
     const identity = gameId === "vampir-koylu"
         ? getVampirKoyluDurableObjectName(roomId, lobbyId, round, sessionId)
-        : getUnoDurableObjectName(roomId, lobbyId, round);
+        : puzzleGame
+            ? gameId + ":" + roomId + ":" + lobbyId + ":" + String(Number(round))
+            : getUnoDurableObjectName(roomId, lobbyId, round);
     const id = binding.idFromName(identity);
     return binding.get(id);
 }
@@ -155,6 +161,7 @@ async function sendHttpAction(request, env, origin, gameId) {
             "X-CACA-ROOM-ID": body.roomId,
             "X-CACA-LOBBY-ID": body.lobbyId,
             "X-CACA-ROUND": String(body.round),
+            "X-CACA-GAME-ID": gameId,
             ...(gameId === "vampir-koylu" ? { "X-CACA-SESSION-ID": body.sessionId } : {})
         },
         body: JSON.stringify({ action: body.action })
@@ -893,11 +900,23 @@ export default {
             if (url.pathname === "/api/vampir-koylu/ticket" && request.method === "POST") {
                 return await issueTicket(request, env, url, origin, "vampir-koylu");
             }
+            if (url.pathname === "/api/odd-signal/ticket" && request.method === "POST") {
+                return await issueTicket(request, env, url, origin, "odd-signal");
+            }
+            if (url.pathname === "/api/pattern-party/ticket" && request.method === "POST") {
+                return await issueTicket(request, env, url, origin, "pattern-party");
+            }
             if (url.pathname === "/api/uno/action" && request.method === "POST") {
                 return await sendHttpAction(request, env, origin, "uno");
             }
             if (url.pathname === "/api/vampir-koylu/action" && request.method === "POST") {
                 return await sendHttpAction(request, env, origin, "vampir-koylu");
+            }
+            if (url.pathname === "/api/odd-signal/action" && request.method === "POST") {
+                return await sendHttpAction(request, env, origin, "odd-signal");
+            }
+            if (url.pathname === "/api/pattern-party/action" && request.method === "POST") {
+                return await sendHttpAction(request, env, origin, "pattern-party");
             }
 
             if (
@@ -920,7 +939,11 @@ export default {
                     return json({ error: "WebSocket bağlantısı gerekli." }, 426, origin);
                 }
                 const ticket = await verifyTicket(url.searchParams.get("ticket"), env.CACA_TICKET_SECRET);
-                const gameId = ticket.gameId === "vampir-koylu" ? "vampir-koylu" : "uno";
+                const allowedGames = ["uno", "vampir-koylu", "odd-signal", "pattern-party"];
+                if (!allowedGames.includes(ticket.gameId)) {
+                    throw new Error("Oyun bağlantı bileti geçersiz.");
+                }
+                const gameId = ticket.gameId;
                 if (gameId === "vampir-koylu") validateSessionId(ticket.sessionId);
                 validateLobbyId(ticket.lobbyId);
                 const stub = getRoomStub(env, gameId, ticket.roomId, ticket.lobbyId, ticket.round, ticket.sessionId);
@@ -933,6 +956,7 @@ export default {
                         "X-CACA-ROOM-ID": ticket.roomId,
                         "X-CACA-LOBBY-ID": ticket.lobbyId,
                         "X-CACA-ROUND": String(ticket.round),
+                        "X-CACA-GAME-ID": gameId,
                         ...(gameId === "vampir-koylu" ? { "X-CACA-SESSION-ID": ticket.sessionId } : {})
                     }
                 });

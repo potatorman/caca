@@ -1,15 +1,17 @@
 # CACA Games
 
-Oda oyunları bu klasörde ayrı modüller halinde tutulur.
+CACA oyunları, RendeChat'in mevcut lobi ve davet sistemine takılabilir küçük modüller olarak tasarlanır.
 
-## Yapı
+## Oyun modülleri
 
-- `registry.js`: oyun kataloğu ve oyun modüllerinin kayıtları.
-- `uno/`: UNO oyununun kendi mantığı, durum modeli ve arayüzü.
-- Her yeni oyun kendi klasöründe tutulur (ör. `tavla/`, `kelime/`).
+- `uno/`: 2–10 oyunculu gerçek zamanlı kart oyunu.
+- `vampir-koylu/`: 5–12 oyunculu sosyal çıkarım oyunu.
+- `puzzle/`: Ortak motoru kullanan 2–8 oyunculu Odd Signal ve Pattern Party.
 
-## Ortak lobi
+## Genişletme sözleşmesi
 
-Oda oluşturma, katılımcıların hazır durumu, izleyici görünümü ve tur sırası ortak oda altyapısıdır. Bunlar oyunların içine kopyalanmaz. Bir oyun modülü seçildiğinde ortak lobi o oyunun başlatma fonksiyonuna bağlanır.
+Her oyun `registry.js` içinde benzersiz bir `id`, oyuncu sınırları ve bir `module` yolu ile kaydedilir. Modül, `open({ db, roomId, round, uid, session, roomMembers, onLeave, onReturnToLobby })` imzasıyla çalışan bir `open` fonksiyonu dışa aktarır.
 
-Şu an ortak lobi ve tur sırası altyapısı vardır; UNO oynanış motoru henüz eklenmemiştir.
+Lobi oluşturma, davetler, katılma/ayrılma, hazır durumu, geri sayım, izleyiciler ve rematch döngüsü `js/rooms-ui.js` içindeki ortak altyapı tarafından yönetilir; bunları oyun klasörlerinde yeniden uygulamayın. Gerçek zamanlı, rekabete dayalı oyunlarda sunucu hamleleri doğrular ve oyun durumunu Cloudflare Durable Objects üzerinden yayınlar.
+
+Yeni bir sunucu tarafı oyun eklendiğinde Worker route'ları, Durable Object binding/migration ve Node testleri de eklenmelidir. Oyun arayüzleri mevcut sayfa içinde overlay olarak çalışır; dış bağlantı veya iframe kullanmaz.

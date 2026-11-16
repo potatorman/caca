@@ -13,6 +13,10 @@
       {
         "name": "VAMPIR_KOYLU_ROOMS",
         "class_name": "VampirKoyluRoom"
+      },
+      {
+        "name": "PUZZLE_ROOMS",
+        "class_name": "PuzzleRoom"
       }
     ]
   },
@@ -27,6 +31,12 @@
       "tag": "v2",
       "new_sqlite_classes": [
         "VampirKoyluRoom"
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": [
+        "PuzzleRoom"
       ]
     }
   ],
@@ -55,6 +65,10 @@
         {
           "name": "VAMPIR_KOYLU_ROOMS",
           "class_name": "VampirKoyluRoom"
+        },
+        {
+          "name": "PUZZLE_ROOMS",
+          "class_name": "PuzzleRoom"
         }
       ]
     }
