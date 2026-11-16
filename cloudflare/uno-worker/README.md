@@ -4,8 +4,9 @@ This Worker hosts live UNO and Vampir Köylü matches. The existing CACA website
 room lobby, profiles, invitations and chat remain on Firebase.
 
 Private game downloads are documented in
-[PRIVATE_GAME_DOWNLOADS.md](./PRIVATE_GAME_DOWNLOADS.md). They require both CACA sign-in and
-the shared archive password. Public Release URLs remain public and are not protected by that password.
+[PRIVATE_GAME_DOWNLOADS.md](./PRIVATE_GAME_DOWNLOADS.md). They require CACA sign-in; the Worker
+issues short-lived tickets bound to the signed-in Firebase UID. There is no separate shared
+archive password. Public Release URLs remain public and are not protected by the Worker.
 
 ## What moves to Cloudflare
 
@@ -47,8 +48,6 @@ In the Worker **Settings → Variables & Secrets**, add these as encrypted secre
   project `caca-dfe6c`.
 - `GITHUB_RELEASES_TOKEN`: a fine-grained GitHub token scoped only to the private
   `game-vault` repository with **Contents: Read-only** permission.
-- `GAME_ARCHIVE_PASSWORD`: the shared password for protected game archives. Add it as an
-  encrypted Cloudflare Worker secret; never store it in source code or browser files.
 
 Create the service account in Google Cloud IAM for project `caca-dfe6c` and grant it the
 **Cloud Datastore User** role. Do not put the JSON key in GitHub, the Worker source or browser

@@ -1567,8 +1567,12 @@ function renderGameCatalog() {
     const createButton = $("createGameSessionButton");
     if (!grid || !createButton) return;
 
-    const games = getMergedCatalog(_firestoreCatalogEntries).filter((game) => game.lobbyEnabled !== false);
-    if (!games.some((game) => game.id === selectedGameId)) selectedGameId = games[0]?.id || "";
+    const games = getMergedCatalog(_firestoreCatalogEntries)
+        .filter((game) => game.lobbyEnabled !== false);
+    if (!games.some((game) => game.id === selectedGameId)) {
+        selectedGameId = games[0]?.id || "";
+    }
+
     grid.replaceChildren(...games.map((game) => {
         const button = document.createElement("button");
         button.type = "button";
@@ -1577,13 +1581,39 @@ function renderGameCatalog() {
         button.setAttribute("aria-pressed", String(game.id === selectedGameId));
         button.classList.toggle("is-selected", game.id === selectedGameId);
 
+        const top = document.createElement("div");
+        top.className = "game-catalog-choice-top";
+
+        const icon = document.createElement("span");
+        icon.className = "game-catalog-choice-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = game.icon || "🎮";
+
+        const category = document.createElement("span");
+        category.className = "game-catalog-choice-category";
+        category.textContent = game.id === "uno"
+            ? "KART OYUNU"
+            : game.id === "vampir-koylu"
+                ? "SOSYAL STRATEJİ"
+                : "TARAYICI OYUNU";
+        top.append(icon, category);
+
         const name = document.createElement("strong");
+        name.className = "game-catalog-choice-name";
         name.textContent = game.name;
+
+        const description = document.createElement("span");
+        description.className = "game-catalog-choice-description";
+        description.textContent = game.description || "Arkadaşlarınla birlikte oyna.";
+
         const players = document.createElement("span");
-        players.textContent = `Min. ${game.minPlayers} · Maks. ${game.maxPlayers} oyuncu`;
-        button.append(name, players);
+        players.className = "game-catalog-choice-players";
+        players.textContent = `${game.minPlayers}–${game.maxPlayers} oyuncu`;
+
+        button.append(top, name, description, players);
         return button;
     }));
+
     const cityCard = document.createElement("button");
     cityCard.type = "button";
     cityCard.className = "game-catalog-card game-catalog-webgame";
@@ -1634,7 +1664,6 @@ function renderGameCatalog() {
             ? `Yeni lobi için ${Math.ceil(cooldown / 1000)} sn bekle`
             : `${selected?.name || "Oyun"} lobisi oluştur`;
 }
-
 function renderDownloadGames() {
     const section = $("downloadGamesSection");
     const grid = $("downloadGamesGrid");
@@ -1720,6 +1749,7 @@ function renderDownloadGames() {
 }
 
 let archiveAccessInMemory = { uid: "", token: "", expiresAt: 0 };
+let archiveAccessRequest = null;
 
 function getArchiveAccessToken() {
     if (!currentUser) return "";
@@ -1784,77 +1814,43 @@ function clearArchiveAccessToken() {
     }
 }
 
-function updateArchiveLockScreen() {
-    const view = $("archiveView");
-    const content = $("archiveContent");
-    if (!view || !content) return false;
+// The extra password screen is removed. The Worker issues this short-lived
+// ticket to signed-in CACA members and binds it to their Firebase UID.
+async function ensureArchiveAccessToken() {
+    const existing = getArchiveAccessToken();
+    if (existing) return existing;
+    if (!currentUser) throw new Error("Kütüphaneyi kullanmak için giriş yapmalısın.");
+    if (archiveAccessRequest) return archiveAccessRequest;
 
-    const unlocked = Boolean(getArchiveAccessToken());
-    view.classList.toggle("is-unlocked", unlocked);
-    content.inert = !unlocked;
-    content.setAttribute("aria-hidden", String(!unlocked));
-    if (unlocked && $("archiveUnlockStatus")) $("archiveUnlockStatus").textContent = "";
-    return unlocked;
-}
-
-function unlockPrivateArchive() {
-    return getArchiveAccessToken();
-}
-
-$("archiveUnlockForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const input = $("archiveUnlockInput");
-    const button = $("archiveUnlockButton");
-    const status = $("archiveUnlockStatus");
-    if (!input || !button || !status) return;
-
-    if (!currentUser) {
-        status.textContent = "Giriş yapman gerekiyor.";
-        return;
-    }
-
-    const password = input.value;
-    if (!password) return;
-
-    button.disabled = true;
-    status.textContent = "";
-    $("archiveUnlockForm").classList.add("is-loading");
-
-    try {
+    const requestingUid = currentUser.uid;
+    archiveAccessRequest = (async () => {
         const idToken = await currentUser.getIdToken();
-        const response = await fetch(UNO_WORKER_URL + "/api/archive/unlock", {
+        const response = await fetch(UNO_WORKER_URL + "/api/archive/access", {
             method: "POST",
-            headers: {
-                Authorization: "Bearer " + idToken,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ password })
+            headers: { Authorization: "Bearer " + idToken }
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || typeof payload.accessToken !== "string") {
-            const error = new Error(
-                response.status === 401 || response.status === 403
-                    ? "Anahtar kabul edilmedi."
-                    : "Arşiv şu anda açılamadı. Tekrar dene."
-            );
+            const error = new Error(payload.error || "Kütüphane erişimi doğrulanamadı. Tekrar dene.");
             error.status = response.status;
             throw error;
         }
+        if (currentUser?.uid !== requestingUid) {
+            throw new Error("Hesap değişti. Lütfen indirmeyi yeniden başlat.");
+        }
 
         storeArchiveAccessToken(payload.accessToken, payload.expiresIn);
-        input.value = "";
-        updateArchiveLockScreen();
-    } catch (error) {
-        status.textContent = error.message || "Arşiv şu anda açılamadı. Tekrar dene.";
-        input.value = "";
-        input.focus();
+        const stored = getArchiveAccessToken();
+        if (!stored) throw new Error("Güvenli indirme bileti saklanamadı. Tekrar dene.");
+        return stored;
+    })();
+
+    try {
+        return await archiveAccessRequest;
     } finally {
-        input.value = "";
-        button.disabled = false;
-        $("archiveUnlockForm").classList.remove("is-loading");
+        archiveAccessRequest = null;
     }
-});
+}
 
 async function startCatalogGameDownload(game, button, status) {
     if (!currentUser) {
@@ -1863,7 +1859,7 @@ async function startCatalogGameDownload(game, button, status) {
     }
 
     if (!game.privateDownloadUrl) {
-        status.textContent = "Bu oyun henüz private arşive taşınmadığı için parola koruması yok. Site Owner'dan private bağlantıyı eklemesini iste.";
+        status.textContent = "Bu oyun henüz güvenli indirme için hazırlanmadı. Site Owner private bağlantıyı eklemeli.";
         return;
     }
 
@@ -1874,12 +1870,7 @@ async function startCatalogGameDownload(game, button, status) {
 
     try {
         const idToken = await currentUser.getIdToken();
-        const archiveAccessToken = unlockPrivateArchive();
-        if (!archiveAccessToken) {
-            updateArchiveLockScreen();
-            status.textContent = "Arşiv kilitli. Önce Arşiv sekmesinin kilidini aç.";
-            return;
-        }
+        const archiveAccessToken = await ensureArchiveAccessToken();
 
         const response = await fetch(UNO_WORKER_URL + "/api/download-ticket", {
             method: "POST",
@@ -1904,8 +1895,8 @@ async function startCatalogGameDownload(game, button, status) {
         // Never fall back to a public URL after a private download fails.
         if (error.status === 401 || error.status === 403) {
             clearArchiveAccessToken();
-            updateArchiveLockScreen();
-            status.textContent = "Arşiv kilidi yeniden açılmalı.";
+
+            status.textContent = "Kütüphane erişimi yenilenmeli. Tekrar dene.";
         } else {
             status.textContent = error.message || "İndirme başlatılamadı. Daha sonra tekrar dene.";
         }
@@ -2953,7 +2944,7 @@ function setWorkspaceTab(tab) {
             if (gameSessionData?.status === "playing") joinGameAsSpectator();
         } else {
             renderDownloadGames();
-            updateArchiveLockScreen();
+
         }
     } else {
         gamesView.hidden = true;
