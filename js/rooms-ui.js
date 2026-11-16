@@ -146,6 +146,7 @@ let gameSessionData = null;
 let gameSessionsById = new Map();
 let activeGameLobbyId = "";
 let dismissedAutoOpenGameLobbyId = "";
+let pendingGameLobbySwitchId = "";
 let activeRoomGame = null;
 let observedUnoRosterRoundKey = "";
 let observedUnoRosterIds = [];
@@ -3443,12 +3444,77 @@ async function createGameSession() {
     }
 }
 
-async function joinGameSession() {
+function findCurrentGameLobbyMembership(exceptLobbyId = "") {
+    if (!currentUser) return null;
+    const uid = currentUser.uid;
+    const sessions = [gameSessionData, ...gameSessionsById.values()].filter((session, index, all) =>
+        session && session.lobbyId !== exceptLobbyId &&
+        all.findIndex((item) => item?.lobbyId === session.lobbyId) === index
+    );
+    return sessions.find((session) => {
+        if (!["lobby", "starting", "playing", "results"].includes(session.status)) return false;
+        return session.hostId === uid ||
+            (Array.isArray(session.playerIds) && session.playerIds.includes(uid)) ||
+            (Array.isArray(session.matchPlayerIds) && session.matchPlayerIds.includes(uid)) ||
+            (Array.isArray(session.spectatorIds) && session.spectatorIds.includes(uid)) ||
+            (Array.isArray(session.nextRoundPlayerIds) && session.nextRoundPlayerIds.includes(uid));
+    }) || null;
+}
+
+function openGameLobbySwitchDialog(targetLobbyId) {
+    const dialog = $("gameLobbySwitchDialog");
+    if (!dialog || !targetLobbyId) return false;
+    pendingGameLobbySwitchId = targetLobbyId;
+    const target = gameSessionsById.get(targetLobbyId);
+    const targetName = target?.gameName || getGameDefinition(target?.gameId)?.name || "diğer oda";
+    $("gameLobbySwitchBody").textContent = "Şu anda başka bir oyun lobisindesin. " + targetName +
+        " odasına geçersen mevcut lobinden ayrılacaksın. Devam etmek istiyor musun?";
+    if (!dialog.open) dialog.showModal();
+    return true;
+}
+
+async function confirmGameLobbySwitch() {
+    const targetLobbyId = pendingGameLobbySwitchId;
+    const dialog = $("gameLobbySwitchDialog");
+    pendingGameLobbySwitchId = "";
+    if (dialog?.open) dialog.close();
+    if (!targetLobbyId || !currentUser) return;
+    const targetSession = gameSessionsById.get(targetLobbyId);
+    if (!targetSession || !["lobby", "results"].includes(targetSession.status)) {
+        setGameCenterStatus("Katılmak istediğin lobi artık kullanılamıyor. Listeyi yenile.", true);
+        return;
+    }
+    let password = "";
+    if (targetSession.hasPassword) {
+        password = window.prompt("Bu lobi parola korumalı. Parolayı gir:") || "";
+        if (!password) return;
+    }
+    const currentSession = findCurrentGameLobbyMembership(targetLobbyId);
+    if (currentSession) {
+        selectGameLobby(currentSession.lobbyId);
+        const left = await leaveGameLobby();
+        if (!left) {
+            setGameCenterStatus("Mevcut lobinden ayrılamadığın için diğer odaya geçiş iptal edildi.", true);
+            return;
+        }
+    }
+    if (!gameSessionsById.has(targetLobbyId)) {
+        setGameCenterStatus("Katılmak istediğin lobi kapatıldı. Başka bir oda seç.", true);
+        return;
+    }
+    selectGameLobby(targetLobbyId);
+    await joinGameSession({ passwordOverride: password, passwordAlreadyCollected: true });
+}
+async function joinGameSession({ passwordOverride = "", passwordAlreadyCollected = false } = {}) {
     if (!currentUser || !gameSessionData || !["lobby", "results"].includes(gameSessionData.status)) return;
 
     const uid = currentUser.uid;
     const session = gameSessionData;
     const lobbyId = session.lobbyId;
+    if (findCurrentGameLobbyMembership(lobbyId)) {
+        openGameLobbySwitchDialog(lobbyId);
+        return;
+    }
     const players = Array.isArray(session.playerIds) ? session.playerIds : [];
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
     const queuedPlayers = Array.isArray(session.nextRoundPlayerIds) ? session.nextRoundPlayerIds : [];
@@ -3474,7 +3540,7 @@ async function joinGameSession() {
         const button = $("joinGameSessionButton");
         if (button) button.disabled = true;
         try {
-            const password = session.hasPassword ? window.prompt("Bu lobi parola korumalı. Parolayı gir:") : "";
+            const password = session.hasPassword ? (passwordAlreadyCollected ? passwordOverride : window.prompt("Bu lobi parola korumalı. Parolayı gir:")) : "";
             if (session.hasPassword && password === null) return;
             await callLobbyWorker({ action: "join", lobbyId, password: password || "" });
             setGameCenterStatus("Sonraki maç için lobiye katıldın. Sonuçlar bitince otomatik ekleneceksin.");
@@ -3492,7 +3558,7 @@ async function joinGameSession() {
         return;
     }
     try {
-        const password = session.hasPassword ? window.prompt("Bu lobi parola korumalı. Parolayı gir:") : "";
+        const password = session.hasPassword ? (passwordAlreadyCollected ? passwordOverride : window.prompt("Bu lobi parola korumalı. Parolayı gir:")) : "";
         if (session.hasPassword && password === null) return;
         await callLobbyWorker({ action: "join", lobbyId, password: password || "" });
         setGameCenterStatus("Kalıcı lobiye katıldın. Hazır olduğunda hazır butonuna bas.");
@@ -3685,11 +3751,14 @@ async function leaveGameLobby() {
                 ? latest.matchPlayerIds
                 : (["playing", "results"].includes(latest.status) ? players : []);
             const spectators = Array.isArray(latest.spectatorIds) ? latest.spectatorIds : [];
+            const queuedPlayers = Array.isArray(latest.nextRoundPlayerIds) ? latest.nextRoundPlayerIds : [];
+            const queuedReadyIds = Array.isArray(latest.nextRoundReadyIds) ? latest.nextRoundReadyIds : [];
             const isPlayer = players.includes(uid);
             const isMatchPlayer = matchPlayers.includes(uid);
             const isSpectator = spectators.includes(uid);
+            const isQueued = queuedPlayers.includes(uid);
 
-            if (!isPlayer && !isMatchPlayer && !isSpectator) return { left: false };
+            if (!isPlayer && !isMatchPlayer && !isSpectator && !isQueued) return { left: false };
 
             const remainingPlayers = players.filter((id) => id !== uid);
             const remainingReady = readyIds.filter((id) => id !== uid);
@@ -3731,6 +3800,8 @@ async function leaveGameLobby() {
             const updates = {
                 playerIds: remainingPlayers,
                 readyIds: remainingReady,
+                nextRoundPlayerIds: queuedPlayers.filter((id) => id !== uid),
+                nextRoundReadyIds: queuedReadyIds.filter((id) => id !== uid),
                 updatedAt: serverTimestamp()
             };
             if (Array.isArray(latest.resultReturnIds) && latest.resultReturnIds.includes(uid)) {
@@ -3890,6 +3961,11 @@ $("openGameMatchButton")?.addEventListener("click", async () => {
     button.disabled = false;
 });
 $("joinGameSessionButton").addEventListener("click", joinGameSession);
+$("gameLobbySwitchStayButton").addEventListener("click", () => {
+    pendingGameLobbySwitchId = "";
+    $("gameLobbySwitchDialog").close();
+});
+$("gameLobbySwitchJoinButton").addEventListener("click", () => void confirmGameLobbySwitch());
 $("readyGameSessionButton").addEventListener("click", toggleGameReady);
 $("leaveGameSessionButton").addEventListener("click", leaveGameLobby);
 $("finishGameRoundButton").addEventListener("click", finishGameMatch);
