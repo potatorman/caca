@@ -14,6 +14,11 @@ import {
     forfeitMatch as forfeitVampirKoyluMatch,
     returnToLobby as returnVampirKoyluToLobby
 } from "../games/vampir-koylu/index.js";
+import {
+    reconcileMatchPlayers as reconcilePuzzleMatchPlayers,
+    forfeitMatch as forfeitPuzzleMatch,
+    returnToLobby as returnPuzzleToLobby
+} from "../games/puzzle/state.js";
 
 import {
     onAuthStateChanged
@@ -1579,6 +1584,8 @@ $("sendPersonalJumpscareButton").addEventListener("click", sendPersonalJumpscare
 
 // Global Games use a dedicated scope, independent from chat-room membership.
 const GAME_SCOPE_ID = "global";
+const PUZZLE_GAME_IDS = new Set(["odd-signal", "pattern-party"]);
+const WORKER_BACKED_GAME_IDS = new Set(["uno", "vampir-koylu", ...PUZZLE_GAME_IDS]);
 let gameCenterScopeListening = false;
 let hasOwnedActiveGameLobby = false;
 
@@ -2172,7 +2179,7 @@ function renderGameCenter() {
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
     const resultReturnIds = Array.isArray(session.resultReturnIds) ? session.resultReturnIds : [];
     const hasReturnedFromWorkerResults =
-        ["uno", "vampir-koylu"].includes(session.gameId) &&
+        WORKER_BACKED_GAME_IDS.has(session.gameId) &&
         session.status === "results" &&
         resultReturnIds.includes(currentUser?.uid);
     const isPlaying = session.status === "playing";
@@ -2208,7 +2215,7 @@ function renderGameCenter() {
         : isStarting
             ? "Herkes hazır. Oyun 3 saniyelik geri sayımın sonunda başlayacak; biri vazgeçerse sayaç iptal edilir."
             : isResults
-                ? ["uno", "vampir-koylu"].includes(session.gameId)
+                ? WORKER_BACKED_GAME_IDS.has(session.gameId)
                     ? `Sonuç ekranı · ${resultReturnIds.length}/${matchPlayers.length} oyuncu lobiye döndü.`
                     : "Maç bitti. İzleyiciler otomatik olarak lobi üyelerine eklendi. Yeni maç için lobiye dön."
                 : botFillEnabled
@@ -2239,7 +2246,7 @@ function renderGameCenter() {
                 : "Sonraki maç için lobide";
         }
         if (isResults) {
-            if (["uno", "vampir-koylu"].includes(session.gameId) && resultReturnIds.includes(userId)) {
+            if (WORKER_BACKED_GAME_IDS.has(session.gameId) && resultReturnIds.includes(userId)) {
                 return "Lobiye döndü";
             }
             return matchPlayers.includes(userId) ? "Sonuç ekranında" : "Lobi üyesi";
@@ -2301,7 +2308,7 @@ function renderGameCenter() {
             : isSpectator ? gameName + " masasını izle" : gameName + " ekranını aç";
     }
     $("finishGameRoundButton").hidden = !isPlaying || !canManage ||
-        ["uno", "vampir-koylu"].includes(session.gameId);
+        WORKER_BACKED_GAME_IDS.has(session.gameId);
     $("closeGameSessionButton").hidden = !canManage;
     $("closeGameSessionButton").textContent = "Lobiyi tamamen kapat";
     $("gameLobbySettingsButton").hidden = !(
@@ -2335,7 +2342,7 @@ function renderGameCenter() {
                 : "Tüm oyuncular döndü. Yeni lobi hazırlanıyor."
         );
     } else if (isResults) {
-        setGameCenterStatus(["uno", "vampir-koylu"].includes(session.gameId)
+        setGameCenterStatus(WORKER_BACKED_GAME_IDS.has(session.gameId)
             ? "Her oyuncunun sonuç ekranı 5 saniye içinde lobiye dönüşünü sunucuya kaydeder."
             : "Sonuçlar 5 saniye gösterilecek. Ardından lobi otomatik sıfırlanacak.");
     } else if (isStarting && isLobbyPlayer) {
@@ -2406,11 +2413,29 @@ async function returnVampirKoyluToLobbyFromResults(roomId, lobbyId, expectedRoun
     return result;
 }
 
+
+async function returnPuzzleToLobbyFromResults(roomId, lobbyId, expectedRound, gameId) {
+    if (!currentUser || !PUZZLE_GAME_IDS.has(gameId)) throw new Error("Bulmaca oturumu bulunamadı.");
+    const result = await returnPuzzleToLobby(
+        db,
+        roomId,
+        lobbyId,
+        expectedRound,
+        gameId,
+        currentUser.uid
+    );
+    setGameCenterStatus(result.completed
+        ? "Tüm oyuncular döndü. Yeni maç lobisi hazır."
+        : "Lobiye dönüşün kaydedildi. Diğer oyuncular bekleniyor (" +
+            result.returnedCount + "/" + result.requiredCount + ").");
+    return result;
+}
+
 function syncGameSessionResultsReset(roomId, sessionData) {
     // UNO advances only when a player presses the result screen's
     // "Lobi ekranına dön" button. Never silently reuse a result round.
     if (!sessionData || sessionData.status !== "results" ||
-        ["uno", "vampir-koylu"].includes(sessionData.gameId)) {
+        WORKER_BACKED_GAME_IDS.has(sessionData.gameId)) {
         clearGameSessionResultsTimer();
         return;
     }
@@ -2669,7 +2694,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
         }
         if (latest.status === "results") {
             if (
-                ["uno", "vampir-koylu"].includes(latest.gameId) &&
+                WORKER_BACKED_GAME_IDS.has(latest.gameId) &&
                 Array.isArray(latest.resultReturnIds) &&
                 latest.resultReturnIds.includes(currentUser.uid)
             ) return false;
@@ -2756,7 +2781,9 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
                     ? () => returnUnoToLobbyFromResults(roomId, latest.lobbyId, latest.round)
                     : latest.gameId === "vampir-koylu"
                         ? () => returnVampirKoyluToLobbyFromResults(roomId, latest.lobbyId, latest.round, latest.sessionId)
-                        : null
+                        : PUZZLE_GAME_IDS.has(latest.gameId)
+                            ? () => returnPuzzleToLobbyFromResults(roomId, latest.lobbyId, latest.round, latest.gameId)
+                            : null
                 : null
         });
 
@@ -3548,6 +3575,20 @@ async function leaveVampirKoyluMatchFromSession(roomId, session, uid) {
     }
 }
 
+
+async function leavePuzzleMatchFromSession(roomId, session, uid) {
+    if (!PUZZLE_GAME_IDS.has(session?.gameId) || !Number.isInteger(Number(session.round))) {
+        throw new Error("Bulmaca tur bilgisi bulunamadı.");
+    }
+    try {
+        return await forfeitPuzzleMatch(db, roomId, session.lobbyId, Number(session.round), session.gameId, uid);
+    } catch (error) {
+        const wrapped = new Error(error?.message || "Bulmaca maçından çıkış başarısız.");
+        wrapped.code = error?.code;
+        throw wrapped;
+    }
+}
+
 async function leaveGameLobby() {
     if (
         !currentUser ||
@@ -3574,13 +3615,17 @@ async function leaveGameLobby() {
         (
             (initialSession.status === "playing" &&
                 ["uno", "vampir-koylu"].includes(initialSession.gameId)) ||
+            (["playing", "results"].includes(initialSession.status) &&
+                PUZZLE_GAME_IDS.has(initialSession.gameId)) ||
             (initialSession.status === "results" && initialSession.gameId === "vampir-koylu")
         )
     ) {
         try {
             const result = initialSession.gameId === "uno"
                 ? await leaveUnoMatchFromSession(GAME_SCOPE_ID, initialSession, uid)
-                : await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, initialSession, uid);
+                : initialSession.gameId === "vampir-koylu"
+                    ? await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, initialSession, uid)
+                    : await leavePuzzleMatchFromSession(GAME_SCOPE_ID, initialSession, uid);
 
             activeRoomGame?.close();
             activeRoomGame = null;
@@ -3718,11 +3763,13 @@ async function leaveGameLobby() {
 async function leaveCurrentMatch() {
     if (!currentUser || !GAME_SCOPE_ID) return false;
     const gameId = gameSessionData?.gameId;
-    if (!["uno", "vampir-koylu"].includes(gameId)) return false;
+    if (!WORKER_BACKED_GAME_IDS.has(gameId)) return false;
 
     const result = gameId === "uno"
         ? await leaveUnoMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid)
-        : await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid);
+        : gameId === "vampir-koylu"
+            ? await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid)
+            : await leavePuzzleMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid);
     if (!result.left) return false;
 
     if (gameId === "uno" && result.finished && result.winner) {
@@ -6218,6 +6265,10 @@ async function removeSelfFromActiveGame(roomId) {
                 }
                 if (session.gameId === "vampir-koylu") {
                     await leaveVampirKoyluMatchFromSession(roomId, session, uid);
+                    continue;
+                }
+                if (PUZZLE_GAME_IDS.has(session.gameId)) {
+                    await leavePuzzleMatchFromSession(roomId, session, uid);
                     continue;
                 }
             }
