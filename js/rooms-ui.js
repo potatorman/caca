@@ -2903,8 +2903,24 @@ function listenToGameCenter(roomId) {
                 const data = item.data();
                 next.set(item.id, { ...data, lobbyId: item.id });
             });
+            // Keep the user's explicit selection, but never auto-select another
+            // person's lobby just because it exists in the shared Active Lobbies list.
+            const previouslySelectedLobbyId = activeGameLobbyId;
             gameSessionsById = next;
-            const ownedActiveLobby = [...next.values()].find((session) => session.hostId === currentUser?.uid && ["lobby", "starting", "playing", "results"].includes(session.status));
+            const isActiveSession = (session) =>
+                ["lobby", "starting", "playing", "results"].includes(session?.status);
+            const isCurrentUserInSession = (session) => {
+                const uid = currentUser?.uid;
+                if (!uid || !isActiveSession(session)) return false;
+                return session.hostId === uid ||
+                    ["playerIds", "readyIds", "matchPlayerIds", "spectatorIds",
+                        "nextRoundPlayerIds", "nextRoundReadyIds", "resultReturnIds"]
+                        .some((field) => Array.isArray(session[field]) && session[field].includes(uid));
+            };
+            const joinedActiveLobby = [...next.values()].find(isCurrentUserInSession);
+            const ownedActiveLobby = [...next.values()].find((session) =>
+                session.hostId === currentUser?.uid && isActiveSession(session)
+            );
             hasOwnedActiveGameLobby = Boolean(ownedActiveLobby);
             if (ownedActiveLobby) {
                 // Migrate lobbies created before the per-user lock was introduced.
@@ -2917,6 +2933,17 @@ function listenToGameCenter(roomId) {
                     });
                 }).catch((error) => console.warn("CACA legacy lobby lock migration failed:", error));
             }
+            // Participants return straight to their own lobby. Everyone else
+            // stays on the Games overview until they deliberately choose a lobby.
+            const explicitlySelectedSession = previouslySelectedLobbyId
+                ? next.get(previouslySelectedLobbyId)
+                : null;
+            const selectedSession = joinedActiveLobby || (
+                explicitlySelectedSession && isActiveSession(explicitlySelectedSession)
+                    ? explicitlySelectedSession
+                    : null
+            );
+            activeGameLobbyId = selectedSession?.lobbyId || "";
             renderGameCatalog();
             for (const [id, entry] of backgroundGameCountdownTimers) {
                 const current = next.get(id);
@@ -2936,11 +2963,6 @@ function listenToGameCenter(roomId) {
                 }, Math.max(0, endAt - Date.now()) + 600);
                 backgroundGameCountdownTimers.set(session.lobbyId, { endAt, timer });
             }
-            if (ownedActiveLobby) {
-                activeGameLobbyId = ownedActiveLobby.lobbyId;
-            } else if (!next.has(activeGameLobbyId)) {
-                activeGameLobbyId = next.keys().next().value || "";
-            }
             gameSessionData = activeGameLobbyId ? next.get(activeGameLobbyId) || null : null;
             for (const session of next.values()) {
                 if (session.gameId === "vampir-koylu" &&
@@ -2956,7 +2978,7 @@ function listenToGameCenter(roomId) {
             if (firstGameSessionSnapshot) {
                 firstGameSessionSnapshot = false;
                 const gamesView = $("gamesView");
-                if (gameSessionData && gamesView && !gamesView.hidden) {
+                if (joinedActiveLobby && gameSessionData && gamesView && !gamesView.hidden) {
                     $("gameSessionContent")?.scrollIntoView({ behavior: "auto", block: "start" });
                 }
             }
