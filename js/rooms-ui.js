@@ -3674,7 +3674,9 @@ async function leaveGameLobby() {
                 return { left: true, closed: true };
             }
 
-            const isLastMatchPlayer = latest.status === "playing" &&
+            const isLastMatchPlayer =
+                (latest.status === "playing" ||
+                    (latest.status === "results" && latest.gameId === "starfall")) &&
                 isMatchPlayer &&
                 matchPlayers.length === 1;
 
