@@ -2927,14 +2927,6 @@ function listenToGameCenter(roomId) {
             }
             // Participants return straight to their own lobby. Everyone else
             // stays on the Games overview until they deliberately choose a lobby.
-            const explicitlySelectedSession = previouslySelectedLobbyId
-                ? next.get(previouslySelectedLobbyId)
-                : null;
-            const selectedSession = joinedActiveLobby || (
-                explicitlySelectedSession && isActiveSession(explicitlySelectedSession)
-                    ? explicitlySelectedSession
-                    : null
-            );
             activeGameLobbyId = selectedSession?.lobbyId || "";
             renderGameCatalog();
             for (const [id, entry] of backgroundGameCountdownTimers) {
