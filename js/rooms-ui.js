@@ -2202,6 +2202,10 @@ function renderGameCenter() {
         session.hostId === currentUser.uid || canCurrentUserKickMembers()
     ));
 
+    // The host stays in control of the lobby; only non-host members can
+    // dismiss the lobby panel back to the Games overview.
+    $("closeGameSessionViewButton").hidden = session.hostId === currentUser?.uid;
+
     renderOpenGameLobbies();
     $("gameSessionName").textContent = session.gameName || "Oda oyunu";
     const hostMember = activeRoomMembers.find((member) => member.id === session.hostId);
