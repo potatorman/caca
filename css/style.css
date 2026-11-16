@@ -9417,3 +9417,23 @@ dialog.catalog-edit-dialog[open] {
         animation: none;
     }
 }
+
+
+.game-room-back-button {
+    min-height: 34px;
+    padding: 7px 11px;
+    color: #d8e9ff;
+    background: rgba(76, 143, 211, .13);
+    border: 1px solid rgba(116, 176, 234, .27);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 750;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s ease, border-color .15s ease;
+}
+.game-room-back-button:hover {
+    background: rgba(91, 160, 231, .23);
+    border-color: rgba(143, 195, 245, .48);
+}
