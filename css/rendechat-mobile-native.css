@@ -1395,6 +1395,83 @@
         transform: none;
     }
 
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice {
+        display: grid;
+        width: 100%;
+        min-width: 0;
+        min-height: 94px;
+        grid-template-columns: 45px minmax(0, 1fr);
+        grid-template-rows: auto auto auto;
+        align-items: center;
+        justify-content: start;
+        gap: 4px 10px;
+        padding: 11px;
+        color: var(--mobile-ink);
+        text-align: left;
+        background: linear-gradient(145deg, #1c192a, #151321);
+        border: 1px solid var(--mobile-line);
+        border-radius: 14px;
+        transform: none !important;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice.is-selected {
+        background: linear-gradient(145deg, rgba(80, 62, 123, .52), #191526);
+        border-color: rgba(178, 154, 255, .53);
+        box-shadow: 0 0 0 1px rgba(165, 138, 255, .09);
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-top {
+        display: flex;
+        grid-column: 1;
+        grid-row: 1 / 4;
+        align-items: center;
+        justify-content: center;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-icon {
+        display: grid;
+        width: 43px;
+        height: 43px;
+        place-items: center;
+        color: #d7caff;
+        background: rgba(165, 138, 255, .13);
+        border: 1px solid rgba(165, 138, 255, .18);
+        border-radius: 12px;
+        font-size: 21px;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-category {
+        display: none;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-name {
+        grid-column: 2;
+        grid-row: 1;
+        color: #f0eafd;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-description {
+        grid-column: 2;
+        grid-row: 2;
+        display: -webkit-box;
+        overflow: hidden;
+        color: #968ea7;
+        font-size: 9px;
+        line-height: 1.4;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-players {
+        grid-column: 2;
+        grid-row: 3;
+        color: var(--mobile-mint);
+        font-size: 8px;
+        font-weight: 850;
+    }
+
     body.mobile-native .game-catalog-icon {
         width: 44px;
         height: 44px;
@@ -1457,6 +1534,7 @@
         gap: 8px;
     }
 
+    body.mobile-native .open-game-lobby,
     body.mobile-native .open-game-lobby-card,
     body.mobile-native .open-lobby-card {
         min-width: 0;
@@ -1466,6 +1544,7 @@
         border-radius: 12px;
     }
 
+    body.mobile-native .open-game-lobby button,
     body.mobile-native .open-game-lobby-card button,
     body.mobile-native .open-lobby-card button {
         min-height: 35px;

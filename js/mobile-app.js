@@ -135,6 +135,7 @@ function renderMobileRoomCards() {
         button.append(icon, copy, arrow);
         button.addEventListener("click", () => {
             sourceButton.click();
+            renderMobileRoomCards();
             closeRoomDrawer();
         });
         mobileRoomCards.appendChild(button);
@@ -253,7 +254,7 @@ function syncMobileScreen() {
     renderMobileRoomCards();
 
     if (roomOpen) {
-        const roomId = $("activeRoomCode")?.textContent?.trim() || ($("roomView")?.classList.contains("is-global-chat") ? "global" : $("activeRoomName")?.textContent || "active");
+        const roomId = $("roomView")?.classList.contains("is-global-chat") ? "global" : $("activeRoomCode")?.textContent?.trim() || $("activeRoomName")?.textContent || "active";
         if (!hadMobileRoomCollapse || lastMobileRoomId !== roomId) {
             const toggle = $("membersToggleButton");
             if (toggle?.getAttribute("aria-expanded") === "true") toggle.click();
@@ -348,7 +349,7 @@ function observeMobileData() {
     const source = $("roomsList");
     if (source && window.MutationObserver) {
         roomListObserver = new MutationObserver(renderMobileRoomCards);
-        roomListObserver.observe(source, { childList: true, subtree: true, characterData: true });
+        roomListObserver.observe(source, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class"] });
     }
 
     const viewIds = ["dashboardView", "roomView", "gamesView", "archiveView", "settingsView", "siteOwnerView"];
