@@ -34,6 +34,11 @@ jobs:
             ../../games/catalog-admin.js \
             ../../games/uno/state.js \
             ../../games/uno/ui.js \
+            ../../games/starfall/engine.js \
+            ../../games/starfall/index.js \
+            ../../games/starfall/state.js \
+            ../../games/starfall/ui.js \
+            ../../games/starfall/worker-config.js \
             ../../games/vampir-koylu/engine.js \
             ../../games/vampir-koylu/bots.js \
             ../../games/vampir-koylu/index.js \
