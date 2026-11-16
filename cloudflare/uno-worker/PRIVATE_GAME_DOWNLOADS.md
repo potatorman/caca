@@ -58,7 +58,7 @@ Add an **encrypted Secret**:
 
 Do not put the token in `wrangler.jsonc`, GitHub source files, Firestore or browser code.
 
-The existing `FIREBASE_SERVICE_ACCOUNT_JSON` and `CACA_TICKET_SECRET` secrets are reused. No shared archive password or extra Firebase role is required for this download path.
+The existing `FIREBASE_SERVICE_ACCOUNT_JSON` and `CACA_TICKET_SECRET` secrets are reused. No shared archive password or extra Firebase role is required for this download path. If you created a `GAME_ARCHIVE_PASSWORD` secret for the old lock screen, the new Worker no longer reads it; you may remove it from Cloudflare → Workers & Pages → `caca-uno` → Settings → Variables & Secrets after the updated Worker is deployed.
 
 The Worker configuration already declares these non-secret variables in production and Preview environments:
 
