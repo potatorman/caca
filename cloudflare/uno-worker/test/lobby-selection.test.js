@@ -44,3 +44,9 @@ test("a stale or closed explicit selection is not retained", () => {
     const sessions = new Map([["a", lobby("a", { status: "closed" })]]);
     assert.equal(selectGameLobbyForUser(sessions, "unrelated-user", "a").selectedSession, null);
 });
+
+test("closing a joined lobby view suppresses automatic reopening until reselected", () => {
+    const sessions = new Map([["a", lobby("a", { playerIds: ["host-a", "player"] })]]);
+    assert.equal(selectGameLobbyForUser(sessions, "player", "", "a").selectedSession, null);
+    assert.equal(selectGameLobbyForUser(sessions, "player", "a", "a").selectedSession.lobbyId, "a");
+});
