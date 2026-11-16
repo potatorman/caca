@@ -391,10 +391,12 @@ export class StarfallRoom extends DurableObject {
         const identity = await this.getIdentity();
         const sessionDoc = await this.readSession(identity);
         if (!sessionDoc || Number(sessionDoc.data.round) !== match.round) return;
+        const eligiblePlayers = new Set(getSessionPlayers(sessionDoc.data));
+        const resultPlayers = match.activePlayerIds.filter((uid) => eligiblePlayers.has(uid));
         await patchFirestoreDocument(this.env, this.sessionPath(identity), {
             status: "results",
             readyIds: [],
-            matchPlayerIds: [...match.activePlayerIds],
+            matchPlayerIds: resultPlayers,
             resultReturnIds: [...match.returnedIds],
             winnerId: match.winnerId,
             winnerIds: [...match.winnerIds],
