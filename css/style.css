@@ -6440,9 +6440,13 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 .open-lobbies-heading > span { display:grid; min-width:24px; height:24px; place-items:center; color:#a9d4ff; background:rgba(67,137,213,.16); border:1px solid rgba(109,173,236,.24); border-radius:7px; font-size:10px; font-weight:850; }
 .open-lobbies-hint { margin:7px 0 17px; color:#829bb8; font-size:10px; }
 .open-game-lobbies-list { display:grid; gap:8px; }
-.open-game-lobby { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:12px; color:#e5f1ff; text-align:left; background:rgba(72,123,179,.1); border:1px solid rgba(113,158,207,.18); border-radius:9px; cursor:pointer; }
-.open-game-lobby strong { font-size:11px; font-weight:800; }
-.open-game-lobby span { color:#9bc8fa; font-size:10px; font-weight:850; }
+.open-game-lobby { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:12px; color:#e5f1ff; text-align:left; background:rgba(72,123,179,.1); border:1px solid rgba(113,158,207,.18); border-radius:9px; cursor:pointer; transition:border-color .15s ease,background .15s ease,box-shadow .15s ease; }
+.open-game-lobby:hover { background:rgba(72,123,179,.17); border-color:rgba(113,158,207,.38); }
+.open-game-lobby.is-active { background:linear-gradient(110deg,rgba(84,139,222,.2),rgba(72,123,179,.12)); border-color:#398bff; box-shadow:0 0 0 1px rgba(57,139,255,.18),0 0 18px rgba(57,139,255,.1); }
+.open-game-lobby-copy { display:grid; gap:5px; min-width:0; }
+.open-game-lobby strong { color:#eaf3ff; font-size:11px; font-weight:800; }
+.open-game-lobby .open-game-lobby-host { color:#8fa9c8; font-size:9px; font-weight:650; line-height:1.35; overflow-wrap:anywhere; }
+.open-game-lobby > span:last-child { flex:0 0 auto; color:#9bc8fa; font-size:10px; font-weight:850; text-align:right; }
 .open-lobbies-empty { margin:0; padding:13px; color:#849bb6; background:rgba(72,123,179,.06); border:1px dashed rgba(113,158,207,.2); border-radius:9px; font-size:10px; line-height:1.6; }
 .game-session-content { margin-top:28px; }
 @media (max-width:900px) {
@@ -7171,10 +7175,16 @@ body.room-screen-shake { animation: room-screen-shake .72s ease-in-out; }
 /* Universal lobby settings control and clearer ready/leave actions */
 .game-room-top-actions {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     flex-direction: column;
     gap: 9px;
     flex: 0 0 auto;
+}
+.game-room-status-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 9px;
 }
 .game-room-settings-button {
     display: grid;
