@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#0b0b12">
     <meta name="description" content="RendeChat — İnsanlarınla buluş, kendi sohbet odalarını kur ve birlikte oyun oyna.">
     <meta property="og:title" content="RendeChat">
-    <meta property="og:description" content="Your space. Your people. Chat, connect and play together.">
+    <meta property="og:description" content="Sohbet odaları kur, topluluğa katıl ve arkadaşlarınla birlikte oyun oyna.">
     <meta property="og:type" content="website">
     <link rel="icon" type="image/svg+xml" href="./rendechat.svg">
     
-    <title>RendeChat — Your space. Your people.</title>
+    <title>RendeChat — İnsanlarınla aynı yerde.</title>
 
     <link rel="stylesheet" href="./css/style.css">
     <link rel="stylesheet" href="./css/rendechat.css">
@@ -23,9 +23,14 @@
             <div class="brand-logo" aria-label="RendeChat"><span class="rendechat-cheese" aria-hidden="true">🧀</span></div>
 
             <div class="brand-content">
-                <span class="brand-label">YOUR SPACE. YOUR PEOPLE.</span>
-                <h1>İnsanlarınla<br>bir araya gel.</h1>
-                <p>RendeChat'te kendi alanını oluştur, topluluğa katıl ve arkadaşlarınla sohbet et. Oyunlar da burada.</p>
+                <span class="brand-label">SOHBET · TOPLULUK · OYUN</span>
+                <h1>İnsanlarınla<br>aynı yerde.</h1>
+                <p>Kendi sohbet odanı kur, topluluğa katıl ve arkadaşlarınla birlikte oyun oyna. RendeChat, insanlarını tek bir yerde buluşturur.</p>
+                <div class="brand-feature-list" aria-label="RendeChat özellikleri">
+                    <span class="brand-feature"><i aria-hidden="true">✦</i> Canlı sohbet</span>
+                    <span class="brand-feature"><i aria-hidden="true">◇</i> Özel odalar</span>
+                    <span class="brand-feature"><i aria-hidden="true">⌁</i> Birlikte oyun</span>
+                </div>
             </div>
 
             <div class="brand-footer">RENDECHAT © 2026</div>
@@ -40,22 +45,22 @@
                 <div id="authView">
 
                     <div class="auth-heading">
-                        <span class="small-label">RENDECHAT'E HOŞ GELDİN</span>
+                        <span class="small-label">HESABINLA DEVAM ET</span>
                         <h2 id="formHeading">Tekrar hoş geldin.</h2>
-                        <p id="formDescription">Hesabına giriş yap ve sohbete devam et.</p>
+                        <p id="formDescription">RendeChat'e giriş yap ve insanlarına kavuş.</p>
                     </div>
 
-                    <div class="tabs">
-                        <button type="button" id="loginTab" class="tab active">
+                    <div class="tabs" role="group" aria-label="Hesap işlemi">
+                        <button type="button" id="loginTab" class="tab active" aria-pressed="true">
                             Giriş yap
                         </button>
 
-                        <button type="button" id="registerTab" class="tab">
+                        <button type="button" id="registerTab" class="tab" aria-pressed="false">
                             Kayıt ol
                         </button>
                     </div>
 
-                    <form id="loginForm" class="auth-form">
+                    <form id="loginForm" class="auth-form" aria-labelledby="loginTab">
 
                         <label for="loginUsername">Kullanıcı adı</label>
 
@@ -85,7 +90,7 @@
 
                     </form>
 
-                    <form id="registerForm" class="auth-form" hidden>
+                    <form id="registerForm" class="auth-form" aria-labelledby="registerTab" hidden>
 
                         <label for="registerUsername">Kullanıcı adı</label>
 
@@ -99,7 +104,7 @@
                             required
                         >
 
-                        <span class="input-hint">
+                        <span id="registerUsernameHint" class="input-hint">
                             3-20 karakter. İngilizce harfler, rakamlar ve _ kullan.
                         </span>
 
@@ -128,7 +133,7 @@
                     ></p>
 
                     <div class="auth-footer">
-                        Devam ederek RendeChat'i sorumlu şekilde kullanmayı kabul edersin.
+                        RendeChat'i herkes için saygılı, güvenli ve keyifli bir alan olarak birlikte tutalım.
                     </div>
 
                 </div>

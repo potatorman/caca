@@ -196,16 +196,18 @@ function switchMode(mode) {
     registerForm.hidden = isLogin;
 
     loginTab.classList.toggle("active", isLogin);
+    loginTab.setAttribute("aria-pressed", String(isLogin));
 
     registerTab.classList.toggle("active", !isLogin);
+    registerTab.setAttribute("aria-pressed", String(!isLogin));
 
     $("formHeading").textContent = isLogin
         ? "Tekrar hoş geldin."
         : "Aramıza katıl.";
 
     $("formDescription").textContent = isLogin
-        ? "Hesabına giriş yap ve sohbete devam et."
-        : "Yeni hesabını oluştur ve RendeChat'e katıl.";
+        ? "RendeChat'e giriş yap ve insanlarına kavuş."
+        : "Hesabını oluştur ve RendeChat topluluğuna katıl.";
 
     showAuthMessage("");
 }
