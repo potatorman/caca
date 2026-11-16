@@ -1859,7 +1859,7 @@ async function startCatalogGameDownload(game, button, status) {
     }
 
     if (!game.privateDownloadUrl) {
-        status.textContent = "Bu oyun henüz private arşive taşınmadığı için parola koruması yok. Site Owner'dan private bağlantıyı eklemesini iste.";
+        status.textContent = "Bu oyun henüz güvenli indirme için hazırlanmadı. Site Owner private bağlantıyı eklemeli.";
         return;
     }
 
