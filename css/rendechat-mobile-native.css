@@ -713,7 +713,7 @@
     }
 
     /* Room picker uses the real desktop room list and its original forms. */
-    body.mobile-native .room-sidebar {
+    body.mobile-native .room-sidebar:not([hidden]) {
         display: flex !important;
         position: fixed;
         z-index: 72;

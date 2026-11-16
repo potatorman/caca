@@ -42,6 +42,7 @@ jobs:
             ../../js/rooms-ui.js \
             ../../js/global-chat-members.js \
             ../../js/site-owner.js \
+            ../../js/mobile-app.js \
             ../../js/settings.js \
             ../../js/app.js
           do

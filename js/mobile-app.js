@@ -216,6 +216,8 @@ function syncMobileScreen() {
 
     const showMobileHome = dashboardOpen && !roomOpen && !gamesOpen && !archiveOpen && !settingsOpen && !ownerOpen;
     if (mobileHome) mobileHome.hidden = !showMobileHome;
+    document.body.classList.toggle("mobile-settings-open", settingsOpen);
+    document.body.classList.toggle("mobile-owner-open", ownerOpen);
 
     let title = "Sohbetlerin";
     let eyebrow = "RENDECHAT SPACE";
@@ -251,7 +253,7 @@ function syncMobileScreen() {
     renderMobileRoomCards();
 
     if (roomOpen) {
-        const roomId = $("roomView")?.dataset?.roomId || $("activeRoomName")?.textContent || "active";
+        const roomId = $("activeRoomCode")?.textContent?.trim() || ($("roomView")?.classList.contains("is-global-chat") ? "global" : $("activeRoomName")?.textContent || "active");
         if (!hadMobileRoomCollapse || lastMobileRoomId !== roomId) {
             const toggle = $("membersToggleButton");
             if (toggle?.getAttribute("aria-expanded") === "true") toggle.click();
@@ -396,6 +398,22 @@ function initializeMobileWorkspace() {
     document.addEventListener("caca:avatar-changed", copyDesktopAvatar);
     document.addEventListener("caca:nickname-changed", syncMobileScreen);
     window.addEventListener("pageshow", syncMobileScreen);
+
+    document.addEventListener("focusin", (event) => {
+        if (!isMobile()) return;
+        if (event.target.matches("input, textarea, select, [contenteditable='true']")) {
+            document.body.classList.add("mobile-keyboard-open");
+        }
+    });
+    document.addEventListener("focusout", () => {
+        if (!isMobile()) return;
+        window.setTimeout(() => {
+            const active = document.activeElement;
+            if (!active?.matches?.("input, textarea, select, [contenteditable='true']")) {
+                document.body.classList.remove("mobile-keyboard-open");
+            }
+        }, 120);
+    });
 }
 
 initializeMobileWorkspace();
