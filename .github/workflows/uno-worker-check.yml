@@ -30,6 +30,11 @@ jobs:
           set -euo pipefail
           for file in \
             ../../games/registry.js \
+            ../../games/puzzle/questions.js \
+            ../../games/puzzle/engine.js \
+            ../../games/puzzle/state.js \
+            ../../games/puzzle/index.js \
+            ../../cloudflare/uno-worker/src/PuzzleRoom.js \
             ../../games/catalog.js \
             ../../games/catalog-admin.js \
             ../../games/uno/state.js \
