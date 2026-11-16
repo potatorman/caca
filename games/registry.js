@@ -12,6 +12,17 @@ export const GAME_REGISTRY = Object.freeze([
         module: "./uno/index.js"
     }),
     Object.freeze({
+        id: "starfall",
+        name: "Starfall Grid",
+        icon: "✦",
+        description: "2–8 oyuncu. Yıldız karelerini kap, bağlantı bonuslarıyla alan kur ve en yüksek skoru topla.",
+        status: "ready",
+        lobbyEnabled: true,
+        minPlayers: 2,
+        maxPlayers: 8,
+        module: "./starfall/index.js"
+    }),
+    Object.freeze({
         id: "vampir-koylu",
         name: "Vampir Köylü",
         icon: "🌙",

@@ -2,6 +2,7 @@ import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY, getGameDefinition } from "../games/registry.js";
+import { selectGameLobbyForUser } from "../games/lobby-selection.js";
 import { getMergedCatalog, subscribeToCatalog } from "../games/catalog.js";
 import { UNO_WORKER_URL } from "../games/uno/worker-config.js";
 import {
@@ -14,6 +15,10 @@ import {
     forfeitMatch as forfeitVampirKoyluMatch,
     returnToLobby as returnVampirKoyluToLobby
 } from "../games/vampir-koylu/index.js";
+import {
+    forfeitMatch as forfeitStarfallMatch,
+    returnToLobby as returnStarfallToLobby
+} from "../games/starfall/index.js";
 
 import {
     onAuthStateChanged
@@ -140,6 +145,7 @@ let unsubscribeGameSession = null;
 let gameSessionData = null;
 let gameSessionsById = new Map();
 let activeGameLobbyId = "";
+let dismissedAutoOpenGameLobbyId = "";
 let activeRoomGame = null;
 let observedUnoRosterRoundKey = "";
 let observedUnoRosterIds = [];
@@ -2031,6 +2037,7 @@ async function startCatalogGameDownload(game, button, status) {
 
 function selectGameLobby(lobbyId) {
     if (!lobbyId || !gameSessionsById.has(lobbyId)) return;
+    dismissedAutoOpenGameLobbyId = "";
     if (activeGameLobbyId === lobbyId) return;
     const previousSession = gameSessionData;
     if (previousSession?.status === "starting" && GAME_SCOPE_ID) {
@@ -2087,15 +2094,23 @@ function renderOpenGameLobbies() {
         item.className = "open-game-lobby";
         item.classList.toggle("is-active", session.lobbyId === activeGameLobbyId);
         item.dataset.lobbyId = session.lobbyId;
+        const copy = document.createElement("span");
+        copy.className = "open-game-lobby-copy";
         const title = document.createElement("strong");
         title.textContent = session.gameName || game?.name || "Oyun";
+        const host = activeRoomMembers.find((member) => member.id === session.hostId);
+        const hostName = document.createElement("small");
+        hostName.className = "open-game-lobby-host";
+        hostName.textContent = "Lobi sahibi: " +
+            (host?.displayNickname || host?.username || session.hostName || "Oyuncu");
+        copy.append(title, hostName);
         const details = document.createElement("span");
         const state = session.status === "playing" ? " · Maçta" :
             session.status === "starting" ? " · Başlıyor" :
             session.status === "results" ? " · Sonuçlar" : " · Açık";
         details.textContent = (session.hasPassword ? "🔒 Parolalı · " : "") + players.length + "/" +
             (session.maxPlayers || game?.maxPlayers || "?") + state;
-        item.append(title, details);
+        item.append(copy, details);
         item.addEventListener("click", () => {
             selectGameLobby(session.lobbyId);
             $("gameSessionContent").hidden = false;
@@ -2172,7 +2187,7 @@ function renderGameCenter() {
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
     const resultReturnIds = Array.isArray(session.resultReturnIds) ? session.resultReturnIds : [];
     const hasReturnedFromWorkerResults =
-        ["uno", "vampir-koylu"].includes(session.gameId) &&
+        ["uno", "vampir-koylu", "starfall"].includes(session.gameId) &&
         session.status === "results" &&
         resultReturnIds.includes(currentUser?.uid);
     const isPlaying = session.status === "playing";
@@ -2208,7 +2223,7 @@ function renderGameCenter() {
         : isStarting
             ? "Herkes hazır. Oyun 3 saniyelik geri sayımın sonunda başlayacak; biri vazgeçerse sayaç iptal edilir."
             : isResults
-                ? ["uno", "vampir-koylu"].includes(session.gameId)
+                ? ["uno", "vampir-koylu", "starfall"].includes(session.gameId)
                     ? `Sonuç ekranı · ${resultReturnIds.length}/${matchPlayers.length} oyuncu lobiye döndü.`
                     : "Maç bitti. İzleyiciler otomatik olarak lobi üyelerine eklendi. Yeni maç için lobiye dön."
                 : botFillEnabled
@@ -2239,7 +2254,7 @@ function renderGameCenter() {
                 : "Sonraki maç için lobide";
         }
         if (isResults) {
-            if (["uno", "vampir-koylu"].includes(session.gameId) && resultReturnIds.includes(userId)) {
+            if (["uno", "vampir-koylu", "starfall"].includes(session.gameId) && resultReturnIds.includes(userId)) {
                 return "Lobiye döndü";
             }
             return matchPlayers.includes(userId) ? "Sonuç ekranında" : "Lobi üyesi";
@@ -2301,7 +2316,7 @@ function renderGameCenter() {
             : isSpectator ? gameName + " masasını izle" : gameName + " ekranını aç";
     }
     $("finishGameRoundButton").hidden = !isPlaying || !canManage ||
-        ["uno", "vampir-koylu"].includes(session.gameId);
+        ["uno", "vampir-koylu", "starfall"].includes(session.gameId);
     $("closeGameSessionButton").hidden = !canManage;
     $("closeGameSessionButton").textContent = "Lobiyi tamamen kapat";
     $("gameLobbySettingsButton").hidden = !(
@@ -2335,7 +2350,7 @@ function renderGameCenter() {
                 : "Tüm oyuncular döndü. Yeni lobi hazırlanıyor."
         );
     } else if (isResults) {
-        setGameCenterStatus(["uno", "vampir-koylu"].includes(session.gameId)
+        setGameCenterStatus(["uno", "vampir-koylu", "starfall"].includes(session.gameId)
             ? "Her oyuncunun sonuç ekranı 5 saniye içinde lobiye dönüşünü sunucuya kaydeder."
             : "Sonuçlar 5 saniye gösterilecek. Ardından lobi otomatik sıfırlanacak.");
     } else if (isStarting && isLobbyPlayer) {
@@ -2406,11 +2421,25 @@ async function returnVampirKoyluToLobbyFromResults(roomId, lobbyId, expectedRoun
     return result;
 }
 
+async function returnStarfallToLobbyFromResults(roomId, lobbyId, expectedRound) {
+    if (!currentUser) throw new Error("Oturum bulunamadı.");
+    const result = await returnStarfallToLobby(db, roomId, lobbyId, expectedRound, currentUser.uid);
+    if (result.completed) {
+        setGameCenterStatus("Tüm Starfall oyuncuları döndü. Rövanş lobisi hazır.");
+    } else {
+        setGameCenterStatus(
+            "Lobiye döndün. Diğer oyuncular bekleniyor (" +
+            result.returnedCount + "/" + result.requiredCount + ")."
+        );
+    }
+    return result;
+}
+
 function syncGameSessionResultsReset(roomId, sessionData) {
     // UNO advances only when a player presses the result screen's
     // "Lobi ekranına dön" button. Never silently reuse a result round.
     if (!sessionData || sessionData.status !== "results" ||
-        ["uno", "vampir-koylu"].includes(sessionData.gameId)) {
+        ["uno", "vampir-koylu", "starfall"].includes(sessionData.gameId)) {
         clearGameSessionResultsTimer();
         return;
     }
@@ -2669,7 +2698,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
         }
         if (latest.status === "results") {
             if (
-                ["uno", "vampir-koylu"].includes(latest.gameId) &&
+                ["uno", "vampir-koylu", "starfall"].includes(latest.gameId) &&
                 Array.isArray(latest.resultReturnIds) &&
                 latest.resultReturnIds.includes(currentUser.uid)
             ) return false;
@@ -2756,7 +2785,9 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
                     ? () => returnUnoToLobbyFromResults(roomId, latest.lobbyId, latest.round)
                     : latest.gameId === "vampir-koylu"
                         ? () => returnVampirKoyluToLobbyFromResults(roomId, latest.lobbyId, latest.round, latest.sessionId)
-                        : null
+                        : latest.gameId === "starfall"
+                            ? () => returnStarfallToLobbyFromResults(roomId, latest.lobbyId, latest.round)
+                            : null
                 : null
         });
 
@@ -2883,8 +2914,22 @@ function listenToGameCenter(roomId) {
                 const data = item.data();
                 next.set(item.id, { ...data, lobbyId: item.id });
             });
+            // Keep the user's explicit selection, but never auto-select another
+            // person's lobby just because it exists in the shared Active Lobbies list.
+            const previouslySelectedLobbyId = activeGameLobbyId;
             gameSessionsById = next;
-            const ownedActiveLobby = [...next.values()].find((session) => session.hostId === currentUser?.uid && ["lobby", "starting", "playing", "results"].includes(session.status));
+            if (dismissedAutoOpenGameLobbyId && !next.has(dismissedAutoOpenGameLobbyId)) {
+                dismissedAutoOpenGameLobbyId = "";
+            }
+            const {
+                ownedActiveLobby,
+                selectedSession
+            } = selectGameLobbyForUser(
+                next,
+                currentUser?.uid,
+                previouslySelectedLobbyId,
+                dismissedAutoOpenGameLobbyId
+            );
             hasOwnedActiveGameLobby = Boolean(ownedActiveLobby);
             if (ownedActiveLobby) {
                 // Migrate lobbies created before the per-user lock was introduced.
@@ -2897,6 +2942,9 @@ function listenToGameCenter(roomId) {
                     });
                 }).catch((error) => console.warn("CACA legacy lobby lock migration failed:", error));
             }
+            // Participants return straight to their own lobby. Everyone else
+            // stays on the Games overview until they deliberately choose a lobby.
+            activeGameLobbyId = selectedSession?.lobbyId || "";
             renderGameCatalog();
             for (const [id, entry] of backgroundGameCountdownTimers) {
                 const current = next.get(id);
@@ -2916,11 +2964,6 @@ function listenToGameCenter(roomId) {
                 }, Math.max(0, endAt - Date.now()) + 600);
                 backgroundGameCountdownTimers.set(session.lobbyId, { endAt, timer });
             }
-            if (ownedActiveLobby) {
-                activeGameLobbyId = ownedActiveLobby.lobbyId;
-            } else if (!next.has(activeGameLobbyId)) {
-                activeGameLobbyId = next.keys().next().value || "";
-            }
             gameSessionData = activeGameLobbyId ? next.get(activeGameLobbyId) || null : null;
             for (const session of next.values()) {
                 if (session.gameId === "vampir-koylu" &&
@@ -2936,7 +2979,7 @@ function listenToGameCenter(roomId) {
             if (firstGameSessionSnapshot) {
                 firstGameSessionSnapshot = false;
                 const gamesView = $("gamesView");
-                if (gameSessionData && gamesView && !gamesView.hidden) {
+                if (joinedActiveLobby && gameSessionData && gamesView && !gamesView.hidden) {
                     $("gameSessionContent")?.scrollIntoView({ behavior: "auto", block: "start" });
                 }
             }
@@ -3573,14 +3616,17 @@ async function leaveGameLobby() {
         initialMatchPlayers.includes(uid) &&
         (
             (initialSession.status === "playing" &&
-                ["uno", "vampir-koylu"].includes(initialSession.gameId)) ||
-            (initialSession.status === "results" && initialSession.gameId === "vampir-koylu")
+                ["uno", "vampir-koylu", "starfall"].includes(initialSession.gameId)) ||
+            (initialSession.status === "results" &&
+                ["vampir-koylu", "starfall"].includes(initialSession.gameId))
         )
     ) {
         try {
             const result = initialSession.gameId === "uno"
                 ? await leaveUnoMatchFromSession(GAME_SCOPE_ID, initialSession, uid)
-                : await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, initialSession, uid);
+                : initialSession.gameId === "vampir-koylu"
+                    ? await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, initialSession, uid)
+                    : await forfeitStarfallMatch(db, GAME_SCOPE_ID, lobbyId, initialSession.round, uid);
 
             activeRoomGame?.close();
             activeRoomGame = null;
@@ -3597,6 +3643,11 @@ async function leaveGameLobby() {
                     (result.winner === "vampirler" ? "Vampirler" : "Köylüler") +
                     " maçı kazandı. Maçtan ayrıldın."
                 );
+            } else if (initialSession.gameId === "starfall" && result.finished && result.winners?.length) {
+                const winners = result.winners.map((winnerId) =>
+                    activeRoomMembers.find((member) => member.id === winnerId)?.displayNickname || "Oyuncu"
+                );
+                setGameCenterStatus(winners.join(" ve ") + " Starfall maçını kazandı.");
             } else {
                 setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
             }
@@ -3718,11 +3769,15 @@ async function leaveGameLobby() {
 async function leaveCurrentMatch() {
     if (!currentUser || !GAME_SCOPE_ID) return false;
     const gameId = gameSessionData?.gameId;
-    if (!["uno", "vampir-koylu"].includes(gameId)) return false;
+    if (!["uno", "vampir-koylu", "starfall"].includes(gameId)) return false;
 
     const result = gameId === "uno"
         ? await leaveUnoMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid)
-        : await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid);
+        : gameId === "vampir-koylu"
+            ? await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid)
+            : await forfeitStarfallMatch(
+                db, GAME_SCOPE_ID, gameSessionData.lobbyId, gameSessionData.round, currentUser.uid
+            );
     if (!result.left) return false;
 
     if (gameId === "uno" && result.finished && result.winner) {
@@ -3735,7 +3790,12 @@ async function leaveCurrentMatch() {
         setGameCenterStatus(
             (result.winner === "vampirler" ? "Vampirler" : "Köylüler") + " kazandı."
         );
-    } else if (result.cancelledBeforeStart || result.cancelledBeforeDeal) {
+    } else if (gameId === "starfall" && result.finished && result.winners?.length) {
+        const winners = result.winners.map((winnerId) =>
+            activeRoomMembers.find((member) => member.id === winnerId)?.displayNickname || "Oyuncu"
+        );
+        setGameCenterStatus(winners.join(" ve ") + " Starfall maçını kazandı.");
+    } else if (result.cancelledBeforeStart || result.cancelledBeforeDeal || result.cancelledRound) {
         setGameCenterStatus("Maç başlamadan terk edildi. Kalan oyuncular lobiye döndü.");
     } else {
         setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
@@ -3798,6 +3858,14 @@ async function closeGameSession() {
     }
 }
 
+$("closeGameSessionViewButton").addEventListener("click", () => {
+    if (activeGameLobbyId) dismissedAutoOpenGameLobbyId = activeGameLobbyId;
+    activeGameLobbyId = "";
+    gameSessionData = null;
+    renderGameCenter();
+    renderOpenGameLobbies();
+    $("gameCenterEmptyState")?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 $("createGameSessionButton").addEventListener("click", createGameSession);
 $("gameLobbySettingsButton").addEventListener("click", openGameLobbySettings);
 $("closeGameLobbySettingsButton").addEventListener("click", closeGameLobbySettings);

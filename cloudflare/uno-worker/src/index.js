@@ -14,9 +14,10 @@ import { findUploadedReleaseAsset, parsePrivateReleaseAssetUrl } from "./game-do
 import { isValidArchiveAccessTicket } from "./archive-access.js";
 import { UnoRoom } from "./UnoRoom.js";
 import { VampirKoyluRoom } from "./VampirKoyluRoom.js";
+import { StarfallRoom } from "./StarfallRoom.js";
 import { getUnoDurableObjectName, getVampirKoyluDurableObjectName, isValidVampirKoyluSessionId } from "./session-identity.js";
 
-export { UnoRoom, VampirKoyluRoom };
+export { UnoRoom, VampirKoyluRoom, StarfallRoom };
 
 const jsonHeaders = {
     "Content-Type": "application/json; charset=utf-8",
@@ -98,11 +99,15 @@ async function authorizeRoomUser(env, uid, roomId, lobbyId, round, gameId = "uno
 }
 
 function getRoomStub(env, gameId, roomId, lobbyId, round, sessionId = null) {
-    const binding = gameId === "vampir-koylu" ? env.VAMPIR_KOYLU_ROOMS : env.UNO_ROOMS;
+    const binding = gameId === "vampir-koylu"
+        ? env.VAMPIR_KOYLU_ROOMS
+        : gameId === "starfall" ? env.STARFALL_ROOMS : env.UNO_ROOMS;
     if (!binding) throw new Error("Bu oyun için Durable Object bağlantısı bulunamadı.");
     const identity = gameId === "vampir-koylu"
         ? getVampirKoyluDurableObjectName(roomId, lobbyId, round, sessionId)
-        : getUnoDurableObjectName(roomId, lobbyId, round);
+        : gameId === "starfall"
+            ? ["starfall", roomId, lobbyId, round].join(":")
+            : getUnoDurableObjectName(roomId, lobbyId, round);
     const id = binding.idFromName(identity);
     return binding.get(id);
 }
@@ -869,7 +874,7 @@ export default {
 
         try {
             if (url.pathname === "/health" && request.method === "GET") {
-                return json({ ok: true, service: "caca-uno", version: 3, privateGameDownloads: true }, 200, origin);
+                return json({ ok: true, service: "caca-uno", version: 4, games: ["uno", "vampir-koylu", "starfall"], privateGameDownloads: true }, 200, origin);
             }
 
             if (url.pathname === "/api/lobby/manage" && request.method === "POST") {
@@ -893,11 +898,17 @@ export default {
             if (url.pathname === "/api/vampir-koylu/ticket" && request.method === "POST") {
                 return await issueTicket(request, env, url, origin, "vampir-koylu");
             }
+            if (url.pathname === "/api/starfall/ticket" && request.method === "POST") {
+                return await issueTicket(request, env, url, origin, "starfall");
+            }
             if (url.pathname === "/api/uno/action" && request.method === "POST") {
                 return await sendHttpAction(request, env, origin, "uno");
             }
             if (url.pathname === "/api/vampir-koylu/action" && request.method === "POST") {
                 return await sendHttpAction(request, env, origin, "vampir-koylu");
+            }
+            if (url.pathname === "/api/starfall/action" && request.method === "POST") {
+                return await sendHttpAction(request, env, origin, "starfall");
             }
 
             if (
@@ -920,7 +931,10 @@ export default {
                     return json({ error: "WebSocket bağlantısı gerekli." }, 426, origin);
                 }
                 const ticket = await verifyTicket(url.searchParams.get("ticket"), env.CACA_TICKET_SECRET);
-                const gameId = ticket.gameId === "vampir-koylu" ? "vampir-koylu" : "uno";
+                const gameId = ["uno", "vampir-koylu", "starfall"].includes(ticket.gameId)
+                    ? ticket.gameId
+                    : "";
+                if (!gameId) throw new Error("Oyun bağlantı bileti geçersiz.");
                 if (gameId === "vampir-koylu") validateSessionId(ticket.sessionId);
                 validateLobbyId(ticket.lobbyId);
                 const stub = getRoomStub(env, gameId, ticket.roomId, ticket.lobbyId, ticket.round, ticket.sessionId);
@@ -939,7 +953,7 @@ export default {
                 return await stub.fetch(internalRequest);
             }
 
-            return json({ error: "CACA UNO endpoint bulunamadı." }, 404, origin);
+            return json({ error: "CACA game endpoint bulunamadı." }, 404, origin);
         } catch (error) {
             const message = error?.message || "Beklenmeyen sunucu hatası.";
             const status = /token|oturum|bileti/i.test(message) ? 401 :

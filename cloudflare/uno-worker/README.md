@@ -1,6 +1,6 @@
 # CACA Cloudflare Games Worker
 
-This Worker hosts live UNO and Vampir Köylü matches. The existing CACA website, Firebase Authentication,
+This Worker hosts live UNO, Starfall Grid and Vampir Köylü matches. The existing CACA website, Firebase Authentication,
 room lobby, profiles, invitations and chat remain on Firebase.
 
 Private game downloads are documented in
@@ -154,6 +154,14 @@ Firebase Hosting preview URLs are public, temporary URLs and use this project's 
 backend resources. Use test rooms and test matches while validating the migration.
 
 
+
+## Starfall Grid
+
+Starfall Grid is an original 2–8 player strategy game hosted by the `StarfallRoom` SQLite-backed Durable Object. The server owns its 6×6 board, cell claims, scoring, turn rotation and 60-second turn deadline. Browser clients receive the same public board and scores over WebSockets; reconnecting clients receive a fresh snapshot. Firebase continues to own room invitations, lobby membership, ready-up, spectators and rematch coordination.
+
+The `STARFALL_ROOMS` binding and Wrangler migration `v3` add this game without replacing the existing `UnoRoom` (`v1`) or `VampirKoyluRoom` (`v2`) classes.
+
+Scoring: claim a free cell for its printed value, collect +3 on a star cell, and gain +2 for each orthogonally adjacent cell already owned by you (up to +4). Every player gets four turns; the highest score wins, with ties shared. A player who leaves is removed from the active roster; if one player remains, that player wins. A disconnected player's turn is skipped when the 60-second deadline expires, and they may reconnect before then.
 
 ## Vampir Köylü
 
