@@ -2094,15 +2094,23 @@ function renderOpenGameLobbies() {
         item.className = "open-game-lobby";
         item.classList.toggle("is-active", session.lobbyId === activeGameLobbyId);
         item.dataset.lobbyId = session.lobbyId;
+        const copy = document.createElement("span");
+        copy.className = "open-game-lobby-copy";
         const title = document.createElement("strong");
         title.textContent = session.gameName || game?.name || "Oyun";
+        const host = activeRoomMembers.find((member) => member.id === session.hostId);
+        const hostName = document.createElement("small");
+        hostName.className = "open-game-lobby-host";
+        hostName.textContent = "Lobi sahibi: " +
+            (host?.displayNickname || host?.username || session.hostName || "Oyuncu");
+        copy.append(title, hostName);
         const details = document.createElement("span");
         const state = session.status === "playing" ? " · Maçta" :
             session.status === "starting" ? " · Başlıyor" :
             session.status === "results" ? " · Sonuçlar" : " · Açık";
         details.textContent = (session.hasPassword ? "🔒 Parolalı · " : "") + players.length + "/" +
             (session.maxPlayers || game?.maxPlayers || "?") + state;
-        item.append(title, details);
+        item.append(copy, details);
         item.addEventListener("click", () => {
             selectGameLobby(session.lobbyId);
             $("gameSessionContent").hidden = false;
