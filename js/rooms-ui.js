@@ -14,6 +14,10 @@ import {
     forfeitMatch as forfeitVampirKoyluMatch,
     returnToLobby as returnVampirKoyluToLobby
 } from "../games/vampir-koylu/index.js";
+import {
+    forfeitMatch as forfeitStarfallMatch,
+    returnToLobby as returnStarfallToLobby
+} from "../games/starfall/index.js";
 
 import {
     onAuthStateChanged
@@ -2172,7 +2176,7 @@ function renderGameCenter() {
     const spectators = Array.isArray(session.spectatorIds) ? session.spectatorIds : [];
     const resultReturnIds = Array.isArray(session.resultReturnIds) ? session.resultReturnIds : [];
     const hasReturnedFromWorkerResults =
-        ["uno", "vampir-koylu"].includes(session.gameId) &&
+        ["uno", "vampir-koylu", "starfall"].includes(session.gameId) &&
         session.status === "results" &&
         resultReturnIds.includes(currentUser?.uid);
     const isPlaying = session.status === "playing";
@@ -2208,7 +2212,7 @@ function renderGameCenter() {
         : isStarting
             ? "Herkes hazır. Oyun 3 saniyelik geri sayımın sonunda başlayacak; biri vazgeçerse sayaç iptal edilir."
             : isResults
-                ? ["uno", "vampir-koylu"].includes(session.gameId)
+                ? ["uno", "vampir-koylu", "starfall"].includes(session.gameId)
                     ? `Sonuç ekranı · ${resultReturnIds.length}/${matchPlayers.length} oyuncu lobiye döndü.`
                     : "Maç bitti. İzleyiciler otomatik olarak lobi üyelerine eklendi. Yeni maç için lobiye dön."
                 : botFillEnabled
@@ -2239,7 +2243,7 @@ function renderGameCenter() {
                 : "Sonraki maç için lobide";
         }
         if (isResults) {
-            if (["uno", "vampir-koylu"].includes(session.gameId) && resultReturnIds.includes(userId)) {
+            if (["uno", "vampir-koylu", "starfall"].includes(session.gameId) && resultReturnIds.includes(userId)) {
                 return "Lobiye döndü";
             }
             return matchPlayers.includes(userId) ? "Sonuç ekranında" : "Lobi üyesi";
@@ -2301,7 +2305,7 @@ function renderGameCenter() {
             : isSpectator ? gameName + " masasını izle" : gameName + " ekranını aç";
     }
     $("finishGameRoundButton").hidden = !isPlaying || !canManage ||
-        ["uno", "vampir-koylu"].includes(session.gameId);
+        ["uno", "vampir-koylu", "starfall"].includes(session.gameId);
     $("closeGameSessionButton").hidden = !canManage;
     $("closeGameSessionButton").textContent = "Lobiyi tamamen kapat";
     $("gameLobbySettingsButton").hidden = !(
@@ -2335,7 +2339,7 @@ function renderGameCenter() {
                 : "Tüm oyuncular döndü. Yeni lobi hazırlanıyor."
         );
     } else if (isResults) {
-        setGameCenterStatus(["uno", "vampir-koylu"].includes(session.gameId)
+        setGameCenterStatus(["uno", "vampir-koylu", "starfall"].includes(session.gameId)
             ? "Her oyuncunun sonuç ekranı 5 saniye içinde lobiye dönüşünü sunucuya kaydeder."
             : "Sonuçlar 5 saniye gösterilecek. Ardından lobi otomatik sıfırlanacak.");
     } else if (isStarting && isLobbyPlayer) {
@@ -2406,11 +2410,25 @@ async function returnVampirKoyluToLobbyFromResults(roomId, lobbyId, expectedRoun
     return result;
 }
 
+async function returnStarfallToLobbyFromResults(roomId, lobbyId, expectedRound) {
+    if (!currentUser) throw new Error("Oturum bulunamadı.");
+    const result = await returnStarfallToLobby(db, roomId, lobbyId, expectedRound, currentUser.uid);
+    if (result.completed) {
+        setGameCenterStatus("Tüm Starfall oyuncuları döndü. Rövanş lobisi hazır.");
+    } else {
+        setGameCenterStatus(
+            "Lobiye döndün. Diğer oyuncular bekleniyor (" +
+            result.returnedCount + "/" + result.requiredCount + ")."
+        );
+    }
+    return result;
+}
+
 function syncGameSessionResultsReset(roomId, sessionData) {
     // UNO advances only when a player presses the result screen's
     // "Lobi ekranına dön" button. Never silently reuse a result round.
     if (!sessionData || sessionData.status !== "results" ||
-        ["uno", "vampir-koylu"].includes(sessionData.gameId)) {
+        ["uno", "vampir-koylu", "starfall"].includes(sessionData.gameId)) {
         clearGameSessionResultsTimer();
         return;
     }
@@ -2669,7 +2687,7 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
         }
         if (latest.status === "results") {
             if (
-                ["uno", "vampir-koylu"].includes(latest.gameId) &&
+                ["uno", "vampir-koylu", "starfall"].includes(latest.gameId) &&
                 Array.isArray(latest.resultReturnIds) &&
                 latest.resultReturnIds.includes(currentUser.uid)
             ) return false;
@@ -2756,7 +2774,9 @@ async function openRoomGame(sessionData, { automatic = false } = {}) {
                     ? () => returnUnoToLobbyFromResults(roomId, latest.lobbyId, latest.round)
                     : latest.gameId === "vampir-koylu"
                         ? () => returnVampirKoyluToLobbyFromResults(roomId, latest.lobbyId, latest.round, latest.sessionId)
-                        : null
+                        : latest.gameId === "starfall"
+                            ? () => returnStarfallToLobbyFromResults(roomId, latest.lobbyId, latest.round)
+                            : null
                 : null
         });
 
@@ -3573,14 +3593,16 @@ async function leaveGameLobby() {
         initialMatchPlayers.includes(uid) &&
         (
             (initialSession.status === "playing" &&
-                ["uno", "vampir-koylu"].includes(initialSession.gameId)) ||
+                ["uno", "vampir-koylu", "starfall"].includes(initialSession.gameId)) ||
             (initialSession.status === "results" && initialSession.gameId === "vampir-koylu")
         )
     ) {
         try {
             const result = initialSession.gameId === "uno"
                 ? await leaveUnoMatchFromSession(GAME_SCOPE_ID, initialSession, uid)
-                : await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, initialSession, uid);
+                : initialSession.gameId === "vampir-koylu"
+                    ? await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, initialSession, uid)
+                    : await forfeitStarfallMatch(db, GAME_SCOPE_ID, lobbyId, initialSession.round, uid);
 
             activeRoomGame?.close();
             activeRoomGame = null;
@@ -3597,6 +3619,11 @@ async function leaveGameLobby() {
                     (result.winner === "vampirler" ? "Vampirler" : "Köylüler") +
                     " maçı kazandı. Maçtan ayrıldın."
                 );
+            } else if (initialSession.gameId === "starfall" && result.finished && result.winners?.length) {
+                const winners = result.winners.map((winnerId) =>
+                    activeRoomMembers.find((member) => member.id === winnerId)?.displayNickname || "Oyuncu"
+                );
+                setGameCenterStatus(winners.join(" ve ") + " Starfall maçını kazandı.");
             } else {
                 setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
             }
@@ -3718,11 +3745,15 @@ async function leaveGameLobby() {
 async function leaveCurrentMatch() {
     if (!currentUser || !GAME_SCOPE_ID) return false;
     const gameId = gameSessionData?.gameId;
-    if (!["uno", "vampir-koylu"].includes(gameId)) return false;
+    if (!["uno", "vampir-koylu", "starfall"].includes(gameId)) return false;
 
     const result = gameId === "uno"
         ? await leaveUnoMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid)
-        : await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid);
+        : gameId === "vampir-koylu"
+            ? await leaveVampirKoyluMatchFromSession(GAME_SCOPE_ID, gameSessionData, currentUser.uid)
+            : await forfeitStarfallMatch(
+                db, GAME_SCOPE_ID, gameSessionData.lobbyId, gameSessionData.round, currentUser.uid
+            );
     if (!result.left) return false;
 
     if (gameId === "uno" && result.finished && result.winner) {
@@ -3735,7 +3766,12 @@ async function leaveCurrentMatch() {
         setGameCenterStatus(
             (result.winner === "vampirler" ? "Vampirler" : "Köylüler") + " kazandı."
         );
-    } else if (result.cancelledBeforeStart || result.cancelledBeforeDeal) {
+    } else if (gameId === "starfall" && result.finished && result.winners?.length) {
+        const winners = result.winners.map((winnerId) =>
+            activeRoomMembers.find((member) => member.id === winnerId)?.displayNickname || "Oyuncu"
+        );
+        setGameCenterStatus(winners.join(" ve ") + " Starfall maçını kazandı.");
+    } else if (result.cancelledBeforeStart || result.cancelledBeforeDeal || result.cancelledRound) {
         setGameCenterStatus("Maç başlamadan terk edildi. Kalan oyuncular lobiye döndü.");
     } else {
         setGameCenterStatus("Maçı terk ettin. Oyun lobisinden de çıkarıldın.");
