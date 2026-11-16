@@ -1,15 +1,18 @@
 # CACA Games
 
-Oda oyunları bu klasörde ayrı modüller halinde tutulur.
+Oda oyunları bağımsız oyun modülleri halinde tutulur ve `registry.js` üzerinden ortak oyun lobisine kaydedilir.
 
-## Yapı
+## Modül yapısı
 
-- `registry.js`: oyun kataloğu ve oyun modüllerinin kayıtları.
-- `uno/`: UNO oyununun kendi mantığı, durum modeli ve arayüzü.
-- Her yeni oyun kendi klasöründe tutulur (ör. `tavla/`, `kelime/`).
+- `registry.js`: oyun kataloğu, minimum/maksimum oyuncu ve modül giriş noktaları.
+- `uno/`: UNO kuralları, durum istemcisi ve masa arayüzü.
+- `starfall/`: Starfall Grid skor motoru, WebSocket istemcisi ve responsive masa arayüzü.
+- `vampir-koylu/`: sosyal çıkarım motoru, roller, botlar ve arayüz.
 
-## Ortak lobi
+Her oyun `index.js` içinde `id`, oyuncu sınırları ve `open()` arayüzünü dışa aktarır. Yeni bir oyun eklemek için oyun klasörü oluştur, kayıt dosyasına ekle ve Worker tarafında gerekiyorsa kendi Durable Object sınıfını bağla.
 
-Oda oluşturma, katılımcıların hazır durumu, izleyici görünümü ve tur sırası ortak oda altyapısıdır. Bunlar oyunların içine kopyalanmaz. Bir oyun modülü seçildiğinde ortak lobi o oyunun başlatma fonksiyonuna bağlanır.
+## Ortak oda ve gerçek zamanlı altyapı
 
-Şu an ortak lobi ve tur sırası altyapısı vardır; UNO oynanış motoru henüz eklenmemiştir.
+Firebase; oda üyeliğini, davetleri, oyun lobilerini, hazır durumunu ve kalıcı oyuncu listesini yönetir. Cloudflare Worker kısa ömürlü Firebase-kimlikli biletler verir. Durable Objects her maçın otoriter durumunu, WebSocket yayınlarını, yeniden bağlanmayı ve sıra zaman aşımını yönetir.
+
+Oyun modülleri davet/lobi/üyelik akışını kopyalamaz; ortak RendeChat akışına bağlanır. Yeni Worker tabanlı oyunlar için Worker rotaları, Durable Object binding/migration ve ilgili istemci yaşam döngüsü eylemleri eklenmelidir.
