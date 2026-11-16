@@ -1152,7 +1152,7 @@ SpaceInvaders.WelcomeState = function (game) {
   var tableCaptionText;
   var tableRow1Sprite;
   var tableRow1Text;
-  var tableRowS2prite;
+  var tableRow2Sprite;
   var tableRow2Text;
   var tableRow3Sprite;
   var tableRow3Text;
