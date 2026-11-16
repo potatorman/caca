@@ -521,7 +521,7 @@ function listenToOwnerRoomMembers(roomId) {
 async function deleteRoomMemberAccount(uid, nickname, button) {
     if (!isSiteOwner || !currentUser || uid === currentUser.uid || button.disabled) return;
     const confirmed = window.confirm(
-        nickname + " hesabını kalıcı olarak silmek istiyor musun? Hesap tüm CACA verileriyle birlikte silinir."
+        nickname + " hesabını kalıcı olarak silmek istiyor musun? Hesap tüm RendeChat verileriyle birlikte silinir."
     );
     if (!confirmed) return;
 
@@ -859,7 +859,7 @@ async function deleteSelectedOwnerUsers() {
     const confirmed = window.confirm(
         targets.length + " hesabı kalıcı olarak silmek istiyor musun?\\n\\n" +
         names.join(", ") + extra +
-        "\\n\\nSeçilen hesapların Firebase Authentication kayıtları ve CACA verileri silinir. Bu işlem geri alınamaz."
+        "\\n\\nSeçilen hesapların Firebase Authentication kayıtları ve RendeChat verileri silinir. Bu işlem geri alınamaz."
     );
     if (!confirmed) return;
 
