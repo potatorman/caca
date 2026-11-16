@@ -19,6 +19,11 @@ try {
     Write-Host "[3/3] Checking browser modules and Worker deployment bundle..." -ForegroundColor Cyan
     $browserFiles = @(
         "../../games/registry.js",
+        "../../games/starfall/engine.js",
+        "../../games/starfall/index.js",
+        "../../games/starfall/state.js",
+        "../../games/starfall/ui.js",
+        "../../games/starfall/worker-config.js",
         "../../games/uno/state.js",
         "../../games/uno/ui.js",
         "../../games/vampir-koylu/engine.js",
