@@ -40,7 +40,8 @@ test("claim scoring rewards a star and up to two connected cells", () => {
 });
 
 test("claims reject occupied and out-of-range cells", () => {
-    const board = createStarfallBoard(() => 0.25);
+    let seed = 0;
+    const board = createStarfallBoard(() => ((seed++ % 36) + 0.2) / 36);
     board[0].ownerId = "p1";
     assert.throws(() => scoreStarfallClaim(board, 0, "p2"), /daha önce alındı/);
     assert.throws(() => scoreStarfallClaim(board, 99, "p2"), /tahtada bulunmuyor/);
