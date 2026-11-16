@@ -3,26 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0b0c10">
-
-    <title>CACA — Chat</title>
+    <meta name="theme-color" content="#0b0b12">
+    <meta name="description" content="RendeChat — İnsanlarınla buluş, kendi sohbet odalarını kur ve birlikte oyun oyna.">
+    <meta property="og:title" content="RendeChat">
+    <meta property="og:description" content="Your space. Your people. Chat, connect and play together.">
+    <meta property="og:type" content="website">
+    <link rel="icon" type="image/svg+xml" href="./rendechat.svg">
+    
+    <title>RendeChat — Your space. Your people.</title>
 
     <link rel="stylesheet" href="./css/style.css">
+    <link rel="stylesheet" href="./css/rendechat.css">
 </head>
 <body>
 
     <main class="layout">
 
         <section class="brand-area">
-            <div class="brand-logo">c.</div>
+            <div class="brand-logo" aria-label="RendeChat"><span class="rendechat-cheese" aria-hidden="true">🧀</span></div>
 
             <div class="brand-content">
                 <span class="brand-label">YOUR SPACE. YOUR PEOPLE.</span>
-                <h1>Conversations<br>made simple.</h1>
-                <p>Arkadaşlarınla buluş, kendi odanı kur ve sohbet etmeye başla.</p>
+                <h1>İnsanlarınla<br>bir araya gel.</h1>
+                <p>RendeChat'te kendi alanını oluştur, topluluğa katıl ve arkadaşlarınla sohbet et. Oyunlar da burada.</p>
             </div>
 
-            <div class="brand-footer">CACA © 2026</div>
+            <div class="brand-footer">RENDECHAT © 2026</div>
         </section>
 
         <section class="auth-area">
@@ -34,7 +40,7 @@
                 <div id="authView">
 
                     <div class="auth-heading">
-                        <span class="small-label">WELCOME TO CACA</span>
+                        <span class="small-label">RENDECHAT'E HOŞ GELDİN</span>
                         <h2 id="formHeading">Tekrar hoş geldin.</h2>
                         <p id="formDescription">Hesabına giriş yap ve sohbete devam et.</p>
                     </div>
@@ -122,7 +128,7 @@
                     ></p>
 
                     <div class="auth-footer">
-                        By continuing, you agree to use CACA responsibly.
+                        Devam ederek RendeChat'i sorumlu şekilde kullanmayı kabul edersin.
                     </div>
 
                 </div>
@@ -134,8 +140,8 @@
                     <header class="dashboard-header">
 
                         <div class="dashboard-brand">
-                            <div class="brand-logo">c.</div>
-                            <span>CACA</span>
+                            <div class="brand-logo" aria-label="RendeChat"><span class="rendechat-cheese" aria-hidden="true">🧀</span></div>
+                            <span>RendeChat</span>
                         </div>
                         <nav class="workspace-nav" aria-label="Ana gezinme"><button id="chatsNavButton" class="workspace-nav-button is-active" type="button" aria-pressed="true">Sohbetler</button><button id="gamesNavButton" class="workspace-nav-button" type="button" aria-pressed="false">Oyunlar</button><button id="archiveNavButton" class="workspace-nav-button" type="button" aria-pressed="false">Arşiv</button><button id="siteOwnerNavButton" class="workspace-nav-button site-owner-nav-button" type="button" aria-pressed="false" hidden>Site Owner</button></nav>
 
@@ -163,7 +169,7 @@
                         <aside class="room-sidebar">
                             <button id="globalChatNavButton" class="global-chat-nav-button" type="button" aria-pressed="false">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 10.7 8.5-7 8.5 7v9.1a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M9 21v-7h6v7"/></svg>
-                                <span><strong>Global Sohbet</strong><small>CACA topluluğu</small></span>
+                                <span><strong>Global Sohbet</strong><small>RendeChat topluluğu</small></span>
                                 <i aria-hidden="true"></i>
                             </button>
                             <div class="sidebar-section-heading">
@@ -202,8 +208,8 @@
                         <main class="workspace-main">
                             <section id="dashboardView" class="dashboard-home">
                                 <div class="dashboard-welcome-card">
-                                    <div class="welcome-icon"><span>c.</span></div>
-                                    <span class="small-label">CACA WORKSPACE</span>
+                                    <div class="welcome-icon"><span class="rendechat-cheese" aria-hidden="true">🧀</span></div>
+                                    <span class="small-label">RENDECHAT WORKSPACE</span>
                                     <h1>Sohbete hazır mısın?</h1>
                                     <p>Soldan bir oda seçerek sohbete katıl. Henüz bir odan yoksa yeni bir oda oluşturabilir veya davet koduyla katılabilirsin.</p>
                                     <div class="welcome-hints">
@@ -451,7 +457,7 @@
                                     <div class="room-management-card game-center-card">
                                         <header class="arena-heading">
                                             <div class="arena-heading-brand">
-                                                <span class="arena-kicker"><i></i> CACA / ODA OYUNLARI</span>
+                                                <span class="arena-kicker"><i></i> RENDECHAT / ODA OYUNLARI</span>
                                                 <h3 id="gameCenterTitle">Oyunlar</h3>
                                             </div>
                                             <div class="arena-heading-side">
@@ -467,7 +473,7 @@
                                                 <strong>Bir masa<br>seç, <em>hikâyeyi</em><br>başlat.</strong>
                                                 <span class="arena-stage-foot">GLOBAL LOBİLER · HERKESLE OYNA</span>
                                             </div>
-                                            <div class="arena-stage-mark" aria-hidden="true"><span>c.</span><i></i><b></b></div>
+                                            <div class="arena-stage-mark" aria-hidden="true"><span class="rendechat-cheese">🧀</span></div>
                                         </div>
                                         <section id="gameCenterEmptyState" class="game-center-empty">
                                             <div class="game-catalog-heading"><strong>Bir oyun seç</strong></div>
@@ -484,7 +490,7 @@
                                         <section id="gameSessionContent" class="game-session-content game-room-redesign" hidden>
                                             <header class="game-room-topbar">
                                                 <div class="game-room-heading">
-                                                    <span class="game-room-eyebrow"><i></i> CACA OYUN ODASI</span>
+                                                    <span class="game-room-eyebrow"><i></i> RENDECHAT OYUN ODASI</span>
                                                     <h4 id="gameSessionName">UNO</h4>
                                                     <p id="gameSessionSummary" class="game-session-summary"></p>
                                                 </div>
@@ -737,7 +743,7 @@
                             <section id="siteOwnerView" class="site-owner-view" hidden>
                                 <div class="site-owner-page-heading">
                                     <div>
-                                        <span class="small-label">CACA CONTROL CENTER</span>
+                                        <span class="small-label">RENDECHAT CONTROL CENTER</span>
                                         <h2>Site Owner</h2>
                                         <p>Tüm özel odaları ve Global Chat mesajlarını görüntüle, gerektiğinde mesajları kaldır.</p>
                                     </div>
