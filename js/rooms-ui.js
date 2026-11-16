@@ -6384,6 +6384,10 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     if (currentUser?.uid !== user.uid) {
+        // Do not carry the previous account's owner controls across an
+        // account switch while the new profile is still loading.
+        isSiteOwner = false;
+        syncGlobalChatOwnerControls();
         jumpscareLibraryLoadedFor = null;
         jumpscareLibraryLoadPromise = null;
         currentJumpscareSlots = { slot1: null, slot2: null, slot3: null };
