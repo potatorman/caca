@@ -1251,6 +1251,18 @@
                             <p id="appMessage" class="status-message" role="status" aria-live="polite"></p>
                             <p id="roomMessage" class="status-message" role="status" aria-live="polite"></p>
 
+                            <dialog id="gameLobbySwitchDialog" class="moderation-notice-dialog game-lobby-switch-dialog" aria-labelledby="gameLobbySwitchTitle" aria-describedby="gameLobbySwitchBody">
+                                <div class="moderation-notice-card" data-kind="info">
+                                    <span class="moderation-notice-symbol" aria-hidden="true">↔</span>
+                                    <span class="moderation-notice-eyebrow">LOBİ DEĞİŞTİR</span>
+                                    <h2 id="gameLobbySwitchTitle">Odanı silip diğer odaya geçmek ister misin?</h2>
+                                    <p id="gameLobbySwitchBody" class="moderation-notice-body">Mevcut lobinden ayrılıp seçtiğin odaya katılacaksın.</p>
+                                    <div class="game-lobby-switch-actions">
+                                        <button id="gameLobbySwitchStayButton" class="game-lobby-switch-stay" type="button">Odanda kal</button>
+                                        <button id="gameLobbySwitchJoinButton" class="moderation-notice-close" type="button">Odaya gir</button>
+                                    </div>
+                                </div>
+                            </dialog>
                             <dialog id="moderationNoticeDialog" class="moderation-notice-dialog" aria-labelledby="moderationNoticeTitle" aria-describedby="moderationNoticeBody">
                                 <div class="moderation-notice-card" data-kind="info">
                                     <span id="moderationNoticeSymbol" class="moderation-notice-symbol" aria-hidden="true">!</span>
