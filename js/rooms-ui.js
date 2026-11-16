@@ -844,7 +844,7 @@ function listenToMessages(roomId) {
 
                 const hint = document.createElement("span");
                 hint.textContent = roomId === GLOBAL_CHAT_ID
-                    ? "CACA'nın global sohbeti burada başlayacak."
+                    ? "RendeChat global sohbeti burada başlayacak."
                     : "Bu odadaki sohbet burada başlayacak.";
 
                 empty.append(icon, title, hint);
@@ -1858,7 +1858,7 @@ $("archiveUnlockForm")?.addEventListener("submit", async (event) => {
 
 async function startCatalogGameDownload(game, button, status) {
     if (!currentUser) {
-        status.textContent = "İndirmek için CACA hesabına giriş yapmalısın.";
+        status.textContent = "İndirmek için RendeChat hesabına giriş yapmalısın.";
         return;
     }
 
@@ -5741,12 +5741,12 @@ async function openGlobalChat() {
         $("roomView").hidden = false;
         $("backToDashboard").hidden = true;
         $("activeRoomName").textContent = "Global Chat";
-        $("activeRoomName").previousElementSibling.textContent = "CACA COMMUNITY";
+        $("activeRoomName").previousElementSibling.textContent = "RENDECHAT COMMUNITY";
         $("activeRoomCode").parentElement.hidden = true;
         $("leaveGlobalChatButton").hidden = false;
         $("leaveRoomButton").hidden = true;
         $("chatPanelTitle").textContent = "Global Chat";
-        $("chatPanelSubtitle").textContent = "CACA topluluğuyla konuş";
+        $("chatPanelSubtitle").textContent = "RendeChat topluluğuyla konuş";
         setGlobalMembersMode(true);
         setMembersPanelOpen(true);
         document.dispatchEvent(new CustomEvent("caca:global-chat-open"));
