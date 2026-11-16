@@ -14,6 +14,7 @@
 
     <link rel="stylesheet" href="./css/style.css">
     <link rel="stylesheet" href="./css/rendechat.css">
+    <link rel="stylesheet" href="./css/rendechat-mobile.css">
 </head>
 <body>
 
@@ -148,6 +149,7 @@
                             <div class="brand-logo" aria-label="RendeChat"><span class="rendechat-cheese" aria-hidden="true">🧀</span></div>
                             <span>RendeChat</span>
                         </div>
+                        <button id="mobileRoomsToggleButton" class="mobile-rooms-toggle-button" type="button" aria-controls="roomSidebar" aria-expanded="false" aria-label="Odaları göster" title="Odaları göster"><span aria-hidden="true">☰</span></button>
                         <nav class="workspace-nav" aria-label="Ana gezinme"><button id="chatsNavButton" class="workspace-nav-button is-active" type="button" aria-pressed="true">Sohbetler</button><button id="gamesNavButton" class="workspace-nav-button" type="button" aria-pressed="false">Oyunlar</button><button id="archiveNavButton" class="workspace-nav-button" type="button" aria-pressed="false">Kütüphane</button><button id="siteOwnerNavButton" class="workspace-nav-button site-owner-nav-button" type="button" aria-pressed="false" hidden>Site Owner</button></nav>
 
                         <div class="dashboard-user">
@@ -160,18 +162,19 @@
                             </div>
                         </div>
 
-                        <button id="settingsButton" class="settings-button" type="button">
+                        <button id="settingsButton" class="settings-button" type="button" aria-label="Hesap ayarları" title="Hesap ayarları">
                             Hesap ayarları
                         </button>
 
-                        <button id="logoutButton" class="logout-button">
+                        <button id="logoutButton" class="logout-button" type="button" aria-label="Çıkış yap" title="Çıkış yap">
                             Çıkış yap
                         </button>
 
                     </header>
 
                     <div class="workspace-layout">
-                        <aside class="room-sidebar">
+                        <button id="mobileDrawerBackdrop" class="mobile-drawer-backdrop" type="button" aria-label="Açık menüyü kapat" hidden></button>
+                        <aside id="roomSidebar" class="room-sidebar">
                             <button id="globalChatNavButton" class="global-chat-nav-button" type="button" aria-pressed="false">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 10.7 8.5-7 8.5 7v9.1a1.2 1.2 0 0 1-1.2 1.2H4.7a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M9 21v-7h6v7"/></svg>
                                 <span><strong>Global Sohbet</strong><small>RendeChat topluluğu</small></span>
@@ -1223,6 +1226,9 @@
 
     <!-- GAME CATALOG ADMIN -->
     <script type="module" src="./games/catalog-admin-init.js"></script>
+
+    <!-- MOBILE WORKSPACE -->
+    <script type="module" src="./js/mobile-workspace.js"></script>
 
 </body>
 </html>

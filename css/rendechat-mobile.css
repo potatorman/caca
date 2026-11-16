@@ -1,0 +1,1076 @@
+/* Stage 7 — RendeChat mobile workspace.
+   Desktop rules remain untouched; this file only refines widths <= 800px. */
+
+:root {
+  --rc-mobile-header: 64px;
+  --rc-mobile-nav: 72px;
+}
+
+.mobile-rooms-toggle-button,
+.mobile-drawer-backdrop {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body.logged-in {
+    display: block;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100dvh;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body.logged-in .layout {
+    display: block;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  body.logged-in .auth-area {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body.logged-in .auth-card {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body.logged-in #appView {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0d0e17;
+  }
+
+  body.logged-in #appView[hidden] {
+    display: none !important;
+  }
+
+  /* Compact app header */
+  body.logged-in .dashboard-header {
+    position: relative;
+    z-index: 40;
+    display: flex;
+    flex: 0 0 auto;
+    min-width: 0;
+    min-height: var(--rc-mobile-header);
+    align-items: center;
+    gap: 8px;
+    padding: calc(7px + env(safe-area-inset-top, 0px)) 11px 7px;
+    background: rgba(16, 17, 27, .98);
+    border-bottom: 1px solid #29273b;
+  }
+
+  body.logged-in .dashboard-brand {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    color: #f5f2ff;
+    font-size: 12px;
+    font-weight: 830;
+    letter-spacing: -.035em;
+    white-space: nowrap;
+  }
+
+  body.logged-in .dashboard-brand .brand-logo {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    margin: 0;
+    place-items: center;
+    border-radius: 11px;
+    font-size: 21px;
+  }
+
+  body.logged-in .dashboard-brand .rendechat-cheese {
+    font-size: 21px;
+  }
+
+  body.logged-in .mobile-rooms-toggle-button {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    place-items: center;
+    padding: 0;
+    color: #e6deff;
+    background: #1a1929;
+    border: 1px solid #38334f;
+    border-radius: 11px;
+    font-size: 17px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.logged-in .mobile-rooms-toggle-button:active {
+    background: rgba(152, 120, 255, .22);
+    transform: scale(.97);
+  }
+
+  body.logged-in .dashboard-user {
+    display: flex;
+    min-width: 0;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-left: auto;
+  }
+
+  body.logged-in .dashboard-user > div {
+    display: none;
+  }
+
+  body.logged-in .dashboard-user .user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+  }
+
+  body.logged-in .dashboard-header .settings-button,
+  body.logged-in .dashboard-header .logout-button {
+    display: grid;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    flex: 0 0 36px;
+    place-items: center;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-size: 0;
+    line-height: 1;
+    border-radius: 11px;
+  }
+
+  body.logged-in .dashboard-header .settings-button::before {
+    content: "⚙";
+    color: #e6deff;
+    font-size: 17px;
+  }
+
+  body.logged-in .dashboard-header .logout-button::before {
+    content: "↗";
+    color: #f0d5df;
+    font-size: 19px;
+  }
+
+  /* The existing workspace tabs become the mobile bottom navigation. */
+  body.logged-in .dashboard-header .workspace-nav {
+    position: fixed;
+    z-index: 150;
+    right: 10px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    left: 10px;
+    display: flex;
+    width: auto;
+    min-width: 0;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 4px;
+    margin: 0;
+    padding: 6px;
+    background: rgba(19, 19, 31, .96);
+    border: 1px solid rgba(166, 143, 255, .24);
+    border-radius: 17px;
+    box-shadow: 0 12px 38px rgba(0, 0, 0, .42), inset 0 1px rgba(255,255,255,.035);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+
+  body.logged-in .workspace-nav-button {
+    display: flex;
+    min-width: 0;
+    min-height: 46px;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    color: #a5a0b8;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    font-size: 10px;
+    font-weight: 760;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.logged-in .workspace-nav-button.is-active {
+    color: #fff;
+    background: linear-gradient(135deg, rgba(152, 120, 255, .27), rgba(111, 83, 205, .2));
+    border-color: rgba(177, 153, 255, .25);
+    box-shadow: inset 0 1px rgba(255,255,255,.06);
+  }
+
+  body.logged-in .workspace-nav-button[hidden] {
+    display: none !important;
+  }
+
+  /* Workspace takes the remaining viewport; all scrolling stays inside it. */
+  body.logged-in .workspace-layout {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0d0e17;
+  }
+
+  body.logged-in .workspace-main {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 14px 12px calc(var(--rc-mobile-nav) + env(safe-area-inset-bottom, 0px) + 16px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #494064 transparent;
+  }
+
+  body.logged-in .workspace-main > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Room list is a real slide-out drawer, not a squeezed desktop sidebar. */
+  body.logged-in .room-sidebar {
+    position: fixed;
+    z-index: 130;
+    top: calc(var(--rc-mobile-header) + env(safe-area-inset-top, 0px) + 8px);
+    bottom: calc(var(--rc-mobile-nav) + env(safe-area-inset-bottom, 0px) + 10px);
+    left: 10px;
+    display: flex;
+    width: min(84vw, 322px);
+    max-width: calc(100vw - 20px);
+    min-width: 0;
+    flex-direction: column;
+    gap: 15px;
+    padding: 16px 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background:
+      radial-gradient(ellipse at 0 0, rgba(127, 93, 230, .14), transparent 50%),
+      #12131f;
+    border: 1px solid rgba(166, 143, 255, .27);
+    border-radius: 18px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .6);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(calc(-100% - 18px));
+    transition: transform .22s ease, opacity .22s ease, visibility .22s ease;
+    overscroll-behavior: contain;
+  }
+
+  body.logged-in .room-sidebar[hidden] {
+    display: none !important;
+  }
+
+  body.logged-in #appView.mobile-rooms-open .room-sidebar {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+  }
+
+  body.logged-in .mobile-drawer-backdrop {
+    position: fixed;
+    z-index: 125;
+    inset: calc(var(--rc-mobile-header) + env(safe-area-inset-top, 0px)) 0 calc(var(--rc-mobile-nav) + env(safe-area-inset-bottom, 0px));
+    display: block;
+    width: 100%;
+    padding: 0;
+    background: rgba(4, 5, 12, .66);
+    border: 0;
+    border-radius: 0;
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+
+  body.logged-in .mobile-drawer-backdrop[hidden] {
+    display: none !important;
+  }
+
+  body.logged-in #appView.mobile-members-open .mobile-drawer-backdrop {
+    z-index: 135;
+  }
+
+  body.logged-in #appView:has(.workspace-layout.is-games-workspace) .mobile-rooms-toggle-button,
+  body.logged-in #appView:has(.workspace-layout.is-archive-workspace) .mobile-rooms-toggle-button {
+    display: none;
+  }
+
+  body.logged-in .global-chat-nav-button {
+    min-height: 58px;
+    flex: 0 0 auto;
+    border-radius: 13px;
+  }
+
+  body.logged-in .room-sidebar .rooms-list {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  body.logged-in .room-sidebar .room-list-item {
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+
+  body.logged-in .room-sidebar .sidebar-actions {
+    display: grid;
+    gap: 9px;
+    margin-top: auto;
+  }
+
+  body.logged-in .room-sidebar .sidebar-action > summary {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+  }
+
+  body.logged-in .room-sidebar .room-action-card {
+    padding: 13px;
+  }
+
+  body.logged-in .room-sidebar .room-action-card input,
+  body.logged-in .room-sidebar .room-action-card select {
+    width: 100%;
+    min-width: 0;
+    min-height: 43px;
+    font-size: 16px;
+  }
+
+  /* Dashboard landing content */
+  body.logged-in .dashboard-home {
+    width: 100%;
+    min-height: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  body.logged-in .dashboard-home-layout {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    gap: 14px;
+  }
+
+  body.logged-in .dashboard-hero {
+    display: block;
+    min-height: 0;
+    padding: 22px 18px;
+    border-radius: 18px;
+  }
+
+  body.logged-in .dashboard-hero-copy {
+    max-width: 100%;
+  }
+
+  body.logged-in .dashboard-hero h1 {
+    max-width: 12ch;
+    font-size: clamp(31px, 8vw, 43px);
+    line-height: 1.05;
+  }
+
+  body.logged-in .dashboard-hero-copy > p {
+    max-width: 48ch;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  body.logged-in .dashboard-hero-visual,
+  body.logged-in .dashboard-section-note {
+    display: none;
+  }
+
+  body.logged-in .dashboard-hero-tags {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  body.logged-in .dashboard-hero-tags > span {
+    min-height: 30px;
+    padding: 0 9px;
+    font-size: 9px;
+  }
+
+  body.logged-in .dashboard-discover {
+    min-width: 0;
+  }
+
+  body.logged-in .dashboard-discover-grid,
+  body.logged-in .dashboard-feature-grid,
+  body.logged-in .dashboard-quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  body.logged-in .dashboard-discover-card,
+  body.logged-in .dashboard-feature-card {
+    min-width: 0;
+    padding: 14px;
+  }
+
+  /* Conversation header and chat */
+  body.logged-in #roomView:not([hidden]) {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    gap: 0;
+    overflow: visible;
+  }
+
+  body.logged-in .room-toolbar {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 9px;
+    margin: 0 0 10px;
+    padding: 0 0 11px;
+    border-bottom: 1px solid #29273b;
+  }
+
+  body.logged-in .room-heading-group {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  body.logged-in .room-heading-group .back-button {
+    min-height: 34px;
+    margin: 0;
+    padding: 0 10px;
+    font-size: 10px;
+  }
+
+  body.logged-in .room-heading-copy {
+    min-width: 0;
+    flex: 1 1 110px;
+  }
+
+  body.logged-in .room-heading-copy h2 {
+    overflow: hidden;
+    font-size: 17px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.logged-in .room-heading-copy .small-label {
+    font-size: 7px;
+  }
+
+  body.logged-in .invite-code-box.compact-code {
+    width: max-content;
+    max-width: 100%;
+    flex: 0 1 auto;
+    margin: 0;
+    padding: 4px 6px 4px 9px;
+  }
+
+  body.logged-in .invite-code-box.compact-code code {
+    font-size: 9px;
+    letter-spacing: .12em;
+  }
+
+  body.logged-in .room-toolbar-actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  body.logged-in .room-toolbar-actions > button {
+    min-width: 0;
+    min-height: 33px;
+    flex: 0 1 auto;
+    padding: 0 9px;
+    font-size: 9px;
+    white-space: normal;
+  }
+
+  body.logged-in .room-chat-layout,
+  body.logged-in #roomView.is-global-chat .room-chat-layout {
+    position: relative;
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0;
+    overflow: visible;
+  }
+
+  body.logged-in .room-chat-layout.members-collapsed {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body.logged-in .chat-panel {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    border-radius: 15px;
+  }
+
+  body.logged-in .chat-panel-heading {
+    min-height: 60px;
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 0 13px;
+  }
+
+  body.logged-in .chat-heading-main {
+    min-width: 0;
+    gap: 9px;
+  }
+
+  body.logged-in .chat-heading-icon {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    border-radius: 10px;
+    font-size: 17px;
+  }
+
+  body.logged-in .chat-heading-copy {
+    min-width: 0;
+  }
+
+  body.logged-in .chat-heading-copy strong {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.logged-in .chat-heading-copy > span:last-child {
+    overflow: hidden;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.logged-in .chat-live-indicator {
+    flex: 0 0 auto;
+    font-size: 9px;
+  }
+
+  body.logged-in .chat-messages {
+    min-height: 0;
+    flex: 1 1 auto;
+    gap: 12px;
+    padding: 13px 11px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  body.logged-in .chat-composer {
+    flex: 0 0 auto;
+    gap: 8px;
+    margin: 0 8px 8px;
+    padding: 9px 10px;
+    border-radius: 13px;
+  }
+
+  body.logged-in .chat-composer textarea {
+    min-height: 40px;
+    max-height: 120px;
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  body.logged-in .chat-composer-hint {
+    display: none;
+  }
+
+  body.logged-in .composer-footer {
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  body.logged-in .composer-actions {
+    gap: 7px;
+  }
+
+  body.logged-in .emoji-picker-button,
+  body.logged-in .chat-send-button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  body.logged-in .chat-send-button {
+    padding: 0 13px;
+    font-size: 10px;
+  }
+
+  body.logged-in .chat-status {
+    margin: 0 12px 7px;
+    font-size: 9px;
+  }
+
+  /* Member list becomes a right-side drawer opened by the existing button. */
+  body.logged-in .room-chat-layout.members-collapsed .members-panel {
+    display: none !important;
+  }
+
+  body.logged-in #appView.mobile-members-open #roomMembersPanel {
+    position: fixed;
+    z-index: 140;
+    top: calc(var(--rc-mobile-header) + env(safe-area-inset-top, 0px) + 9px);
+    right: 10px;
+    bottom: calc(var(--rc-mobile-nav) + env(safe-area-inset-bottom, 0px) + 10px);
+    left: auto;
+    display: flex !important;
+    width: min(86vw, 340px);
+    max-width: calc(100vw - 20px);
+    min-width: 0;
+    height: auto;
+    margin: 0;
+    padding: 16px 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background:
+      radial-gradient(ellipse at 100% 0%, rgba(152, 120, 255, .1), transparent 45%),
+      #141521;
+    border: 1px solid rgba(166, 143, 255, .29);
+    border-radius: 18px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .62);
+    overscroll-behavior: contain;
+  }
+
+  body.logged-in #roomMembersPanel .members-panel-heading {
+    position: sticky;
+    top: -1px;
+    z-index: 2;
+    padding-top: 4px;
+    background: #141521;
+  }
+
+  body.logged-in #roomMembersPanel .icon-button {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+  }
+
+  /* Games and library pages stack vertically and use the full available width. */
+  body.logged-in .workspace-layout.is-games-workspace .games-view,
+  body.logged-in .workspace-layout.is-archive-workspace .archive-view {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    padding: 12px 0 8px;
+    overflow: visible;
+  }
+
+  body.logged-in .games-page-intro,
+  body.logged-in .library-page-intro {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 21px 17px;
+    border-radius: 17px;
+  }
+
+  body.logged-in .games-page-intro h1,
+  body.logged-in .library-page-intro h1 {
+    font-size: clamp(31px, 8vw, 42px);
+    line-height: 1.06;
+  }
+
+  body.logged-in .games-page-intro-copy > p,
+  body.logged-in .library-page-intro-copy > p {
+    max-width: 48ch;
+    font-size: 11px;
+    line-height: 1.65;
+  }
+
+  body.logged-in .games-page-art,
+  body.logged-in .library-page-art {
+    display: none;
+  }
+
+  body.logged-in .games-workspace {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  body.logged-in .games-page-mount {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body.logged-in .open-lobbies-panel {
+    position: static;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+  }
+
+  body.logged-in .game-catalog-grid,
+  body.logged-in .download-games-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  body.logged-in .game-catalog-choice,
+  body.logged-in .game-catalog-webgame {
+    min-width: 0;
+    min-height: 176px;
+    padding: 13px;
+  }
+
+  body.logged-in .game-create-options {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  body.logged-in .game-max-players-field,
+  body.logged-in .game-password-field {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  body.logged-in .archive-downloads-section {
+    margin-top: 12px;
+    padding: 13px;
+    border-radius: 15px;
+  }
+
+  body.logged-in .download-game-card {
+    min-width: 0;
+  }
+
+  body.logged-in .download-game-cover {
+    height: 118px;
+  }
+
+  /* Settings and owner tools become single-column, touch-sized forms. */
+  body.logged-in .settings-view {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 3px 0 calc(var(--rc-mobile-nav) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+
+  body.logged-in .settings-topbar {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  body.logged-in .settings-topbar .back-button {
+    align-self: flex-start;
+    min-height: 36px;
+    margin: 0;
+  }
+
+  body.logged-in .settings-topbar h2 {
+    font-size: 25px;
+  }
+
+  body.logged-in .settings-card,
+  body.logged-in .settings-danger-zone {
+    width: 100%;
+    min-width: 0;
+    margin: 0 0 12px;
+    padding: 17px 14px;
+    border-radius: 15px;
+  }
+
+  body.logged-in .settings-card input,
+  body.logged-in .settings-form input,
+  body.logged-in .settings-card select,
+  body.logged-in .settings-form select,
+  body.logged-in .settings-form textarea {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  body.logged-in .settings-form {
+    min-width: 0;
+    gap: 10px;
+  }
+
+  body.logged-in .avatar-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+    gap: 7px;
+  }
+
+  body.logged-in .avatar-choice {
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  body.logged-in .avatar-photo-upload-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  body.logged-in .avatar-photo-upload-controls {
+    min-width: 0;
+    flex: 1 1 160px;
+  }
+
+  body.logged-in .avatar-photo-upload-button,
+  body.logged-in .avatar-save-button,
+  body.logged-in .delete-account-button {
+    min-height: 42px;
+  }
+
+  body.logged-in .owner-users-list,
+  body.logged-in .owner-chat-list,
+  body.logged-in .owner-room-list,
+  body.logged-in .owner-console-list {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  body.logged-in .owner-console,
+  body.logged-in .owner-console-section,
+  body.logged-in .owner-console-card {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Dialogs fit the visible phone area and keep their actions reachable. */
+  body.logged-in dialog[open] {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    margin: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-radius: 17px;
+  }
+
+  body.logged-in .room-management-card,
+  body.logged-in .admin-panel-card,
+  body.logged-in .avatar-crop-card {
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
+    margin: 0;
+    padding: 18px 14px;
+    overflow: visible;
+    border-radius: 15px;
+  }
+
+  body.logged-in .room-management-section,
+  body.logged-in .admin-assignment-controls {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  body.logged-in .room-management-section > *,
+  body.logged-in .admin-assignment-controls > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  body.logged-in .room-management-section button,
+  body.logged-in .admin-assignment-controls select {
+    min-height: 42px;
+  }
+
+  body.logged-in .room-management-panel {
+    padding: 10px;
+  }
+
+  body.logged-in .avatar-crop-stage {
+    width: min(100%, 340px);
+  }
+
+  /* Prevent common wide children from forcing page-level horizontal scrolling. */
+  body.logged-in img,
+  body.logged-in video,
+  body.logged-in canvas,
+  body.logged-in iframe,
+  body.logged-in table {
+    max-width: 100%;
+  }
+
+  body.logged-in input,
+  body.logged-in select,
+  body.logged-in textarea,
+  body.logged-in button {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --rc-mobile-header: 60px;
+    --rc-mobile-nav: 68px;
+  }
+
+  body.logged-in .dashboard-header {
+    gap: 6px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  body.logged-in .dashboard-brand {
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  body.logged-in .dashboard-brand .brand-logo,
+  body.logged-in .mobile-rooms-toggle-button,
+  body.logged-in .dashboard-header .settings-button,
+  body.logged-in .dashboard-header .logout-button,
+  body.logged-in .dashboard-user .user-avatar {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    flex-basis: 34px;
+  }
+
+  body.logged-in .workspace-nav {
+    right: 8px;
+    left: 8px;
+    padding: 5px;
+  }
+
+  body.logged-in .workspace-nav-button {
+    min-height: 44px;
+    padding: 0 3px;
+    font-size: 9px;
+  }
+
+  body.logged-in .workspace-main {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+
+  body.logged-in .dashboard-hero {
+    padding: 19px 15px;
+  }
+
+  body.logged-in .dashboard-discover-grid,
+  body.logged-in .dashboard-feature-grid,
+  body.logged-in .dashboard-quick-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body.logged-in .game-catalog-grid,
+  body.logged-in .download-games-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body.logged-in .room-toolbar-actions > button {
+    min-height: 32px;
+    padding: 0 7px;
+    font-size: 8px;
+  }
+
+  body.logged-in .chat-panel-heading {
+    min-height: 55px;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  body.logged-in .chat-live-indicator {
+    font-size: 8px;
+  }
+}
+
+@media (max-width: 800px) and (orientation: landscape) {
+  :root {
+    --rc-mobile-header: 54px;
+    --rc-mobile-nav: 60px;
+  }
+
+  body.logged-in .dashboard-header {
+    min-height: var(--rc-mobile-header);
+  }
+
+  body.logged-in .workspace-nav-button {
+    min-height: 40px;
+  }
+
+  body.logged-in .room-sidebar {
+    width: min(66vw, 310px);
+  }
+
+  body.logged-in #appView.mobile-members-open #roomMembersPanel {
+    width: min(62vw, 330px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.logged-in .room-sidebar {
+    transition: none;
+  }
+}
