@@ -20,6 +20,7 @@ let avatarObserver = null;
 let welcomeObserver = null;
 let lastMobileRoomId = "";
 let hadMobileRoomCollapse = false;
+let desktopMembersWereOpen = null;
 let previousFocus = null;
 
 function isMobile() {
@@ -204,6 +205,14 @@ function syncMobileScreen() {
     if (!mobile) {
         closeRoomDrawer();
         closeMoreSheet();
+        if (hadMobileRoomCollapse && desktopMembersWereOpen !== null) {
+            const toggle = $("membersToggleButton");
+            const isOpen = toggle?.getAttribute("aria-expanded") === "true";
+            if (toggle && isOpen !== desktopMembersWereOpen) toggle.click();
+        }
+        hadMobileRoomCollapse = false;
+        desktopMembersWereOpen = null;
+        lastMobileRoomId = "";
         if (mobileHome) mobileHome.hidden = true;
         return;
     }
@@ -257,6 +266,9 @@ function syncMobileScreen() {
         const roomId = $("roomView")?.classList.contains("is-global-chat") ? "global" : $("activeRoomCode")?.textContent?.trim() || $("activeRoomName")?.textContent || "active";
         if (!hadMobileRoomCollapse || lastMobileRoomId !== roomId) {
             const toggle = $("membersToggleButton");
+            if (!hadMobileRoomCollapse) {
+                desktopMembersWereOpen = toggle?.getAttribute("aria-expanded") === "true";
+            }
             if (toggle?.getAttribute("aria-expanded") === "true") toggle.click();
             hadMobileRoomCollapse = true;
             lastMobileRoomId = roomId;

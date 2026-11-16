@@ -2557,3 +2557,187 @@
         transition-duration: .01ms !important;
     }
 }
+
+
+/* Component-level refinements for the actual game and download cards. */
+@media (max-width: 760px) {
+    body.mobile-native .game-catalog-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    body.mobile-native .game-catalog-card.game-catalog-choice {
+        display: grid;
+        min-height: 0;
+        gap: 7px;
+        padding: 12px;
+        text-align: left;
+        background: linear-gradient(145deg, #1c192a, #151321);
+        border: 1px solid var(--mobile-line);
+        border-radius: 14px;
+    }
+
+    body.mobile-native .game-catalog-card.game-catalog-choice.is-selected {
+        border-color: rgba(165, 138, 255, .42);
+        background: linear-gradient(145deg, rgba(87, 65, 139, .28), #171422);
+        box-shadow: inset 3px 0 #a58aff;
+    }
+
+    body.mobile-native .game-catalog-choice-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    body.mobile-native .game-catalog-choice-icon,
+    body.mobile-native .game-catalog-webgame .game-catalog-icon {
+        display: grid;
+        width: 35px;
+        height: 35px;
+        flex: 0 0 35px;
+        place-items: center;
+        background: rgba(165, 138, 255, .12);
+        border-radius: 10px;
+        font-size: 19px;
+    }
+
+    body.mobile-native .game-catalog-choice-category,
+    body.mobile-native .game-catalog-webgame .game-catalog-status {
+        color: #a995ea;
+        font-size: 7px;
+        font-weight: 900;
+        letter-spacing: .1em;
+    }
+
+    body.mobile-native .game-catalog-choice-name,
+    body.mobile-native .game-catalog-webgame .game-catalog-name {
+        color: #f1ecfa;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    body.mobile-native .game-catalog-choice-description,
+    body.mobile-native .game-catalog-webgame .game-catalog-description {
+        color: #978fa8;
+        font-size: 9px;
+        line-height: 1.5;
+    }
+
+    body.mobile-native .game-catalog-choice-players {
+        color: #8edfc5;
+        font-size: 8px;
+        font-weight: 800;
+    }
+
+    body.mobile-native .game-catalog-card.game-catalog-webgame {
+        display: grid;
+        min-height: 0;
+        gap: 7px;
+        padding: 12px;
+        text-align: left;
+        background: linear-gradient(145deg, rgba(44, 78, 74, .2), #151c20);
+        border: 1px solid rgba(120, 226, 196, .18);
+        border-radius: 14px;
+    }
+
+    body.mobile-native .game-catalog-card-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    body.mobile-native .open-game-lobbies-list {
+        display: grid;
+        gap: 7px;
+    }
+
+    body.mobile-native .open-game-lobby {
+        display: grid;
+        width: 100%;
+        min-height: 52px;
+        gap: 4px;
+        padding: 10px 11px;
+        color: #eee8fa;
+        text-align: left;
+        background: rgba(255, 255, 255, .035);
+        border: 1px solid var(--mobile-line);
+        border-radius: 11px;
+    }
+
+    body.mobile-native .open-game-lobby strong {
+        color: #f1ecfa;
+        font-size: 10px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .open-game-lobby span {
+        color: #91899f;
+        font-size: 8px;
+    }
+
+    body.mobile-native .download-game-card {
+        min-width: 0;
+        overflow: hidden;
+        background: #211c30;
+        border: 1px solid var(--mobile-line);
+        border-radius: 13px;
+    }
+
+    body.mobile-native .download-game-cover {
+        display: grid;
+        height: 104px;
+        place-items: center;
+        object-fit: cover;
+        font-size: 35px;
+    }
+
+    body.mobile-native .download-game-body {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+        padding: 9px;
+    }
+
+    body.mobile-native .download-game-body h3 {
+        color: #f1ecfa;
+        font-size: 10px;
+        line-height: 1.35;
+    }
+
+    body.mobile-native .download-game-description {
+        color: #968ea7;
+        font-size: 8px;
+        line-height: 1.45;
+    }
+
+    body.mobile-native .download-game-meta {
+        color: #8edfc5;
+        font-size: 7px;
+    }
+
+    body.mobile-native .download-game-actions {
+        display: grid;
+        gap: 5px;
+    }
+
+    body.mobile-native .download-game-button {
+        width: 100%;
+        min-height: 35px;
+        padding: 0 8px;
+        border-radius: 9px;
+        font-size: 8px;
+    }
+
+    body.mobile-native .download-game-status {
+        color: #e2b4a8;
+        font-size: 8px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+    }
+}
+
+@media (max-width: 390px) {
+    body.mobile-native .download-games-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
