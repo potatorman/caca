@@ -10,14 +10,27 @@ const roomView = document.getElementById("roomView");
 if (appView && roomSidebar && mobileRoomsToggle && mobileDrawerBackdrop) {
     const mobileViewport = window.matchMedia("(max-width: 800px)");
     let roomDrawerOpen = false;
+    let mobileMemberDefaultApplied = false;
 
     const isMembersPanelOpen = () => Boolean(
         roomChatLayout && !roomChatLayout.classList.contains("members-collapsed")
     );
 
+    function applyMobileMemberDefault() {
+        if (!mobileViewport.matches || mobileMemberDefaultApplied || !roomChatLayout || !membersToggle) {
+            return;
+        }
+        roomChatLayout.classList.add("members-collapsed");
+        membersToggle.setAttribute("aria-expanded", "false");
+        membersToggle.innerHTML = 'Üyeleri göster <span aria-hidden="true">▥</span>';
+        mobileMemberDefaultApplied = true;
+    }
+
     function syncDrawerState() {
         const mobile = mobileViewport.matches;
-        const membersOpen = mobile && isMembersPanelOpen() && roomView && !roomView.hidden;
+        const membersOpen = Boolean(
+            mobile && isMembersPanelOpen() && roomView && !roomView.hidden
+        );
 
         if (membersOpen) {
             roomDrawerOpen = false;
@@ -45,11 +58,7 @@ if (appView && roomSidebar && mobileRoomsToggle && mobileDrawerBackdrop) {
 
     function openRoomDrawer() {
         if (!mobileViewport.matches || roomSidebar.hidden) return;
-
-        if (isMembersPanelOpen() && membersToggle) {
-            membersToggle.click();
-        }
-
+        if (isMembersPanelOpen() && membersToggle) membersToggle.click();
         roomDrawerOpen = true;
         syncDrawerState();
         const firstAction = roomSidebar.querySelector(
@@ -59,18 +68,11 @@ if (appView && roomSidebar && mobileRoomsToggle && mobileDrawerBackdrop) {
     }
 
     function closeMembersDrawer() {
-        if (isMembersPanelOpen() && membersToggle) {
-            membersToggle.click();
-        }
+        if (isMembersPanelOpen() && membersToggle) membersToggle.click();
         syncDrawerState();
     }
 
-    if (roomChatLayout && membersToggle) {
-        // Mobile starts with the member list tucked away; users can open it on demand.
-        roomChatLayout.classList.add("members-collapsed");
-        membersToggle.setAttribute("aria-expanded", "false");
-        membersToggle.innerHTML = 'Üyeleri göster <span aria-hidden="true">▥</span>';
-    }
+    applyMobileMemberDefault();
 
     mobileRoomsToggle.addEventListener("click", () => {
         if (roomDrawerOpen) closeRoomDrawer(true);
@@ -107,12 +109,8 @@ if (appView && roomSidebar && mobileRoomsToggle && mobileDrawerBackdrop) {
     });
 
     for (const id of [
-        "chatsNavButton",
-        "gamesNavButton",
-        "archiveNavButton",
-        "siteOwnerNavButton",
-        "settingsButton",
-        "logoutButton"
+        "chatsNavButton", "gamesNavButton", "archiveNavButton",
+        "siteOwnerNavButton", "settingsButton", "logoutButton"
     ]) {
         document.getElementById(id)?.addEventListener("click", () => {
             closeMembersDrawer();
@@ -131,11 +129,11 @@ if (appView && roomSidebar && mobileRoomsToggle && mobileDrawerBackdrop) {
     const onViewportChange = () => {
         if (!mobileViewport.matches) {
             roomDrawerOpen = false;
-            appView.classList.remove("mobile-members-open");
-            appView.classList.remove("mobile-rooms-open");
+            appView.classList.remove("mobile-members-open", "mobile-rooms-open");
             mobileDrawerBackdrop.hidden = true;
             mobileRoomsToggle.setAttribute("aria-expanded", "false");
         } else {
+            applyMobileMemberDefault();
             syncDrawerState();
         }
     };
