@@ -5,7 +5,7 @@
 // Site owners add, edit and publish entries via the Site Owner panel.
 // Browser games with lobbyEnabled:true automatically appear in the game picker.
 // TYPE B (download) and TYPE C (download-mp) games render in the separate
-// Arşiv tab and do not create Firestore game sessions.
+// Oyun Kütüphanesi tab and do not create Firestore game sessions.
 
 import { GAME_REGISTRY } from "./registry.js";
 
