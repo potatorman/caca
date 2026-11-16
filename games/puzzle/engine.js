@@ -60,7 +60,9 @@ export function allPlayersAnswered(match) {
 }
 
 export function applyPuzzleAnswer(match, uid, optionIndex, now = Date.now()) {
-  if (match.status !== "playing" || match.phase !== "question") throw new Error("Yanıt süresi sona erdi.");
+  if (match.status !== "playing" || match.phase !== "question" || now >= match.phaseEndsAt) {
+    throw new Error("Yanıt süresi sona erdi.");
+  }
   if (!match.activePlayerIds.includes(uid)) throw new Error("Bu maçın aktif oyuncusu değilsin.");
   if (match.answers[uid]) throw new Error("Bu turda yanıtını zaten gönderdin.");
   const questionIndex = match.questionOrder[match.roundIndex];
