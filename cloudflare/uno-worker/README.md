@@ -1,6 +1,6 @@
 # CACA Cloudflare Games Worker
 
-This Worker hosts live UNO and Vampir Köylü matches. The existing CACA website, Firebase Authentication,
+This Worker hosts live UNO, Vampir Köylü, Odd Signal and Pattern Party matches. The existing CACA website, Firebase Authentication,
 room lobby, profiles, invitations and chat remain on Firebase.
 
 Private game downloads are documented in
@@ -13,13 +13,15 @@ archive password. Public Release URLs remain public and are not protected by the
 - UNO deck, card hands and draw pile
 - UNO turn order, card validation, card effects and penalties
 - Vampir Köylü hidden roles, night actions, doctor saves, discussion, voting and win checks
+- Odd Signal and Pattern Party question sequencing, server-side answer validation, speed/streak scoring and shared round timers
 - Live state delivery over WebSockets
 - Match exits, roster repair, result acknowledgements and return-to-lobby coordination
 
 Firebase continues to own accounts, persistent room membership and the room game-lobby index.
-Every lobby has its own document at `rooms/{roomId}/gameSessions/{lobbyId}`. Both game engines
+Every lobby has its own document at `rooms/{roomId}/gameSessions/{lobbyId}`. All game engines
 carry that `lobbyId` through signed tickets, WebSocket routing and a dedicated Durable Object
-identity. UNO result documents use `{lobbyId}_{round}` keys so separate tables never overwrite
+identity. Puzzle games share one `PuzzleRoom` class but receive separate per-game, per-lobby,
+per-round Durable Object identities. UNO result documents use `{lobbyId}_{round}` keys so separate tables never overwrite
 each other. Vampir Köylü also retains a per-lobby session nonce for stale-session protection.
 The old `gameSessions/active` document remains readable as a migration-only lobby; newly created
 lobbies always use unique IDs. The legacy `unoMatches` documents are not automatically deleted.
@@ -82,14 +84,16 @@ Open `https://YOUR-WORKER-URL/health`. The Worker should answer with `ok: true` 
 - A reconnect requests a short-lived, signed ticket using the current Firebase ID token.
 - A Durable Object alarm skips a turn after the configured 90-second timeout.
 - A per-room action queue serializes match state changes.
+- Puzzle matches use eight shuffled questions, an 18-second answer window and a 4.5-second reveal; answers and scores are never trusted from the browser.
+- Explicit puzzle exits update the persistent lobby roster through the Worker; reconnecting players resume the same Durable Object state.
 - Completed results are written to Firestore; result acknowledgements are coordinated by the
   Durable Object.
 - Browser clients do not write live match state to Firestore.
 
 ## Tests
 
-The repository includes an automated GitHub Actions check that runs the deck/rules-engine tests
-and Wrangler's dry-run deployment check. Run `powershell -ExecutionPolicy Bypass -File .\scripts\test-multi-lobby.ps1` from the repository root to run the Worker tests, browser-module syntax checks and Wrangler dry run locally. Node.js 22+ is only needed for this optional local test run; it is not needed to use the deployed website.
+The repository includes an automated GitHub Actions check that runs the UNO and puzzle
+game-engine tests, browser-module syntax checks and Wrangler's dry-run deployment check. Run `powershell -ExecutionPolicy Bypass -File .\scripts\test-multi-lobby.ps1` from the repository root to run the Worker tests, browser-module syntax checks and Wrangler dry run locally. Node.js 22+ is only needed for this optional local test run; it is not needed to use the deployed website.
 
 ## Important
 
@@ -174,8 +178,9 @@ the day. The Worker enforces the phase, membership, message length and rate limi
 data is delivered only to the individual player; roles are revealed when players are eliminated
 or when the match ends.
 
-The separate Durable Object class is added by Wrangler migration `v2`; do not remove the
-existing `UnoRoom` class or its `v1` migration.
+Vampir Köylü's separate Durable Object class is added by Wrangler migration `v2`. The shared
+puzzle Durable Object class is added by migration `v3`; do not remove the existing classes or
+migrations.
 
 
 ## Cloudflare Worker Previews for pull requests
