@@ -21,7 +21,7 @@ const STYLE = `
 .starfall-board{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:clamp(5px,1vw,10px);max-width:690px;margin:auto}
 .starfall-cell{position:relative;aspect-ratio:1;border:1px solid rgba(160,181,255,.18);border-radius:clamp(8px,1.5vw,14px);background:linear-gradient(145deg,#273665,#1b2850);color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;transition:transform .16s ease,border-color .16s ease,background .16s ease;min-width:0;padding:3px}
 .starfall-cell:not(:disabled):hover{transform:translateY(-3px);border-color:#b6a4ff;background:linear-gradient(145deg,#384b86,#29396a);box-shadow:0 8px 20px rgba(89,101,207,.22)}
-.starfall-board.is-revealing .starfall-cell-value,.starfall-board.is-revealing .starfall-cell-hint,.starfall-board.is-revealing .starfall-cell-owner{visibility:hidden}.starfall-cell:disabled{cursor:default;opacity:1}.starfall-cell.is-available{border-color:rgba(156,174,255,.3)}.starfall-cell.is-mine{background:linear-gradient(145deg,#6655b2,#443a85);border-color:#b4a5ff}.starfall-cell.is-opponent{background:linear-gradient(145deg,#285b68,#1c4257);border-color:rgba(116,224,216,.38)}.starfall-cell.is-star:after{content:"✦";position:absolute;top:5px;right:7px;font-size:11px;color:#ffd77c}.starfall-cell-value{font-size:clamp(16px,3vw,25px);font-weight:900;line-height:1}.starfall-cell-hint{font-size:clamp(8px,1.2vw,10px);color:#cad3fa}.starfall-cell-owner{font-size:10px;font-weight:800;letter-spacing:.06em;color:#fff}
+.starfall-cell.is-concealed .starfall-cell-value,.starfall-cell.is-concealed .starfall-cell-hint,.starfall-cell.is-concealed .starfall-cell-owner,.starfall-cell.is-concealed:after{visibility:hidden}.starfall-cell:disabled{cursor:default;opacity:1}.starfall-cell.is-available{border-color:rgba(156,174,255,.3)}.starfall-cell.is-mine{background:linear-gradient(145deg,#6655b2,#443a85);border-color:#b4a5ff}.starfall-cell.is-opponent{background:linear-gradient(145deg,#285b68,#1c4257);border-color:rgba(116,224,216,.38)}.starfall-cell.is-star:after{content:"✦";position:absolute;top:5px;right:7px;font-size:11px;color:#ffd77c}.starfall-cell-value{font-size:clamp(16px,3vw,25px);font-weight:900;line-height:1}.starfall-cell-hint{font-size:clamp(8px,1.2vw,10px);color:#cad3fa}.starfall-cell-owner{font-size:10px;font-weight:800;letter-spacing:.06em;color:#fff}
 .starfall-legend{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;padding:12px 4px 2px;color:#aeb9de;font-size:10px}.starfall-legend span{display:flex;align-items:center;gap:6px}.starfall-dot{width:8px;height:8px;border-radius:3px;background:#a18bff}.starfall-dot.opponent{background:#55c7c3}.starfall-dot.star{background:#ffd77c}
 .starfall-sidebar{display:flex;flex-direction:column;gap:12px}.starfall-panel{border:1px solid rgba(151,173,255,.15);border-radius:17px;background:rgba(255,255,255,.045);padding:14px}.starfall-panel h3{margin:0 0 11px;font-size:12px;letter-spacing:.11em;text-transform:uppercase;color:#aeb9de}
 .starfall-player{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:9px;padding:9px 0;border-top:1px solid rgba(151,173,255,.1)}.starfall-player:first-of-type{border-top:0}.starfall-player.is-current{background:rgba(143,129,255,.11);margin:0 -7px;padding:9px 7px;border-radius:10px}.starfall-avatar{width:32px;height:32px;border-radius:11px;overflow:hidden;background:#38456f;display:grid;place-items:center}.starfall-player-info{min-width:0}.starfall-player-info strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.starfall-player-info small{display:block;font-size:10px;color:#9eabd4;margin-top:3px}.starfall-score{text-align:right;font-size:14px;font-weight:900;color:#fff}.starfall-score small{display:block;font-size:9px;font-weight:500;color:#9eabd4}
@@ -117,9 +117,6 @@ export async function openStarfallGame({
     let closed = false;
     let messageTimer = null;
     let resultAutoReturnTimer = null;
-    let boardRevealTimer = null;
-    let boardRevealStarted = false;
-    let boardRevealHasRun = false;
     let lastMoveKey = "";
 
     function showMessage(message, isError = false) {
@@ -183,9 +180,7 @@ export async function openStarfallGame({
     }
 
     function renderBoard() {
-        const board = role("board");
         const cells = Array.isArray(state?.board) ? state.board : [];
-        board.classList.toggle("is-revealing", boardRevealStarted);
         [...role("board").children].forEach((tile, index) => {
             const cell = cells[index];
             if (!cell) return;
@@ -193,9 +188,11 @@ export async function openStarfallGame({
             const owner = cell.ownerId;
             const mine = owner === uid;
             const member = owner ? memberOf(owner, members) : null;
+            const revealed = Boolean(owner) || state.status === "results";
             tile.className = "starfall-cell" +
                 (owner ? (mine ? " is-mine" : " is-opponent") : " is-available") +
-                (cell.bonus ? " is-star" : "");
+                (cell.bonus ? " is-star" : "") +
+                (revealed ? "" : " is-concealed");
             const value = document.createElement("span");
             value.className = "starfall-cell-value";
             value.textContent = String(cell.value);
@@ -215,10 +212,11 @@ export async function openStarfallGame({
             }
             const myTurn = state.status === "playing" && state.currentPlayerUid === uid;
             tile.disabled = Boolean(owner) || !myTurn || !connected || busy;
-            tile.setAttribute("aria-label",
-                "Kare " + (index + 1) + ", değer " + cell.value +
-                (cell.bonus ? ", yıldız bonusu" : "") +
-                (owner ? ", dolu" : ", boş")
+            tile.setAttribute("aria-label", revealed
+                ? "Kare " + (index + 1) + ", değer " + cell.value +
+                    (cell.bonus ? ", yıldız bonusu" : "") +
+                    (owner ? ", dolu" : ", boş")
+                : "Kare " + (index + 1) + ", gizli kare"
             );
         });
     }
@@ -311,9 +309,7 @@ export async function openStarfallGame({
         closed = true;
         if (messageTimer) clearTimeout(messageTimer);
         if (resultAutoReturnTimer !== null) clearTimeout(resultAutoReturnTimer);
-        if (boardRevealTimer !== null) clearTimeout(boardRevealTimer);
         resultAutoReturnTimer = null;
-        boardRevealTimer = null;
         connection?.close();
         root.remove();
     }
@@ -367,18 +363,7 @@ export async function openStarfallGame({
         connection = await connectToMatch(db, roomId, session.lobbyId, round, uid, {
             onState(nextState) {
                 if (closed || !nextState) return;
-                const firstPlayingState = !boardRevealHasRun && nextState.status === "playing";
                 state = nextState;
-                if (firstPlayingState) {
-                    boardRevealHasRun = true;
-                    boardRevealStarted = true;
-                    role("board").classList.add("is-revealing");
-                    boardRevealTimer = setTimeout(() => {
-                        boardRevealTimer = null;
-                        boardRevealStarted = false;
-                        if (!closed) renderBoard();
-                    }, 1000);
-                }
                 render();
             },
             onConnectionState(isConnected, message) {
@@ -403,9 +388,7 @@ export async function openStarfallGame({
             closed = true;
             if (messageTimer) clearTimeout(messageTimer);
             if (resultAutoReturnTimer !== null) clearTimeout(resultAutoReturnTimer);
-            if (boardRevealTimer !== null) clearTimeout(boardRevealTimer);
             resultAutoReturnTimer = null;
-            boardRevealTimer = null;
             connection?.close();
             root.remove();
         },
