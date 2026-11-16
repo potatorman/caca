@@ -628,12 +628,13 @@ async function deleteChatMessage(messageId) {
             return;
         }
 
-        // Room creators can remove any room message. Active room admins can
-        // remove member and admin messages, but the room creator's messages
-        // stay protected. In Global Chat, everyone (including site owners)
-        // can only remove their own individual messages.
+        // Site owners may remove any individual Global Chat message.
+        // In private rooms, creators may remove every message; active admins
+        // may remove member and other admin messages, but not the creator's.
         const senderId = messageSnapshot.data().senderId;
-        const canDelete = senderId === userId || (
+        const canDelete = (
+            wasGlobalChat && isSiteOwner
+        ) || senderId === userId || (
             !wasGlobalChat &&
             roomId === activeRoomId &&
             (
@@ -1083,13 +1084,13 @@ function listenToMessages(roomId) {
                     content.appendChild(editedLabel);
                 }
 
-                const canDelete = isMine || (
-                    !isGlobalChatActive &&
-                    (
+                const canDelete = isGlobalChatActive
+                    ? (isMine || isSiteOwner)
+                    : (
+                        isMine ||
                         activeRoomOwnerId === currentUser?.uid ||
                         (isCurrentUserRoomAdmin() && message.senderId !== activeRoomOwnerId)
-                    )
-                );
+                    );
                 if (canDelete) {
                     const actions = document.createElement("div");
                     actions.className = "message-actions";
