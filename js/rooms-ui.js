@@ -3594,7 +3594,8 @@ async function leaveGameLobby() {
         (
             (initialSession.status === "playing" &&
                 ["uno", "vampir-koylu", "starfall"].includes(initialSession.gameId)) ||
-            (initialSession.status === "results" && initialSession.gameId === "vampir-koylu")
+            (initialSession.status === "results" &&
+                ["vampir-koylu", "starfall"].includes(initialSession.gameId))
         )
     ) {
         try {
@@ -3674,9 +3675,7 @@ async function leaveGameLobby() {
                 return { left: true, closed: true };
             }
 
-            const isLastMatchPlayer =
-                (latest.status === "playing" ||
-                    (latest.status === "results" && latest.gameId === "starfall")) &&
+            const isLastMatchPlayer = latest.status === "playing" &&
                 isMatchPlayer &&
                 matchPlayers.length === 1;
 
