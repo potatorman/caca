@@ -811,10 +811,12 @@ service cloud.firestore {
         function canSelfLeaveGameSession() {
           return signedIn()
             && resource.data.status in ['lobby', 'starting', 'results']
-            && request.resource.data.status in ['lobby', 'results']
             && (
-              resource.data.status != 'starting'
-              || request.resource.data.status == 'lobby'
+              request.resource.data.status == resource.data.status
+              || (
+                resource.data.status == 'starting'
+                && request.resource.data.status == 'lobby'
+              )
             )
             && resource.data.playerIds is list
             && request.resource.data.playerIds is list
