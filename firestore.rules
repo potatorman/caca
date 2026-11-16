@@ -88,6 +88,20 @@ service cloud.firestore {
         );
     }
 
+    // A room owner can moderate every message in their room. Active admins
+    // can moderate member and other admin messages, but never the owner's.
+    function canDeleteRoomMessage(roomId, senderId) {
+      return isRoomMember(roomId)
+        && (
+          senderId == request.auth.uid
+          || isRoomOwner(roomId)
+          || (
+            isActiveRoomAdmin(roomId)
+            && senderId != get(roomPath(roomId)).data.ownerId
+          )
+        );
+    }
+
     function isKickableByAdmin(memberData) {
       return memberData.get('role', 'member') == 'member'
         || (
@@ -530,13 +544,7 @@ service cloud.firestore {
           && request.resource.data.editedAt is timestamp;
 
         allow delete: if isSiteOwner()
-          || (
-            isRoomMember(roomId)
-            && (
-              resource.data.senderId == request.auth.uid
-              || isRoomOwner(roomId)
-            )
-          );
+          || canDeleteRoomMessage(roomId, resource.data.senderId);
       }
 
       match /bans/{bannedUserId} {
