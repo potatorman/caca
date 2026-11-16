@@ -206,8 +206,8 @@ function switchMode(mode) {
         : "Aramıza katıl.";
 
     $("formDescription").textContent = isLogin
-        ? "Hesabına giriş yap ve sohbete devam et."
-        : "Yeni hesabını oluştur ve RendeChat'e katıl.";
+        ? "RendeChat'e giriş yap ve insanlarına kavuş."
+        : "Hesabını oluştur ve RendeChat topluluğuna katıl.";
 
     showAuthMessage("");
 }
