@@ -1740,15 +1740,6 @@ body:not(.logged-in) .auth-footer {
   border: 1px solid #2d2a40;
   border-radius: 17px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, .1);
-  transition: border-color .18s ease, background .18s ease, transform .18s ease;
-}
-
-.dashboard-feature-card:hover {
-  background:
-    radial-gradient(ellipse at 100% 0%, rgba(152, 121, 255, .11), transparent 52%),
-    linear-gradient(145deg, #1b192b, #151622 78%);
-  border-color: rgba(166, 143, 255, .34);
-  transform: translateY(-2px);
 }
 
 .dashboard-feature-top {
