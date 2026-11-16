@@ -2,6 +2,7 @@ import { auth, db } from "./firebase.js";
 import { AVATARS, DEFAULT_AVATAR_ID, setAvatarElement } from "./avatars.js";
 import { EMOJI_DATA } from "./emoji-data.js";
 import { GAME_REGISTRY, getGameDefinition } from "../games/registry.js";
+import { selectGameLobbyForUser } from "../games/lobby-selection.js";
 import { getMergedCatalog, subscribeToCatalog } from "../games/catalog.js";
 import { UNO_WORKER_URL } from "../games/uno/worker-config.js";
 import {
@@ -2907,20 +2908,11 @@ function listenToGameCenter(roomId) {
             // person's lobby just because it exists in the shared Active Lobbies list.
             const previouslySelectedLobbyId = activeGameLobbyId;
             gameSessionsById = next;
-            const isActiveSession = (session) =>
-                ["lobby", "starting", "playing", "results"].includes(session?.status);
-            const isCurrentUserInSession = (session) => {
-                const uid = currentUser?.uid;
-                if (!uid || !isActiveSession(session)) return false;
-                return session.hostId === uid ||
-                    ["playerIds", "readyIds", "matchPlayerIds", "spectatorIds",
-                        "nextRoundPlayerIds", "nextRoundReadyIds", "resultReturnIds"]
-                        .some((field) => Array.isArray(session[field]) && session[field].includes(uid));
-            };
-            const joinedActiveLobby = [...next.values()].find(isCurrentUserInSession);
-            const ownedActiveLobby = [...next.values()].find((session) =>
-                session.hostId === currentUser?.uid && isActiveSession(session)
-            );
+            const {
+                joinedActiveLobby,
+                ownedActiveLobby,
+                selectedSession
+            } = selectGameLobbyForUser(next, currentUser?.uid, previouslySelectedLobbyId);
             hasOwnedActiveGameLobby = Boolean(ownedActiveLobby);
             if (ownedActiveLobby) {
                 // Migrate lobbies created before the per-user lock was introduced.
