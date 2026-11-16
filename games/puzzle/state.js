@@ -28,7 +28,7 @@ async function getCurrentIdToken(uid) {
 
 async function workerRequest(gameId, roomId, lobbyId, round, uid, action) {
     const token = await getCurrentIdToken(uid);
-    const response = await fetch(configuredWorkerUrl() + "/" + validateGameId(gameId) + "/action", {
+    const response = await fetch(configuredWorkerUrl() + "/api/" + validateGameId(gameId) + "/action", {
         method: "POST",
         headers: {
             Authorization: "Bearer " + token,
@@ -79,7 +79,7 @@ export async function connectToPuzzleGame(db, roomId, lobbyId, round, gameId, ui
 
     async function requestTicket() {
         const token = await getCurrentIdToken(uid);
-        const response = await fetch(baseUrl + "/" + gameId + "/ticket", {
+        const response = await fetch(baseUrl + "/api/" + gameId + "/ticket", {
             method: "POST",
             headers: {
                 Authorization: "Bearer " + token,
