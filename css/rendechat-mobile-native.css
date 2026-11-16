@@ -1,0 +1,2743 @@
+/* RendeChat Native Mobile Workspace
+   A dedicated phone-first interface. Desktop components remain untouched above 760px. */
+
+.mobile-app-chrome,
+.mobile-bottom-nav,
+.mobile-room-backdrop,
+.mobile-more-backdrop,
+.mobile-more-sheet,
+.mobile-home-view {
+    display: none;
+}
+
+@media (max-width: 760px) {
+    :root {
+        --mobile-ink: #f7f3ff;
+        --mobile-muted: #aaa3bd;
+        --mobile-dim: #777087;
+        --mobile-bg: #0d0b15;
+        --mobile-surface: #171422;
+        --mobile-surface-raised: #211b30;
+        --mobile-line: rgba(190, 174, 231, .13);
+        --mobile-violet: #a58aff;
+        --mobile-violet-light: #c8b8ff;
+        --mobile-mint: #78e2c4;
+        --mobile-danger: #ff9bad;
+        --mobile-header-height: 112px;
+        --mobile-nav-height: 70px;
+        color-scheme: dark;
+    }
+
+    html {
+        min-height: 100%;
+        background: var(--mobile-bg);
+        overscroll-behavior: none;
+    }
+
+    body.mobile-native {
+        display: block;
+        width: 100%;
+        min-width: 320px;
+        min-height: 100dvh;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        color: var(--mobile-ink);
+        background:
+            radial-gradient(ellipse at 10% -8%, rgba(132, 91, 220, .15), transparent 36%),
+            radial-gradient(ellipse at 100% 50%, rgba(65, 180, 150, .055), transparent 32%),
+            var(--mobile-bg);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: pan-x pan-y;
+    }
+
+    body.mobile-native *,
+    body.mobile-native *::before,
+    body.mobile-native *::after {
+        box-sizing: border-box;
+    }
+
+    body.mobile-native button,
+    body.mobile-native input,
+    body.mobile-native select,
+    body.mobile-native textarea {
+        font: inherit;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body.mobile-native button {
+        touch-action: manipulation;
+    }
+
+    body.mobile-native .layout {
+        display: block;
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        height: 100dvh;
+        min-height: 0;
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    body.mobile-native .brand-area {
+        display: none !important;
+    }
+
+    body.mobile-native .auth-area {
+        display: grid;
+        width: 100%;
+        min-height: 100dvh;
+        padding: max(24px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+        place-items: center;
+        background:
+            radial-gradient(ellipse at 50% 0%, rgba(151, 119, 255, .19), transparent 52%),
+            var(--mobile-bg);
+    }
+
+    body.mobile-native .auth-card {
+        width: min(440px, 100%);
+        max-width: none;
+        padding: 26px 22px 22px;
+        background: rgba(24, 20, 36, .92);
+        border: 1px solid var(--mobile-line);
+        border-radius: 23px;
+        box-shadow: 0 25px 75px rgba(0, 0, 0, .34);
+    }
+
+    body.mobile-native .auth-heading {
+        margin-bottom: 24px;
+    }
+
+    body.mobile-native .auth-heading h2 {
+        margin: 10px 0;
+        font-size: clamp(26px, 8vw, 34px);
+        letter-spacing: -.055em;
+    }
+
+    body.mobile-native .auth-heading p {
+        color: var(--mobile-muted);
+        font-size: 13px;
+    }
+
+    body.mobile-native .tabs {
+        margin-bottom: 21px;
+        padding: 4px;
+        background: #100e18;
+        border: 1px solid var(--mobile-line);
+        border-radius: 12px;
+    }
+
+    body.mobile-native .tab {
+        min-height: 43px;
+        border-radius: 9px;
+        font-size: 12px;
+    }
+
+    body.mobile-native .tab.active {
+        color: white;
+        background: linear-gradient(135deg, #9b7bf7, #7756e5);
+        box-shadow: 0 7px 18px rgba(125, 88, 229, .24);
+    }
+
+    body.mobile-native .auth-form {
+        gap: 9px;
+    }
+
+    body.mobile-native .auth-form label {
+        margin-top: 7px;
+        color: #d9d1eb;
+        font-size: 11px;
+        font-weight: 750;
+    }
+
+    body.mobile-native .auth-form input {
+        min-height: 49px;
+        padding: 0 14px;
+        color: var(--mobile-ink);
+        background: #100e18;
+        border: 1px solid var(--mobile-line);
+        border-radius: 11px;
+        font-size: 14px;
+    }
+
+    body.mobile-native .auth-form .primary-button {
+        min-height: 49px;
+        margin-top: 13px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .auth-footer {
+        margin-top: 23px;
+        color: var(--mobile-dim);
+        font-size: 10px;
+        line-height: 1.65;
+    }
+
+    body.mobile-native #appView {
+        display: flex;
+        width: 100%;
+        height: 100dvh;
+        min-height: 0;
+        flex-direction: column;
+        overflow: hidden;
+        background: transparent;
+    }
+
+    body.mobile-native .dashboard-header {
+        display: none !important;
+    }
+
+    body.mobile-native .mobile-app-chrome {
+        position: relative;
+        z-index: 25;
+        display: block;
+        flex: 0 0 auto;
+        padding: max(10px, env(safe-area-inset-top)) 17px 13px;
+        background:
+            linear-gradient(120deg, rgba(28, 22, 43, .98), rgba(17, 15, 27, .97) 65%, rgba(16, 29, 28, .96));
+        border-bottom: 1px solid rgba(190, 174, 231, .12);
+        box-shadow: 0 9px 25px rgba(0, 0, 0, .18);
+    }
+
+    body.mobile-native .mobile-app-topline {
+        display: flex;
+        min-height: 43px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    body.mobile-native .mobile-app-brand {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 10px;
+    }
+
+    body.mobile-native .mobile-app-cheese {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        place-items: center;
+        background: linear-gradient(145deg, rgba(255, 219, 148, .18), rgba(255, 219, 148, .06));
+        border: 1px solid rgba(255, 219, 148, .22);
+        border-radius: 13px;
+        font-size: 21px;
+        box-shadow: inset 0 1px rgba(255, 255, 255, .08);
+    }
+
+    body.mobile-native .mobile-app-brand strong {
+        display: block;
+        color: #f6f1ff;
+        font-size: 14px;
+        font-weight: 900;
+        letter-spacing: -.035em;
+    }
+
+    body.mobile-native .mobile-app-brand small {
+        display: block;
+        margin-top: 3px;
+        color: #8d849f;
+        font-size: 7px;
+        font-weight: 850;
+        letter-spacing: .13em;
+        white-space: nowrap;
+    }
+
+    body.mobile-native .mobile-app-actions {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    body.mobile-native .mobile-user-avatar {
+        display: grid;
+        width: 31px;
+        height: 31px;
+        flex: 0 0 31px;
+        place-items: center;
+        overflow: hidden;
+        color: #f5eaff;
+        background: #302647;
+        border: 1px solid rgba(180, 158, 255, .3);
+        border-radius: 50%;
+        font-size: 12px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .mobile-user-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    body.mobile-native .mobile-icon-button {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        place-items: center;
+        padding: 0;
+        color: #dcd3f0;
+        background: rgba(255, 255, 255, .045);
+        border: 1px solid var(--mobile-line);
+        border-radius: 12px;
+        cursor: pointer;
+    }
+
+    body.mobile-native .mobile-icon-button svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    body.mobile-native .mobile-icon-button svg circle {
+        fill: currentColor;
+        stroke: none;
+    }
+
+    body.mobile-native .mobile-app-pagebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(190, 174, 231, .08);
+    }
+
+    body.mobile-native .mobile-page-title-wrap {
+        display: grid;
+        min-width: 0;
+        gap: 3px;
+    }
+
+    body.mobile-native .mobile-page-title-wrap > span {
+        color: #a990f6;
+        font-size: 7px;
+        font-weight: 900;
+        letter-spacing: .16em;
+    }
+
+    body.mobile-native .mobile-page-title-wrap > strong {
+        overflow: hidden;
+        color: #f6f1ff;
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: -.045em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.mobile-native .mobile-room-picker-button {
+        display: inline-flex;
+        min-height: 37px;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 7px;
+        padding: 0 11px;
+        color: #d6caff;
+        background: rgba(165, 138, 255, .1);
+        border: 1px solid rgba(165, 138, 255, .24);
+        border-radius: 11px;
+        font-size: 10px;
+        font-weight: 850;
+        cursor: pointer;
+    }
+
+    body.mobile-native .mobile-room-picker-button svg {
+        width: 15px;
+        height: 15px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    body.mobile-native .workspace-layout {
+        display: block !important;
+        position: relative;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
+        background: transparent;
+        border: 0;
+    }
+
+    body.mobile-native .workspace-main,
+    body.mobile-native .workspace-layout.is-site-owner-workspace > .workspace-main {
+        display: block;
+        position: relative;
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        margin: 0;
+        padding: 13px 13px calc(var(--mobile-nav-height) + 24px + env(safe-area-inset-bottom));
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        background: transparent;
+        scrollbar-width: none;
+    }
+
+    body.mobile-native .workspace-main::-webkit-scrollbar {
+        display: none;
+    }
+
+    body.mobile-native #dashboardView {
+        display: none !important;
+    }
+
+    body.mobile-native .mobile-home-view:not([hidden]) {
+        display: flex !important;
+        min-height: 100%;
+        flex-direction: column;
+        gap: 14px;
+        padding-bottom: 8px;
+    }
+
+    body.mobile-native .mobile-welcome-card {
+        position: relative;
+        isolation: isolate;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 19px 18px 17px;
+        overflow: hidden;
+        background:
+            radial-gradient(ellipse at 100% 0%, rgba(165, 138, 255, .22), transparent 48%),
+            linear-gradient(145deg, #211a34, #171525 72%, #172a28);
+        border: 1px solid rgba(177, 154, 255, .23);
+        border-radius: 20px;
+        box-shadow: 0 18px 38px rgba(0, 0, 0, .2), inset 0 1px rgba(255, 255, 255, .04);
+    }
+
+    body.mobile-native .mobile-welcome-card::after {
+        position: absolute;
+        z-index: -1;
+        right: -25px;
+        bottom: -65px;
+        width: 180px;
+        height: 150px;
+        content: "";
+        background: radial-gradient(ellipse, rgba(120, 226, 196, .14), transparent 68%);
+    }
+
+    body.mobile-native .mobile-section-kicker {
+        color: #b5a0ff;
+        font-size: 7px;
+        font-weight: 900;
+        letter-spacing: .16em;
+    }
+
+    body.mobile-native .mobile-welcome-card h1 {
+        margin: 0;
+        color: #faf7ff;
+        font-size: clamp(25px, 7.5vw, 33px);
+        font-weight: 900;
+        letter-spacing: -.06em;
+        line-height: 1.08;
+    }
+
+    body.mobile-native .mobile-welcome-card p {
+        max-width: 34ch;
+        margin: 0;
+        color: #aaa2bb;
+        font-size: 11px;
+        line-height: 1.65;
+    }
+
+    body.mobile-native .mobile-global-chat-card {
+        display: flex;
+        width: 100%;
+        min-height: 65px;
+        align-items: center;
+        gap: 11px;
+        margin-top: 6px;
+        padding: 10px 12px;
+        color: var(--mobile-ink);
+        text-align: left;
+        background: rgba(9, 8, 15, .48);
+        border: 1px solid rgba(180, 158, 255, .19);
+        border-radius: 14px;
+        cursor: pointer;
+        transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+
+    body.mobile-native .mobile-global-chat-card:active,
+    body.mobile-native .mobile-quick-action:active,
+    body.mobile-native .mobile-room-card:active {
+        transform: scale(.985);
+    }
+
+    body.mobile-native .mobile-global-chat-icon {
+        display: grid;
+        width: 39px;
+        height: 39px;
+        flex: 0 0 39px;
+        place-items: center;
+        color: #d5c8ff;
+        background: rgba(165, 138, 255, .16);
+        border: 1px solid rgba(165, 138, 255, .18);
+        border-radius: 12px;
+        font-size: 21px;
+    }
+
+    body.mobile-native .mobile-global-chat-card > span:nth-child(2) {
+        display: grid;
+        min-width: 0;
+        flex: 1;
+        gap: 4px;
+    }
+
+    body.mobile-native .mobile-global-chat-card strong {
+        color: #f4efff;
+        font-size: 12px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .mobile-global-chat-card small {
+        color: #958ca8;
+        font-size: 9px;
+    }
+
+    body.mobile-native .mobile-card-arrow {
+        color: var(--mobile-mint);
+        font-size: 17px;
+    }
+
+    body.mobile-native .mobile-quick-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    body.mobile-native .mobile-quick-action {
+        display: grid;
+        min-width: 0;
+        min-height: 100px;
+        align-content: start;
+        justify-items: start;
+        gap: 7px;
+        padding: 13px;
+        color: var(--mobile-ink);
+        text-align: left;
+        background: linear-gradient(150deg, rgba(29, 25, 43, .98), rgba(19, 17, 30, .98));
+        border: 1px solid var(--mobile-line);
+        border-radius: 15px;
+        cursor: pointer;
+        transition: transform .18s ease, border-color .18s ease;
+    }
+
+    body.mobile-native .mobile-quick-action-icon {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        color: #d7caff;
+        background: rgba(165, 138, 255, .13);
+        border-radius: 9px;
+        font-size: 18px;
+    }
+
+    body.mobile-native .mobile-quick-action strong {
+        color: #eee8fa;
+        font-size: 11px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .mobile-quick-action small {
+        color: #837c94;
+        font-size: 9px;
+    }
+
+    body.mobile-native .mobile-room-collection {
+        display: grid;
+        gap: 11px;
+        min-width: 0;
+    }
+
+    body.mobile-native .mobile-room-collection-heading {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 5px 2px 0;
+    }
+
+    body.mobile-native .mobile-room-collection-heading h2 {
+        margin: 4px 0 0;
+        color: #f1ecfb;
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: -.045em;
+    }
+
+    body.mobile-native .mobile-room-collection-heading button {
+        padding: 6px 0;
+        color: #b6a2ff;
+        background: transparent;
+        border: 0;
+        font-size: 9px;
+        font-weight: 850;
+        cursor: pointer;
+    }
+
+    body.mobile-native .mobile-room-cards {
+        display: grid;
+        gap: 8px;
+    }
+
+    body.mobile-native .mobile-room-card {
+        display: flex;
+        min-width: 0;
+        min-height: 61px;
+        align-items: center;
+        gap: 11px;
+        padding: 10px 12px;
+        color: var(--mobile-ink);
+        text-align: left;
+        background: rgba(25, 21, 37, .94);
+        border: 1px solid var(--mobile-line);
+        border-radius: 14px;
+        cursor: pointer;
+        transition: background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    body.mobile-native .mobile-room-card.is-active {
+        background: rgba(112, 87, 170, .16);
+        border-color: rgba(165, 138, 255, .3);
+    }
+
+    body.mobile-native .mobile-room-card-icon {
+        display: grid;
+        width: 37px;
+        height: 37px;
+        flex: 0 0 37px;
+        place-items: center;
+        color: #cbbcff;
+        background: rgba(165, 138, 255, .12);
+        border-radius: 11px;
+        font-size: 19px;
+    }
+
+    body.mobile-native .mobile-room-card-copy {
+        display: grid;
+        min-width: 0;
+        flex: 1;
+        gap: 4px;
+    }
+
+    body.mobile-native .mobile-room-card-copy strong {
+        overflow: hidden;
+        color: #eee9fa;
+        font-size: 11px;
+        font-weight: 850;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.mobile-native .mobile-room-card-copy small {
+        overflow: hidden;
+        color: #888198;
+        font-size: 9px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.mobile-native .mobile-room-card-arrow {
+        color: #8c7db4;
+        font-size: 15px;
+    }
+
+    body.mobile-native .mobile-room-empty {
+        display: grid;
+        justify-items: center;
+        gap: 8px;
+        padding: 23px 17px;
+        color: #8f879f;
+        text-align: center;
+        background: rgba(25, 21, 37, .76);
+        border: 1px dashed rgba(190, 174, 231, .2);
+        border-radius: 15px;
+    }
+
+    body.mobile-native .mobile-room-empty-icon {
+        display: grid;
+        width: 35px;
+        height: 35px;
+        place-items: center;
+        color: #c3b1ff;
+        background: rgba(165, 138, 255, .12);
+        border-radius: 11px;
+        font-size: 17px;
+    }
+
+    body.mobile-native .mobile-room-empty strong {
+        color: #e7e0f4;
+        font-size: 11px;
+    }
+
+    body.mobile-native .mobile-room-empty > span:not(.mobile-room-empty-icon) {
+        font-size: 9px;
+    }
+
+    body.mobile-native .mobile-room-empty button {
+        min-height: 34px;
+        margin-top: 5px;
+        padding: 0 13px;
+        color: #ded4ff;
+        background: rgba(165, 138, 255, .12);
+        border: 1px solid rgba(165, 138, 255, .27);
+        border-radius: 9px;
+        font-size: 9px;
+        font-weight: 850;
+    }
+
+    /* Room picker uses the real desktop room list and its original forms. */
+    body.mobile-native .room-sidebar:not([hidden]) {
+        display: flex !important;
+        position: fixed;
+        z-index: 72;
+        top: calc(104px + env(safe-area-inset-top));
+        bottom: calc(var(--mobile-nav-height) + 12px + env(safe-area-inset-bottom));
+        left: 9px;
+        width: min(340px, calc(100vw - 28px));
+        min-width: 0;
+        max-height: none;
+        flex-direction: column;
+        padding: 16px 13px;
+        overflow: hidden;
+        visibility: hidden;
+        background:
+            radial-gradient(ellipse at 0 0, rgba(165, 138, 255, .12), transparent 42%),
+            #171422;
+        border: 1px solid rgba(190, 174, 231, .2);
+        border-radius: 19px;
+        box-shadow: 0 25px 80px rgba(0, 0, 0, .62);
+        opacity: 0;
+        transform: translateX(calc(-100% - 20px));
+        transition: transform .24s cubic-bezier(.2, .8, .2, 1), opacity .2s ease, visibility .2s ease;
+    }
+
+    body.mobile-native.mobile-rooms-open .room-sidebar {
+        visibility: visible;
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    body.mobile-native .room-sidebar .global-chat-nav-button {
+        min-height: 55px;
+        margin-bottom: 13px;
+        padding: 10px 11px;
+        background: rgba(165, 138, 255, .1);
+        border: 1px solid rgba(165, 138, 255, .22);
+        border-radius: 13px;
+    }
+
+    body.mobile-native .room-sidebar .global-chat-nav-button svg {
+        width: 23px;
+        height: 23px;
+    }
+
+    body.mobile-native .room-sidebar .global-chat-nav-button strong {
+        font-size: 11px;
+    }
+
+    body.mobile-native .room-sidebar .global-chat-nav-button small {
+        font-size: 9px;
+    }
+
+    body.mobile-native .room-sidebar .sidebar-section-heading {
+        margin: 0 2px 10px;
+        padding-bottom: 11px;
+        border-bottom: 1px solid var(--mobile-line);
+    }
+
+    body.mobile-native .room-sidebar .sidebar-section-heading h2 {
+        margin: 3px 0 0;
+        color: #f1ecfb;
+        font-size: 15px;
+    }
+
+    body.mobile-native .room-sidebar .sidebar-section-heading .small-label {
+        color: #a890f6;
+        font-size: 7px;
+    }
+
+    body.mobile-native .room-sidebar .rooms-list {
+        display: grid;
+        min-height: 0;
+        flex: 1 1 auto;
+        align-content: start;
+        gap: 7px;
+        padding: 0 2px 10px;
+        overflow-y: auto;
+    }
+
+    body.mobile-native .room-sidebar .room-list-item {
+        display: flex;
+        min-height: 54px;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        color: var(--mobile-ink);
+        background: rgba(255, 255, 255, .035);
+        border: 1px solid rgba(190, 174, 231, .1);
+        border-radius: 12px;
+    }
+
+    body.mobile-native .room-sidebar .room-list-item.active {
+        background: rgba(165, 138, 255, .15);
+        border-color: rgba(165, 138, 255, .32);
+    }
+
+    body.mobile-native .room-sidebar .room-list-item strong {
+        color: #eee9fa;
+        font-size: 11px;
+    }
+
+    body.mobile-native .room-sidebar .room-list-item span {
+        color: #888198;
+        font-size: 9px;
+    }
+
+    body.mobile-native .room-sidebar .sidebar-actions {
+        display: grid;
+        max-height: 48%;
+        flex: 0 0 auto;
+        gap: 8px;
+        padding-top: 9px;
+        overflow-y: auto;
+        border-top: 1px solid var(--mobile-line);
+    }
+
+    body.mobile-native .room-sidebar .sidebar-action {
+        padding: 0;
+        background: rgba(255, 255, 255, .035);
+        border: 1px solid rgba(190, 174, 231, .11);
+        border-radius: 12px;
+    }
+
+    body.mobile-native .room-sidebar .sidebar-action summary {
+        min-height: 43px;
+        padding: 0 11px;
+        color: #dcd4ee;
+        font-size: 10px;
+        font-weight: 800;
+    }
+
+    body.mobile-native .room-sidebar .room-action-card {
+        display: grid;
+        gap: 7px;
+        padding: 0 10px 10px;
+    }
+
+    body.mobile-native .room-sidebar .room-action-card label {
+        color: #a69db8;
+        font-size: 9px;
+    }
+
+    body.mobile-native .room-sidebar .room-action-card input {
+        width: 100%;
+        min-height: 40px;
+        padding: 0 10px;
+        color: var(--mobile-ink);
+        background: #100e18;
+        border: 1px solid var(--mobile-line);
+        border-radius: 9px;
+        font-size: 12px;
+    }
+
+    body.mobile-native .room-sidebar .room-action-card button {
+        min-height: 39px;
+        border-radius: 9px;
+        font-size: 10px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .mobile-room-backdrop,
+    body.mobile-native .mobile-more-backdrop {
+        display: block;
+        position: fixed;
+        z-index: 70;
+        inset: 0;
+        background: rgba(4, 3, 8, .66);
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
+    }
+
+    body.mobile-native .mobile-room-backdrop[hidden],
+    body.mobile-native .mobile-more-backdrop[hidden] {
+        display: none !important;
+    }
+
+    /* Original desktop dashboard remains in the DOM for shared app state, but
+       the phone uses the dedicated mobile-home-view above. */
+
+    /* Chat is a focused, single-column screen. Members open as a bottom sheet. */
+    body.mobile-native #roomView:not([hidden]) {
+        display: flex !important;
+        min-height: 100%;
+        flex-direction: column;
+        gap: 10px;
+        overflow: visible;
+    }
+
+    body.mobile-native #roomView .room-toolbar {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        min-height: 0;
+        margin: 0;
+        padding: 0 0 11px;
+        background: transparent;
+        border: 0;
+    }
+
+    body.mobile-native #roomView .room-heading-group {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 9px;
+    }
+
+    body.mobile-native #roomView .room-heading-group .back-button {
+        display: inline-flex;
+        min-height: 36px;
+        flex: 0 0 auto;
+        align-items: center;
+        padding: 0 10px;
+        color: #cdbfff;
+        background: rgba(165, 138, 255, .1);
+        border: 1px solid rgba(165, 138, 255, .21);
+        border-radius: 10px;
+        font-size: 9px;
+        font-weight: 850;
+    }
+
+    body.mobile-native #roomView .room-heading-copy {
+        display: grid;
+        min-width: 0;
+        flex: 1;
+        gap: 3px;
+    }
+
+    body.mobile-native #roomView .room-heading-copy .small-label {
+        color: #9e8be1;
+        font-size: 7px;
+        letter-spacing: .12em;
+    }
+
+    body.mobile-native #roomView .room-heading-copy h2 {
+        overflow: hidden;
+        margin: 0;
+        color: #f4efff;
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: -.045em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.mobile-native #roomView .invite-code-box {
+        display: flex;
+        min-height: 34px;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 5px;
+        padding: 0 7px;
+        background: rgba(255, 255, 255, .035);
+        border: 1px solid var(--mobile-line);
+        border-radius: 9px;
+    }
+
+    body.mobile-native #roomView .invite-code-box code {
+        color: #d6c9fa;
+        font-size: 9px;
+    }
+
+    body.mobile-native #roomView .invite-code-box button {
+        min-height: 25px;
+        padding: 0 6px;
+        font-size: 8px;
+    }
+
+    body.mobile-native #roomView .room-toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding-bottom: 2px;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    body.mobile-native #roomView .room-toolbar-actions::-webkit-scrollbar {
+        display: none;
+    }
+
+    body.mobile-native #roomView .room-toolbar-actions > button {
+        min-height: 34px;
+        flex: 0 0 auto;
+        padding: 0 10px;
+        border-radius: 9px;
+        font-size: 9px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    body.mobile-native #roomView .room-chat-layout {
+        display: flex !important;
+        min-height: 0;
+        flex: 1 1 auto;
+        flex-direction: column;
+        gap: 0;
+        overflow: visible;
+    }
+
+    body.mobile-native #roomView .chat-panel {
+        display: flex;
+        min-width: 0;
+        min-height: min(62dvh, 570px);
+        flex: 1 1 auto;
+        flex-direction: column;
+        overflow: hidden;
+        background: linear-gradient(155deg, #1a1728, #141220);
+        border: 1px solid rgba(190, 174, 231, .15);
+        border-radius: 17px;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, .2);
+    }
+
+    body.mobile-native #roomView .chat-panel-heading {
+        min-height: 58px;
+        padding: 0 13px;
+        background: rgba(255, 255, 255, .018);
+        border-bottom: 1px solid rgba(190, 174, 231, .1);
+    }
+
+    body.mobile-native #roomView .chat-heading-main {
+        gap: 9px;
+    }
+
+    body.mobile-native #roomView .chat-heading-icon {
+        width: 33px;
+        height: 33px;
+        border-radius: 10px;
+        font-size: 16px;
+    }
+
+    body.mobile-native #roomView .chat-heading-eyebrow {
+        font-size: 7px;
+        letter-spacing: .1em;
+    }
+
+    body.mobile-native #roomView .chat-heading-copy strong {
+        color: #eee8fb;
+        font-size: 11px;
+    }
+
+    body.mobile-native #roomView .chat-heading-copy > span:last-child {
+        color: #898199;
+        font-size: 8px;
+    }
+
+    body.mobile-native #roomView .chat-live-indicator {
+        gap: 5px;
+        padding: 5px 7px;
+        font-size: 8px;
+    }
+
+    body.mobile-native #roomView .chat-messages {
+        display: flex;
+        min-height: 34dvh;
+        flex: 1 1 auto;
+        gap: 10px;
+        padding: 13px 11px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    body.mobile-native #roomView .message-row {
+        max-width: 100%;
+        gap: 7px;
+    }
+
+    body.mobile-native #roomView .message-avatar {
+        width: 29px;
+        height: 29px;
+        flex: 0 0 29px;
+    }
+
+    body.mobile-native #roomView .message-bubble {
+        max-width: min(78vw, 420px);
+        padding: 9px 11px;
+        border-radius: 12px;
+    }
+
+    body.mobile-native #roomView .message-text {
+        font-size: 12px;
+        line-height: 1.52;
+        overflow-wrap: anywhere;
+    }
+
+    body.mobile-native #roomView .message-meta {
+        gap: 6px;
+        font-size: 8px;
+    }
+
+    body.mobile-native #roomView .chat-composer {
+        position: relative;
+        display: grid;
+        gap: 7px;
+        margin: 0 9px 9px;
+        padding: 9px 10px 8px;
+        background: #100e18;
+        border: 1px solid rgba(190, 174, 231, .18);
+        border-radius: 13px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, .14);
+    }
+
+    body.mobile-native #roomView .chat-composer textarea {
+        min-height: 39px;
+        max-height: 120px;
+        padding: 8px 2px;
+        color: #f3efff;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+    body.mobile-native #roomView .chat-composer-hint {
+        display: none;
+    }
+
+    body.mobile-native #roomView .composer-footer {
+        display: flex;
+        min-height: 33px;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    body.mobile-native #roomView .composer-actions {
+        gap: 8px;
+    }
+
+    body.mobile-native #roomView .emoji-picker-button {
+        width: 35px;
+        height: 35px;
+        border-radius: 10px;
+    }
+
+    body.mobile-native #roomView .chat-send-button {
+        min-height: 35px;
+        padding: 0 14px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 850;
+    }
+
+    body.mobile-native #roomView .chat-status {
+        padding: 0 12px 8px;
+        font-size: 9px;
+    }
+
+    body.mobile-native #roomView .room-chat-layout.members-collapsed .members-panel {
+        display: none !important;
+    }
+
+    body.mobile-native #roomView .room-chat-layout:not(.members-collapsed) .members-panel {
+        display: block !important;
+        position: fixed;
+        z-index: 82;
+        right: 9px;
+        bottom: calc(var(--mobile-nav-height) + 10px + env(safe-area-inset-bottom));
+        left: 9px;
+        width: auto;
+        max-width: none;
+        max-height: min(68dvh, 570px);
+        padding: 14px;
+        overflow: auto;
+        background: #1a1727;
+        border: 1px solid rgba(190, 174, 231, .22);
+        border-radius: 18px;
+        box-shadow: 0 25px 90px rgba(0, 0, 0, .7);
+    }
+
+    body.mobile-native #roomView .members-panel-heading {
+        margin-bottom: 10px;
+    }
+
+    body.mobile-native #roomView .members-list {
+        max-height: 45dvh;
+        overflow-y: auto;
+    }
+
+    body.mobile-native #roomView .member-row {
+        min-height: 48px;
+        padding: 8px 9px;
+    }
+
+    body.mobile-native #roomView .member-name {
+        font-size: 10px;
+    }
+
+    body.mobile-native #roomView .members-search {
+        min-height: 39px;
+    }
+
+    body.mobile-native #roomView .members-search input {
+        min-height: 37px;
+        font-size: 11px;
+    }
+
+    body.mobile-native #roomView .room-management-panel {
+        position: fixed;
+        z-index: 90;
+        inset: max(8px, env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom));
+        display: grid;
+        align-items: end;
+        padding: 0;
+        overflow: auto;
+        background: rgba(5, 4, 10, .72);
+        backdrop-filter: blur(8px);
+    }
+
+    body.mobile-native #roomView .room-management-card {
+        width: 100%;
+        max-width: none;
+        max-height: 100%;
+        padding: 17px;
+        overflow-y: auto;
+        background: #1a1728;
+        border: 1px solid var(--mobile-line);
+        border-radius: 18px;
+    }
+
+    body.mobile-native #roomView .room-management-heading {
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    body.mobile-native #roomView .room-management-heading h3 {
+        color: #f4efff;
+        font-size: 17px;
+    }
+
+    body.mobile-native #roomView .room-management-heading p,
+    body.mobile-native #roomView .room-management-section p {
+        color: #9991aa;
+        font-size: 10px;
+        line-height: 1.5;
+    }
+
+    body.mobile-native #roomView .room-management-section {
+        display: grid;
+        gap: 9px;
+        padding: 12px;
+        background: rgba(255, 255, 255, .035);
+        border: 1px solid var(--mobile-line);
+        border-radius: 12px;
+    }
+
+    body.mobile-native #roomView .room-management-section button,
+    body.mobile-native #roomView .room-management-card button {
+        min-height: 39px;
+        border-radius: 10px;
+        font-size: 10px;
+    }
+
+    body.mobile-native #roomView .room-management-section input,
+    body.mobile-native #roomView .room-management-section select {
+        min-height: 40px;
+        font-size: 11px;
+    }
+
+    body.mobile-native #roomView .admin-assignment-controls,
+    body.mobile-native #roomView .troll-controls {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    body.mobile-native #roomView .jumpscare-slot-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    body.mobile-native #roomView .jumpscare-slot-card {
+        min-width: 0;
+    }
+
+    body.mobile-native #roomView .jumpscare-upload-label,
+    body.mobile-native #roomView .jumpscare-clear-button {
+        min-height: 32px;
+        padding: 0 5px;
+        font-size: 8px;
+    }
+
+    /* Games: cards first, lobby actions next, no desktop hero column. */
+    body.mobile-native .workspace-layout.is-games-workspace > .room-sidebar,
+    body.mobile-native .workspace-layout.is-archive-workspace > .room-sidebar {
+        display: none !important;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace > .workspace-main,
+    body.mobile-native .workspace-layout.is-archive-workspace > .workspace-main {
+        grid-column: auto;
+        padding: 13px 13px calc(var(--mobile-nav-height) + 24px + env(safe-area-inset-bottom));
+    }
+
+    body.mobile-native .games-view,
+    body.mobile-native .workspace-layout.is-games-workspace .games-view {
+        width: 100%;
+        max-width: none;
+        min-height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        background: transparent;
+        border: 0;
+    }
+
+    body.mobile-native .games-page-intro {
+        display: block;
+        min-height: 0;
+        margin: 0 0 13px;
+        padding: 17px;
+        background:
+            radial-gradient(ellipse at 100% 0%, rgba(165, 138, 255, .18), transparent 48%),
+            linear-gradient(145deg, #211b33, #161423);
+        border: 1px solid rgba(177, 154, 255, .2);
+        border-radius: 18px;
+    }
+
+    body.mobile-native .games-page-intro-copy {
+        max-width: none;
+    }
+
+    body.mobile-native .games-page-eyebrow {
+        color: #b6a2ff;
+        font-size: 7px;
+        letter-spacing: .15em;
+    }
+
+    body.mobile-native .games-page-intro h1 {
+        margin: 6px 0;
+        color: #f7f2ff;
+        font-size: 25px;
+        font-weight: 900;
+        letter-spacing: -.055em;
+    }
+
+    body.mobile-native .games-page-intro p {
+        max-width: 38ch;
+        color: #a49cb5;
+        font-size: 10px;
+        line-height: 1.6;
+    }
+
+    body.mobile-native .games-page-tags {
+        display: none;
+    }
+
+    body.mobile-native .games-page-art {
+        display: none !important;
+    }
+
+    body.mobile-native .games-workspace {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 13px;
+    }
+
+    body.mobile-native .games-page-mount {
+        min-width: 0;
+    }
+
+    body.mobile-native .game-catalog-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 9px;
+    }
+
+    body.mobile-native .game-catalog-card {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 11px;
+        padding: 13px;
+        background: linear-gradient(145deg, #1c192a, #151321);
+        border: 1px solid var(--mobile-line);
+        border-radius: 15px;
+    }
+
+    body.mobile-native .game-catalog-card:hover {
+        transform: none;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice {
+        display: grid;
+        width: 100%;
+        min-width: 0;
+        min-height: 94px;
+        grid-template-columns: 45px minmax(0, 1fr);
+        grid-template-rows: auto auto auto;
+        align-items: center;
+        justify-content: start;
+        gap: 4px 10px;
+        padding: 11px;
+        color: var(--mobile-ink);
+        text-align: left;
+        background: linear-gradient(145deg, #1c192a, #151321);
+        border: 1px solid var(--mobile-line);
+        border-radius: 14px;
+        transform: none !important;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice.is-selected {
+        background: linear-gradient(145deg, rgba(80, 62, 123, .52), #191526);
+        border-color: rgba(178, 154, 255, .53);
+        box-shadow: 0 0 0 1px rgba(165, 138, 255, .09);
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-top {
+        display: flex;
+        grid-column: 1;
+        grid-row: 1 / 4;
+        align-items: center;
+        justify-content: center;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-icon {
+        display: grid;
+        width: 43px;
+        height: 43px;
+        place-items: center;
+        color: #d7caff;
+        background: rgba(165, 138, 255, .13);
+        border: 1px solid rgba(165, 138, 255, .18);
+        border-radius: 12px;
+        font-size: 21px;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-category {
+        display: none;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-name {
+        grid-column: 2;
+        grid-row: 1;
+        color: #f0eafd;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-description {
+        grid-column: 2;
+        grid-row: 2;
+        display: -webkit-box;
+        overflow: hidden;
+        color: #968ea7;
+        font-size: 9px;
+        line-height: 1.4;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    body.mobile-native .workspace-layout.is-games-workspace .game-catalog-choice-players {
+        grid-column: 2;
+        grid-row: 3;
+        color: var(--mobile-mint);
+        font-size: 8px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .game-catalog-icon {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
+        border-radius: 13px;
+    }
+
+    body.mobile-native .game-catalog-card-content {
+        min-width: 0;
+        flex: 1;
+    }
+
+    body.mobile-native .game-catalog-title {
+        color: #f0eafd;
+        font-size: 12px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .game-catalog-description {
+        color: #938ba4;
+        font-size: 9px;
+        line-height: 1.5;
+    }
+
+    body.mobile-native .game-catalog-card button,
+    body.mobile-native .game-catalog-action,
+    body.mobile-native .game-catalog-play-button {
+        min-height: 36px;
+        flex: 0 0 auto;
+        padding: 0 10px;
+        border-radius: 9px;
+        font-size: 9px;
+    }
+
+    body.mobile-native .open-lobbies-panel {
+        min-width: 0;
+        padding: 14px;
+        background: #171422;
+        border: 1px solid var(--mobile-line);
+        border-radius: 16px;
+    }
+
+    body.mobile-native .open-lobbies-heading {
+        align-items: center;
+    }
+
+    body.mobile-native .open-lobbies-heading h3 {
+        color: #f0ebfa;
+        font-size: 15px;
+    }
+
+    body.mobile-native .open-lobbies-hint {
+        margin: 5px 0 11px;
+        color: #8f879e;
+        font-size: 9px;
+    }
+
+    body.mobile-native .open-game-lobbies-list {
+        display: grid;
+        gap: 8px;
+    }
+
+    body.mobile-native .open-game-lobby,
+    body.mobile-native .open-game-lobby-card,
+    body.mobile-native .open-lobby-card {
+        min-width: 0;
+        padding: 11px;
+        background: rgba(255, 255, 255, .035);
+        border: 1px solid var(--mobile-line);
+        border-radius: 12px;
+    }
+
+    body.mobile-native .open-game-lobby button,
+    body.mobile-native .open-game-lobby-card button,
+    body.mobile-native .open-lobby-card button {
+        min-height: 35px;
+        border-radius: 9px;
+        font-size: 9px;
+    }
+
+    body.mobile-native .games-downloads-section,
+    body.mobile-native .archive-downloads-section {
+        margin: 0;
+        padding: 14px;
+        background: #171422;
+        border: 1px solid var(--mobile-line);
+        border-radius: 16px;
+    }
+
+    body.mobile-native .games-downloads-heading h2 {
+        color: #f1ecfa;
+        font-size: 15px;
+    }
+
+    body.mobile-native .download-games-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+    }
+
+    body.mobile-native .download-game-card {
+        min-width: 0;
+        overflow: hidden;
+        background: #211c30;
+        border: 1px solid var(--mobile-line);
+        border-radius: 13px;
+    }
+
+    body.mobile-native .download-game-cover {
+        height: 104px;
+    }
+
+    body.mobile-native .download-game-info {
+        padding: 9px;
+    }
+
+    body.mobile-native .download-game-info strong {
+        color: #f1ecfa;
+        font-size: 10px;
+    }
+
+    body.mobile-native .download-game-info p {
+        color: #968ea7;
+        font-size: 8px;
+        line-height: 1.45;
+    }
+
+    body.mobile-native .download-game-card button,
+    body.mobile-native .download-game-button {
+        width: 100%;
+        min-height: 35px;
+        margin-top: 7px;
+        border-radius: 9px;
+        font-size: 8px;
+    }
+
+    /* Game catalog screens are already mounted by the existing game module. */
+    body.mobile-native .game-center-panel {
+        position: fixed;
+        z-index: 90;
+        inset: max(7px, env(safe-area-inset-top)) 7px calc(7px + env(safe-area-inset-bottom));
+        display: grid;
+        align-items: stretch;
+        padding: 0;
+        overflow: auto;
+        background: rgba(5, 4, 10, .8);
+        backdrop-filter: blur(7px);
+    }
+
+    body.mobile-native .game-center-card {
+        width: 100%;
+        max-width: none;
+        max-height: 100%;
+        padding: 13px;
+        overflow-y: auto;
+        background: #171422;
+        border: 1px solid var(--mobile-line);
+        border-radius: 17px;
+    }
+
+    body.mobile-native .arena-heading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    body.mobile-native .arena-heading h3 {
+        font-size: 16px;
+    }
+
+    body.mobile-native .arena-stage {
+        min-height: 115px;
+        margin: 10px 0;
+        border-radius: 13px;
+    }
+
+    body.mobile-native .arena-stage-copy strong {
+        font-size: 22px;
+    }
+
+    body.mobile-native .arena-stage-mark {
+        opacity: .6;
+        transform: scale(.72);
+    }
+
+    body.mobile-native .game-catalog-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    body.mobile-native .game-create-options {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 9px;
+    }
+
+    body.mobile-native .game-create-controls,
+    body.mobile-native .game-session-actions {
+        display: grid;
+        gap: 8px;
+    }
+
+    body.mobile-native .game-create-button,
+    body.mobile-native .game-session-actions button {
+        width: 100%;
+        min-height: 42px;
+        border-radius: 10px;
+        font-size: 10px;
+    }
+
+    body.mobile-native .game-session-content {
+        display: grid;
+        gap: 10px;
+        padding: 0;
+    }
+
+    body.mobile-native .game-room-topbar,
+    body.mobile-native .game-room-rosters,
+    body.mobile-native .game-room-info-strip {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 9px;
+    }
+
+    body.mobile-native .game-room-roster {
+        min-width: 0;
+    }
+
+    body.mobile-native .game-room-roster .game-session-member-list {
+        max-height: 180px;
+        overflow-y: auto;
+    }
+
+    /* Library is a list of download products, not a scaled desktop splash. */
+    body.mobile-native .archive-view,
+    body.mobile-native .workspace-layout.is-archive-workspace .archive-view {
+        width: 100%;
+        max-width: none;
+        min-height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        background: transparent;
+    }
+
+    body.mobile-native .library-page-intro {
+        display: block;
+        min-height: 0;
+        margin: 0 0 13px;
+        padding: 18px;
+        background:
+            radial-gradient(ellipse at 100% 0%, rgba(120, 226, 196, .12), transparent 48%),
+            linear-gradient(145deg, #1d1b2d, #151321);
+        border: 1px solid var(--mobile-line);
+        border-radius: 18px;
+    }
+
+    body.mobile-native .library-page-intro-copy {
+        max-width: none;
+    }
+
+    body.mobile-native .library-page-eyebrow {
+        color: #8fe2c7;
+        font-size: 7px;
+        letter-spacing: .14em;
+    }
+
+    body.mobile-native .library-page-intro h1 {
+        margin: 6px 0;
+        color: #f3efff;
+        font-size: 24px;
+        font-weight: 900;
+        letter-spacing: -.055em;
+    }
+
+    body.mobile-native .library-page-intro p {
+        max-width: 38ch;
+        color: #a39bb4;
+        font-size: 10px;
+        line-height: 1.6;
+    }
+
+    body.mobile-native .library-page-tags,
+    body.mobile-native .library-page-art {
+        display: none !important;
+    }
+
+    body.mobile-native .archive-content {
+        min-height: 0;
+        opacity: 1;
+        filter: none;
+        transform: none;
+    }
+
+    body.mobile-native .archive-empty-state {
+        min-height: 190px;
+        padding: 20px;
+        background: #171422;
+        border: 1px dashed var(--mobile-line);
+        border-radius: 15px;
+    }
+
+    /* Settings are designed as stacked mobile sections. */
+    body.mobile-native #settingsView:not([hidden]) {
+        display: grid !important;
+        position: relative;
+        gap: 11px;
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0 0 10px;
+        background: transparent;
+    }
+
+    body.mobile-native #settingsView .settings-topbar {
+        display: grid;
+        gap: 12px;
+        margin: 0;
+        padding: 0 0 13px;
+        border-bottom: 1px solid var(--mobile-line);
+    }
+
+    body.mobile-native #settingsView .back-button {
+        justify-self: start;
+        min-height: 34px;
+        padding: 0 10px;
+        color: #cdbfff;
+        background: rgba(165, 138, 255, .1);
+        border: 1px solid rgba(165, 138, 255, .2);
+        border-radius: 9px;
+        font-size: 9px;
+    }
+
+    body.mobile-native #settingsView .settings-topbar .small-label {
+        color: #a992f6;
+        font-size: 7px;
+    }
+
+    body.mobile-native #settingsView .settings-topbar h2 {
+        margin: 4px 0;
+        color: #f3efff;
+        font-size: 23px;
+        font-weight: 900;
+        letter-spacing: -.05em;
+    }
+
+    body.mobile-native #settingsView .settings-topbar p {
+        color: #948ca4;
+        font-size: 10px;
+    }
+
+    body.mobile-native #settingsView .settings-card,
+    body.mobile-native #settingsView .settings-danger-zone {
+        min-width: 0;
+        margin: 0;
+        padding: 15px;
+        background: linear-gradient(150deg, #1a1728, #151321);
+        border: 1px solid var(--mobile-line);
+        border-radius: 15px;
+        box-shadow: none;
+    }
+
+    body.mobile-native #settingsView .settings-card h3,
+    body.mobile-native #settingsView .settings-danger-zone h3 {
+        color: #f1ecfa;
+        font-size: 15px;
+        font-weight: 900;
+    }
+
+    body.mobile-native #settingsView .settings-card > .small-label,
+    body.mobile-native #settingsView .settings-danger-zone > .small-label {
+        color: #a991f6;
+        font-size: 7px;
+    }
+
+    body.mobile-native #settingsView label {
+        color: #c9c1d7;
+        font-size: 10px;
+        font-weight: 750;
+    }
+
+    body.mobile-native #settingsView input:not([type="checkbox"]):not([type="range"]),
+    body.mobile-native #settingsView select,
+    body.mobile-native #settingsView textarea {
+        width: 100%;
+        min-height: 43px;
+        padding: 0 11px;
+        color: var(--mobile-ink);
+        background: #100e18;
+        border: 1px solid var(--mobile-line);
+        border-radius: 9px;
+        font-size: 12px;
+    }
+
+    body.mobile-native #settingsView .settings-form {
+        display: grid;
+        gap: 8px;
+    }
+
+    body.mobile-native #settingsView .settings-note,
+    body.mobile-native #settingsView .settings-description,
+    body.mobile-native #settingsView .settings-danger-zone p {
+        color: #938ba3;
+        font-size: 9px;
+        line-height: 1.55;
+    }
+
+    body.mobile-native #settingsView .settings-form .primary-button,
+    body.mobile-native #settingsView .delete-account-button,
+    body.mobile-native #settingsView .avatar-save-button {
+        min-height: 42px;
+        margin-top: 4px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 850;
+    }
+
+    body.mobile-native #settingsView .avatar-picker {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    body.mobile-native #settingsView .avatar-choice {
+        min-width: 0;
+        min-height: 49px;
+        border-radius: 11px;
+    }
+
+    body.mobile-native #settingsView .avatar-photo-upload-row {
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    body.mobile-native #settingsView .avatar-photo-preview {
+        width: 54px;
+        height: 54px;
+        flex: 0 0 54px;
+    }
+
+    body.mobile-native #settingsView .avatar-crop-dialog {
+        position: fixed;
+        z-index: 100;
+        inset: 0;
+        display: grid;
+        align-items: end;
+        padding: 10px;
+        background: rgba(3, 2, 7, .78);
+        backdrop-filter: blur(8px);
+    }
+
+    body.mobile-native #settingsView .avatar-crop-card {
+        width: 100%;
+        max-height: 92dvh;
+        overflow: auto;
+        padding: 15px;
+        background: #1a1728;
+        border: 1px solid var(--mobile-line);
+        border-radius: 17px;
+    }
+
+    body.mobile-native #settingsView .avatar-crop-stage {
+        width: min(76vw, 310px);
+        height: min(76vw, 310px);
+        margin: 12px auto;
+    }
+
+    body.mobile-native #settingsView .avatar-crop-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    body.mobile-native #settingsView .avatar-crop-actions button {
+        min-height: 40px;
+        border-radius: 9px;
+        font-size: 10px;
+    }
+
+    body.mobile-native #settingsMessage {
+        font-size: 10px;
+    }
+
+    /* Site Owner has its own stacked admin workspace on mobile. */
+    body.mobile-native #siteOwnerView:not([hidden]) {
+        display: grid !important;
+        width: 100%;
+        min-width: 0;
+        min-height: 100%;
+        gap: 12px;
+        margin: 0;
+        padding: 0 0 12px;
+        overflow: visible;
+        background: transparent;
+    }
+
+    body.mobile-native #siteOwnerView::before {
+        display: none;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-page-heading {
+        display: flex;
+        min-height: 0;
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 11px;
+        margin: 0;
+        padding: 17px;
+        background:
+            radial-gradient(ellipse at 100% 0%, rgba(165, 138, 255, .18), transparent 48%),
+            linear-gradient(145deg, #211b33, #171422);
+        border-radius: 17px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-page-heading h2 {
+        margin: 0 0 5px;
+        font-size: 24px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-page-heading p {
+        font-size: 9px;
+        line-height: 1.55;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-page-badge {
+        min-height: 30px;
+        align-self: flex-start;
+        font-size: 8px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-filter-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+        margin: 0;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-filter-field {
+        padding: 9px 11px;
+        border-radius: 11px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-console-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+        min-height: 0;
+        margin: 0;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-chat-sidebar,
+    body.mobile-native #siteOwnerView .site-owner-chat-panel,
+    body.mobile-native #siteOwnerView .site-owner-room-members-panel,
+    body.mobile-native #siteOwnerView .site-owner-admins-panel,
+    body.mobile-native #siteOwnerView .site-owner-users-panel,
+    body.mobile-native #siteOwnerView .owner-game-catalog {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        margin: 0;
+        padding: 13px;
+        background: linear-gradient(150deg, #1a1728, #151321);
+        border: 1px solid var(--mobile-line);
+        border-radius: 15px;
+        box-shadow: none;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-chat-sidebar {
+        max-height: 215px;
+        flex: none;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-sidebar-heading {
+        margin: 0 0 9px;
+        padding-bottom: 9px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-chat-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-chat-choice,
+    body.mobile-native #siteOwnerView .owner-room-choice {
+        min-height: 43px;
+        padding: 7px;
+        border-radius: 9px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-chat-choice-icon {
+        width: 27px;
+        height: 27px;
+        flex-basis: 27px;
+        font-size: 15px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-chat-choice strong,
+    body.mobile-native #siteOwnerView .owner-room-choice strong {
+        font-size: 9px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-chat-choice small,
+    body.mobile-native #siteOwnerView .owner-room-choice small {
+        font-size: 7px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-chat-panel {
+        min-height: 440px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-chat-heading {
+        display: grid;
+        gap: 10px;
+        min-height: 0;
+        padding: 12px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-chat-heading h3 {
+        font-size: 14px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-chat-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 7px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-chat-actions > button {
+        width: 100%;
+        min-height: 39px;
+        font-size: 9px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-chat-messages {
+        min-height: 270px;
+        padding: 10px;
+        gap: 7px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-message-row {
+        gap: 8px;
+        padding: 9px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-message-avatar {
+        width: 29px;
+        height: 29px;
+        flex-basis: 29px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-message-delete {
+        min-height: 28px;
+        padding: 0 7px;
+        font-size: 8px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-management-intro {
+        display: grid;
+        gap: 3px;
+        margin: 0;
+        padding: 5px 3px 0;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-management-intro strong {
+        color: #f0ebfa;
+        font-size: 13px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-management-intro span {
+        color: #8f879e;
+        font-size: 8px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-management-stack {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-users-heading {
+        align-items: flex-start;
+        gap: 9px;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-users-heading h3 {
+        font-size: 14px;
+    }
+
+    body.mobile-native #siteOwnerView .site-owner-users-heading p {
+        font-size: 8px;
+        line-height: 1.5;
+    }
+
+    body.mobile-native #siteOwnerView .owner-user-bulk-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px;
+        margin: 9px 0;
+    }
+
+    body.mobile-native #siteOwnerView .owner-user-bulk-delete {
+        width: 100%;
+        min-height: 37px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-users-list {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 7px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-user-row {
+        display: grid;
+        grid-template-columns: 35px minmax(0, 1fr);
+        gap: 8px;
+        padding: 9px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-user-avatar {
+        width: 35px;
+        height: 35px;
+        grid-row: span 2;
+    }
+
+    body.mobile-native #siteOwnerView .owner-user-details {
+        min-width: 0;
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    body.mobile-native #siteOwnerView .owner-user-row .owner-user-select {
+        grid-column: 1;
+        grid-row: 1;
+        margin: 0;
+    }
+
+    body.mobile-native #siteOwnerView .owner-user-row .owner-user-delete,
+    body.mobile-native #siteOwnerView .owner-user-row .owner-user-revoke {
+        width: 100%;
+        min-height: 33px;
+        grid-column: 2;
+        grid-row: 2;
+        margin: 0;
+    }
+
+    body.mobile-native #siteOwnerView .owner-game-catalog {
+        padding: 13px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-game-catalog .owner-section-heading {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    body.mobile-native #siteOwnerView .owner-game-catalog .catalog-add-button {
+        width: 100%;
+        min-height: 38px;
+    }
+
+    /* Bottom navigation replaces the desktop top tabs. */
+    body.mobile-native .mobile-bottom-nav {
+        display: grid;
+        position: fixed;
+        z-index: 60;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+        padding: 7px 8px max(8px, env(safe-area-inset-bottom));
+        background: rgba(19, 16, 29, .96);
+        border-top: 1px solid rgba(190, 174, 231, .14);
+        box-shadow: 0 -12px 35px rgba(0, 0, 0, .27);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+    }
+
+    body.mobile-native .mobile-bottom-nav button {
+        display: grid;
+        min-width: 0;
+        min-height: 48px;
+        align-content: center;
+        justify-items: center;
+        gap: 4px;
+        padding: 4px 2px;
+        color: #817990;
+        background: transparent;
+        border: 0;
+        border-radius: 11px;
+        cursor: pointer;
+    }
+
+    body.mobile-native .mobile-bottom-nav button.is-active {
+        color: #cbbcff;
+        background: rgba(165, 138, 255, .1);
+    }
+
+    body.mobile-native .mobile-bottom-nav button svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    body.mobile-native .mobile-bottom-nav button span {
+        max-width: 100%;
+        overflow: hidden;
+        font-size: 8px;
+        font-weight: 850;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.mobile-native.mobile-keyboard-open .mobile-bottom-nav {
+        display: none;
+    }
+
+    body.mobile-native.mobile-keyboard-open .workspace-main,
+    body.mobile-native.mobile-keyboard-open .workspace-layout.is-site-owner-workspace > .workspace-main {
+        padding-bottom: 22px;
+    }
+
+    /* More sheet keeps account-only tools one tap away. */
+    body.mobile-native .mobile-more-sheet {
+        display: block;
+        position: fixed;
+        z-index: 84;
+        right: 8px;
+        bottom: max(8px, env(safe-area-inset-bottom));
+        left: 8px;
+        padding: 10px 13px 13px;
+        background: linear-gradient(150deg, #211b30, #151321);
+        border: 1px solid rgba(190, 174, 231, .2);
+        border-radius: 20px;
+        box-shadow: 0 28px 90px rgba(0, 0, 0, .66);
+        transform: translateY(0);
+        animation: mobile-sheet-in .2s ease-out;
+    }
+
+    body.mobile-native .mobile-more-sheet[hidden] {
+        display: none !important;
+    }
+
+    body.mobile-native .mobile-sheet-grabber {
+        width: 36px;
+        height: 4px;
+        margin: 1px auto 12px;
+        background: rgba(205, 195, 224, .32);
+        border-radius: 999px;
+    }
+
+    body.mobile-native .mobile-more-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 9px;
+        padding: 0 2px 8px;
+        border-bottom: 1px solid var(--mobile-line);
+    }
+
+    body.mobile-native .mobile-more-heading h2 {
+        margin: 3px 0 0;
+        color: #f2edfc;
+        font-size: 17px;
+        font-weight: 900;
+        letter-spacing: -.04em;
+    }
+
+    body.mobile-native .mobile-more-heading button {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        color: #c7bdd9;
+        background: rgba(255, 255, 255, .05);
+        border: 1px solid var(--mobile-line);
+        border-radius: 10px;
+        font-size: 20px;
+    }
+
+    body.mobile-native .mobile-more-action {
+        display: flex;
+        width: 100%;
+        min-height: 61px;
+        align-items: center;
+        gap: 11px;
+        padding: 9px;
+        color: var(--mobile-ink);
+        text-align: left;
+        background: transparent;
+        border: 0;
+        border-radius: 12px;
+        cursor: pointer;
+    }
+
+    body.mobile-native .mobile-more-action:active {
+        background: rgba(255, 255, 255, .045);
+    }
+
+    body.mobile-native .mobile-more-action-icon {
+        display: grid;
+        width: 37px;
+        height: 37px;
+        flex: 0 0 37px;
+        place-items: center;
+        color: #d0c2ff;
+        background: rgba(165, 138, 255, .12);
+        border-radius: 11px;
+        font-size: 17px;
+    }
+
+    body.mobile-native .mobile-more-action > span:nth-child(2) {
+        display: grid;
+        min-width: 0;
+        flex: 1;
+        gap: 4px;
+    }
+
+    body.mobile-native .mobile-more-action strong {
+        color: #eee8fa;
+        font-size: 11px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .mobile-more-action small {
+        color: #8f879e;
+        font-size: 8px;
+    }
+
+    body.mobile-native .mobile-more-action > span:last-child {
+        color: #817894;
+        font-size: 15px;
+    }
+
+    body.mobile-native .mobile-more-action.is-danger .mobile-more-action-icon {
+        color: #ffb2c0;
+        background: rgba(190, 70, 100, .13);
+    }
+
+    body.mobile-native .mobile-more-action.is-danger strong {
+        color: #ffc4cf;
+    }
+
+    @keyframes mobile-sheet-in {
+        from { opacity: .4; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Shared mobile dialog and form sizing. */
+    body.mobile-native dialog:not([hidden]) {
+        width: min(100vw, 560px);
+        max-width: none;
+        max-height: 92dvh;
+        margin: auto;
+        padding: 0;
+        overflow: auto;
+        color: var(--mobile-ink);
+        background: #1a1728;
+        border: 1px solid var(--mobile-line);
+        border-radius: 17px;
+        box-shadow: 0 25px 90px rgba(0, 0, 0, .7);
+    }
+
+    body.mobile-native dialog::backdrop {
+        background: rgba(3, 2, 7, .76);
+        backdrop-filter: blur(7px);
+    }
+
+    body.mobile-native .web-game-dialog[open] {
+        width: 100vw;
+        height: 100dvh;
+        max-height: 100dvh;
+        border: 0;
+        border-radius: 0;
+    }
+
+    body.mobile-native .web-game-toolbar {
+        min-height: 54px;
+        padding: 8px 10px;
+    }
+
+    body.mobile-native .web-game-toolbar-title strong {
+        font-size: 12px;
+    }
+
+    body.mobile-native .web-game-toolbar-title small {
+        font-size: 8px;
+    }
+
+    body.mobile-native .web-game-toolbar-actions {
+        gap: 6px;
+    }
+
+    body.mobile-native .web-game-close {
+        width: 34px;
+        height: 34px;
+    }
+
+    body.mobile-native input,
+    body.mobile-native select,
+    body.mobile-native textarea {
+        max-width: 100%;
+        font-size: 16px;
+    }
+
+    body.mobile-native button:focus-visible,
+    body.mobile-native input:focus-visible,
+    body.mobile-native select:focus-visible,
+    body.mobile-native textarea:focus-visible,
+    body.mobile-native summary:focus-visible {
+        outline: 2px solid rgba(190, 172, 255, .95);
+        outline-offset: 2px;
+    }
+
+    body.mobile-native .status-message {
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 390px) {
+    body.mobile-native .mobile-app-chrome {
+        padding-right: 13px;
+        padding-left: 13px;
+    }
+
+    body.mobile-native .mobile-user-avatar {
+        display: none;
+    }
+
+    body.mobile-native .mobile-room-picker-button {
+        min-height: 34px;
+        padding: 0 9px;
+    }
+
+    body.mobile-native .workspace-main {
+        padding-right: 10px;
+        padding-left: 10px;
+    }
+
+    body.mobile-native .download-games-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    body.mobile-native #siteOwnerView .owner-chat-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-height: 620px) and (max-width: 760px) {
+    body.mobile-native .mobile-app-chrome {
+        padding-bottom: 8px;
+    }
+
+    body.mobile-native .mobile-app-pagebar {
+        margin-top: 7px;
+        padding-top: 7px;
+    }
+
+    body.mobile-native .room-sidebar {
+        top: calc(88px + env(safe-area-inset-top));
+        bottom: calc(var(--mobile-nav-height) + 7px + env(safe-area-inset-bottom));
+    }
+
+    body.mobile-native #roomView .chat-panel {
+        min-height: 390px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.mobile-native *,
+    body.mobile-native *::before,
+    body.mobile-native *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+    }
+}
+
+
+/* Component-level refinements for the actual game and download cards. */
+@media (max-width: 760px) {
+    body.mobile-native .game-catalog-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    body.mobile-native .game-catalog-card.game-catalog-choice {
+        display: grid;
+        min-height: 0;
+        gap: 7px;
+        padding: 12px;
+        text-align: left;
+        background: linear-gradient(145deg, #1c192a, #151321);
+        border: 1px solid var(--mobile-line);
+        border-radius: 14px;
+    }
+
+    body.mobile-native .game-catalog-card.game-catalog-choice.is-selected {
+        border-color: rgba(165, 138, 255, .42);
+        background: linear-gradient(145deg, rgba(87, 65, 139, .28), #171422);
+        box-shadow: inset 3px 0 #a58aff;
+    }
+
+    body.mobile-native .game-catalog-choice-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    body.mobile-native .game-catalog-choice-icon,
+    body.mobile-native .game-catalog-webgame .game-catalog-icon {
+        display: grid;
+        width: 35px;
+        height: 35px;
+        flex: 0 0 35px;
+        place-items: center;
+        background: rgba(165, 138, 255, .12);
+        border-radius: 10px;
+        font-size: 19px;
+    }
+
+    body.mobile-native .game-catalog-choice-category,
+    body.mobile-native .game-catalog-webgame .game-catalog-status {
+        color: #a995ea;
+        font-size: 7px;
+        font-weight: 900;
+        letter-spacing: .1em;
+    }
+
+    body.mobile-native .game-catalog-choice-name,
+    body.mobile-native .game-catalog-webgame .game-catalog-name {
+        color: #f1ecfa;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    body.mobile-native .game-catalog-choice-description,
+    body.mobile-native .game-catalog-webgame .game-catalog-description {
+        color: #978fa8;
+        font-size: 9px;
+        line-height: 1.5;
+    }
+
+    body.mobile-native .game-catalog-choice-players {
+        color: #8edfc5;
+        font-size: 8px;
+        font-weight: 800;
+    }
+
+    body.mobile-native .game-catalog-card.game-catalog-webgame {
+        display: grid;
+        min-height: 0;
+        gap: 7px;
+        padding: 12px;
+        text-align: left;
+        background: linear-gradient(145deg, rgba(44, 78, 74, .2), #151c20);
+        border: 1px solid rgba(120, 226, 196, .18);
+        border-radius: 14px;
+    }
+
+    body.mobile-native .game-catalog-card-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    body.mobile-native .open-game-lobbies-list {
+        display: grid;
+        gap: 7px;
+    }
+
+    body.mobile-native .open-game-lobby {
+        display: grid;
+        width: 100%;
+        min-height: 52px;
+        gap: 4px;
+        padding: 10px 11px;
+        color: #eee8fa;
+        text-align: left;
+        background: rgba(255, 255, 255, .035);
+        border: 1px solid var(--mobile-line);
+        border-radius: 11px;
+    }
+
+    body.mobile-native .open-game-lobby strong {
+        color: #f1ecfa;
+        font-size: 10px;
+        font-weight: 850;
+    }
+
+    body.mobile-native .open-game-lobby span {
+        color: #91899f;
+        font-size: 8px;
+    }
+
+    body.mobile-native .download-game-card {
+        min-width: 0;
+        overflow: hidden;
+        background: #211c30;
+        border: 1px solid var(--mobile-line);
+        border-radius: 13px;
+    }
+
+    body.mobile-native .download-game-cover {
+        display: grid;
+        height: 104px;
+        place-items: center;
+        object-fit: cover;
+        font-size: 35px;
+    }
+
+    body.mobile-native .download-game-body {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+        padding: 9px;
+    }
+
+    body.mobile-native .download-game-body h3 {
+        color: #f1ecfa;
+        font-size: 10px;
+        line-height: 1.35;
+    }
+
+    body.mobile-native .download-game-description {
+        color: #968ea7;
+        font-size: 8px;
+        line-height: 1.45;
+    }
+
+    body.mobile-native .download-game-meta {
+        color: #8edfc5;
+        font-size: 7px;
+    }
+
+    body.mobile-native .download-game-actions {
+        display: grid;
+        gap: 5px;
+    }
+
+    body.mobile-native .download-game-button {
+        width: 100%;
+        min-height: 35px;
+        padding: 0 8px;
+        border-radius: 9px;
+        font-size: 8px;
+    }
+
+    body.mobile-native .download-game-status {
+        color: #e2b4a8;
+        font-size: 8px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+    }
+}
+
+@media (max-width: 390px) {
+    body.mobile-native .download-games-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
