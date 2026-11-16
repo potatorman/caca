@@ -145,6 +145,7 @@ let unsubscribeGameSession = null;
 let gameSessionData = null;
 let gameSessionsById = new Map();
 let activeGameLobbyId = "";
+let dismissedAutoOpenGameLobbyId = "";
 let activeRoomGame = null;
 let observedUnoRosterRoundKey = "";
 let observedUnoRosterIds = [];
@@ -2036,6 +2037,7 @@ async function startCatalogGameDownload(game, button, status) {
 
 function selectGameLobby(lobbyId) {
     if (!lobbyId || !gameSessionsById.has(lobbyId)) return;
+    dismissedAutoOpenGameLobbyId = "";
     if (activeGameLobbyId === lobbyId) return;
     const previousSession = gameSessionData;
     if (previousSession?.status === "starting" && GAME_SCOPE_ID) {
@@ -2913,6 +2915,14 @@ function listenToGameCenter(roomId) {
                 ownedActiveLobby,
                 selectedSession
             } = selectGameLobbyForUser(next, currentUser?.uid, previouslySelectedLobbyId);
+            if (dismissedAutoOpenGameLobbyId && !next.has(dismissedAutoOpenGameLobbyId)) {
+                dismissedAutoOpenGameLobbyId = "";
+            }
+            const visibleSelectedSession = joinedActiveLobby?.lobbyId === dismissedAutoOpenGameLobbyId
+                ? (previouslySelectedLobbyId && previouslySelectedLobbyId !== dismissedAutoOpenGameLobbyId
+                    ? selectedSession
+                    : null)
+                : selectedSession;
             hasOwnedActiveGameLobby = Boolean(ownedActiveLobby);
             if (ownedActiveLobby) {
                 // Migrate lobbies created before the per-user lock was introduced.
@@ -2927,7 +2937,7 @@ function listenToGameCenter(roomId) {
             }
             // Participants return straight to their own lobby. Everyone else
             // stays on the Games overview until they deliberately choose a lobby.
-            activeGameLobbyId = selectedSession?.lobbyId || "";
+            activeGameLobbyId = visibleSelectedSession?.lobbyId || "";
             renderGameCatalog();
             for (const [id, entry] of backgroundGameCountdownTimers) {
                 const current = next.get(id);
@@ -3841,6 +3851,14 @@ async function closeGameSession() {
     }
 }
 
+$("closeGameSessionViewButton").addEventListener("click", () => {
+    if (activeGameLobbyId) dismissedAutoOpenGameLobbyId = activeGameLobbyId;
+    activeGameLobbyId = "";
+    gameSessionData = null;
+    renderGameCenter();
+    renderOpenGameLobbies();
+    $("gameCenterEmptyState")?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 $("createGameSessionButton").addEventListener("click", createGameSession);
 $("gameLobbySettingsButton").addEventListener("click", openGameLobbySettings);
 $("closeGameLobbySettingsButton").addEventListener("click", closeGameLobbySettings);
