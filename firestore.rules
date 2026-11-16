@@ -2094,13 +2094,21 @@ service cloud.firestore {
             && request.resource.data.module.matches('^[.]/[a-z0-9][a-z0-9/_-]*[.]js$')
           )
         );
-      // Keep legacy browser entries manageable. New browser modules must be
-      // local relative paths and use the RendeChat standalone-game contract.
+      // New or edited browser entries must point at a locally deployed module.
+      // Existing legacy records can still be removed, but cannot be repointed to
+      // an external URL, iframe or executable CDN asset.
       allow update: if isSiteOwner()
         && request.resource.data.published is bool
         && (
           request.resource.data.type in ['download', 'download-mp']
-          || (resource.data.type == 'browser' && request.resource.data.type == 'browser')
+          || (
+            resource.data.type == 'browser'
+            && request.resource.data.type == 'browser'
+            && request.resource.data.launchMode == 'standalone'
+            && request.resource.data.module is string
+            && request.resource.data.module.size() <= 180
+            && request.resource.data.module.matches('^[.]/[a-z0-9][a-z0-9/_-]*[.]js$')
+          )
         );
       allow delete: if isSiteOwner();
     }
