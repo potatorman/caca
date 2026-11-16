@@ -398,9 +398,6 @@ export class StarfallRoom extends DurableObject {
             readyIds: [],
             matchPlayerIds: resultPlayers,
             resultReturnIds: [...match.returnedIds],
-            winnerId: match.winnerId,
-            winnerIds: [...match.winnerIds],
-            scores: { ...match.scores },
             finishedAt: firestoreTimestamp(new Date(match.finishedAt || Date.now())),
             updatedAt: nowTimestamp()
         });
@@ -518,9 +515,6 @@ export class StarfallRoom extends DurableObject {
             matchPlayerIds: nextActivePlayers,
             resultReturnIds: [],
             ...(match.status === "results" ? {
-                winnerId: match.winnerId,
-                winnerIds: match.winnerIds,
-                scores: match.scores,
                 finishedAt: firestoreTimestamp(new Date(match.finishedAt))
             } : {}),
             updatedAt: nowTimestamp()
@@ -574,9 +568,6 @@ export class StarfallRoom extends DurableObject {
             status: match.status,
             matchPlayerIds: nextRoster,
             ...(match.status === "results" ? {
-                winnerId: match.winnerId,
-                winnerIds: match.winnerIds,
-                scores: match.scores,
                 finishedAt: firestoreTimestamp(new Date(match.finishedAt))
             } : {}),
             updatedAt: nowTimestamp()
@@ -646,9 +637,6 @@ export class StarfallRoom extends DurableObject {
             startedAt: null,
             countdownEndsAt: null,
             finishedAt: null,
-            winnerId: null,
-            winnerIds: [],
-            scores: {},
             updatedAt: nowTimestamp()
         });
         await this.ctx.storage.put("match", match);
