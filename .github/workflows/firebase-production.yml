@@ -55,10 +55,17 @@ jobs:
           node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' "$credentials_file"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$credentials_file" >> "$GITHUB_ENV"
 
-      - name: Deploy Firebase Hosting and Firestore rules to production
+      - name: Deploy Firestore security rules first
         run: >-
           npx --yes firebase-tools@latest deploy
-          --only hosting,firestore
+          --only firestore:rules
+          --project caca-dfe6c
+          --non-interactive
+
+      - name: Deploy Firebase Hosting to production
+        run: >-
+          npx --yes firebase-tools@latest deploy
+          --only hosting
           --project caca-dfe6c
           --non-interactive
 
