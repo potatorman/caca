@@ -21,6 +21,28 @@ export const GAME_REGISTRY = Object.freeze([
         minPlayers: 5,
         maxPlayers: 12,
         module: "./vampir-koylu/index.js"
+    }),
+    Object.freeze({
+        id: "odd-signal",
+        name: "Odd Signal",
+        icon: "◈",
+        description: "2–8 oyuncu. Dört seçenekten gruba ait olmayanı bul; hız ve seri bonuslarıyla puan topla.",
+        status: "ready",
+        lobbyEnabled: true,
+        minPlayers: 2,
+        maxPlayers: 8,
+        module: "./puzzle/index.js"
+    }),
+    Object.freeze({
+        id: "pattern-party",
+        name: "Pattern Party",
+        icon: "∿",
+        description: "2–8 oyuncu. Sayı dizilerini tamamla; sekiz turda en yüksek skora ulaş.",
+        status: "ready",
+        lobbyEnabled: true,
+        minPlayers: 2,
+        maxPlayers: 8,
+        module: "./puzzle/index.js"
     })
 ]);
 
