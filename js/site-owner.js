@@ -208,12 +208,15 @@ function openOwnerChat(type, id, title) {
             body.textContent = typeof message.text === "string" ? message.text : "";
             content.append(meta, body);
 
-            const remove = document.createElement("button");
-            remove.type = "button";
-            remove.className = "owner-message-delete";
-            remove.textContent = "Sil";
-            remove.addEventListener("click", () => deleteOwnerMessage(messageDoc.id));
-            row.append(avatar, content, remove);
+            row.append(avatar, content);
+            if (type !== "global") {
+                const remove = document.createElement("button");
+                remove.type = "button";
+                remove.className = "owner-message-delete";
+                remove.textContent = "Sil";
+                remove.addEventListener("click", () => deleteOwnerMessage(messageDoc.id));
+                row.appendChild(remove);
+            }
             list.appendChild(row);
         }
         list.scrollTop = list.scrollHeight;
@@ -267,7 +270,7 @@ function listenToOwnerRooms() {
 }
 
 async function deleteOwnerMessage(messageId) {
-    if (!isSiteOwner || !selectedChat) return;
+    if (!isSiteOwner || !selectedChat || selectedChat.type === "global") return;
     if (!window.confirm("Bu mesajı kalıcı olarak silmek istiyor musun?")) return;
     try {
         await deleteDoc(doc(getOwnerChatCollection(), messageId));
