@@ -1494,3 +1494,11 @@ body:not(.logged-in) .auth-footer {
     height: 46px;
   }
 }
+
+
+/* Stage 2 position refinement — keep the auth card right of center, but closer to the divider. */
+@media (min-width: 801px) {
+  body:not(.logged-in) .auth-card {
+    transform: translateX(clamp(-48px, -3vw, -24px));
+  }
+}
