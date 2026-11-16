@@ -109,7 +109,7 @@ export async function openStarfallGame({
     const role = (name) => root.querySelector('[data-role="' + name + '"]');
     const action = (name) => root.querySelector('[data-action="' + name + '"]');
     const initialPlayers = Array.isArray(session?.matchPlayerIds) ? session.matchPlayerIds : [];
-    const isMatchPlayer = session?.status === "playing" && initialPlayers.includes(uid);
+    const isMatchPlayer = ["playing", "results"].includes(session?.status) && initialPlayers.includes(uid);
     let state = null;
     let connection = null;
     let connected = false;
