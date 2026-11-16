@@ -806,6 +806,88 @@ service cloud.firestore {
             && request.resource.data.updatedAt is timestamp;
         }
 
+        // Any signed-in lobby member may remove only their own membership
+        // from a game session. Host handoff and countdown reset are constrained.
+        function canSelfLeaveGameSession() {
+          return signedIn()
+            && resource.data.status in ['lobby', 'starting', 'results']
+            && request.resource.data.status in ['lobby', 'results']
+            && (
+              resource.data.status != 'starting'
+              || request.resource.data.status == 'lobby'
+            )
+            && resource.data.playerIds is list
+            && request.resource.data.playerIds is list
+            && (
+              resource.data.playerIds.hasAny([request.auth.uid])
+              || (resource.data.keys().hasAny(['spectatorIds'])
+                && resource.data.spectatorIds.hasAny([request.auth.uid]))
+              || (resource.data.keys().hasAny(['nextRoundPlayerIds'])
+                && resource.data.nextRoundPlayerIds.hasAny([request.auth.uid]))
+            )
+            && onlyRemovesSelf(resource.data.playerIds, request.resource.data.playerIds)
+            && (
+              !resource.data.keys().hasAny(['readyIds'])
+              || (
+                request.resource.data.readyIds is list
+                && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+                && request.resource.data.readyIds.hasOnly(request.resource.data.playerIds)
+              )
+            )
+            && (
+              !resource.data.keys().hasAny(['nextRoundPlayerIds'])
+              || (
+                request.resource.data.nextRoundPlayerIds is list
+                && onlyRemovesSelf(resource.data.nextRoundPlayerIds, request.resource.data.nextRoundPlayerIds)
+              )
+            )
+            && (
+              !resource.data.keys().hasAny(['nextRoundReadyIds'])
+              || (
+                request.resource.data.nextRoundReadyIds is list
+                && onlyRemovesSelf(resource.data.nextRoundReadyIds, request.resource.data.nextRoundReadyIds)
+                && request.resource.data.nextRoundReadyIds.hasOnly(request.resource.data.nextRoundPlayerIds)
+              )
+            )
+            && (
+              !resource.data.keys().hasAny(['matchPlayerIds'])
+              || (
+                request.resource.data.matchPlayerIds is list
+                && onlyRemovesSelf(resource.data.matchPlayerIds, request.resource.data.matchPlayerIds)
+              )
+            )
+            && (
+              !resource.data.keys().hasAny(['spectatorIds'])
+              || (
+                request.resource.data.spectatorIds is list
+                && onlyRemovesSelf(resource.data.spectatorIds, request.resource.data.spectatorIds)
+              )
+            )
+            && (
+              !resource.data.keys().hasAny(['resultReturnIds'])
+              || (
+                request.resource.data.resultReturnIds is list
+                && onlyRemovesSelf(resource.data.resultReturnIds, request.resource.data.resultReturnIds)
+              )
+            )
+            && request.resource.data.hostId is string
+            && (
+              request.auth.uid == resource.data.hostId
+              ? request.resource.data.hostId == request.resource.data.playerIds[0]
+              : request.resource.data.hostId == resource.data.hostId
+            )
+            && (
+              request.resource.data.countdownEndsAt == null
+              || request.resource.data.countdownEndsAt == resource.data.get('countdownEndsAt', null)
+            )
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'hostId', 'status', 'countdownEndsAt', 'playerIds', 'readyIds',
+              'nextRoundPlayerIds', 'nextRoundReadyIds', 'matchPlayerIds',
+              'spectatorIds', 'resultReturnIds', 'updatedAt'
+            ])
+            && request.resource.data.updatedAt is timestamp;
+        }
+
         function canSelfLeaveVampirLobby() {
           return signedIn()
             && resource.data.gameId == 'vampir-koylu'
@@ -1337,6 +1419,7 @@ service cloud.firestore {
             || canSelfToggleVampirReady()
             || canSelfCancelVampirCountdown()
             || canSelfLeaveVampirLobby()
+            || canSelfLeaveGameSession()
             // Other games use the shared client-side ready toggle as well.
             // Keep this self-service rule separate from UNO and Vampir's
             // game-specific readiness policies.
