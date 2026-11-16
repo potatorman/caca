@@ -689,6 +689,7 @@ SpaceInvaders.AvatarEntity = function (game, scene) {
 SpaceInvaders.AlienShotEntity = function (game, scene) {
   SpaceInvaders.AnimatedMovableSpriteEntity.call(this, game);
 
+  var i;
   /** A counter to keep track of the amount of update calls. */
   var progressTicks = 0;
 
@@ -1447,6 +1448,9 @@ SpaceInvaders.IngameState = function (game) {
   /** A reference to the currently active player context. */
   var ctx = game.getActiveContext();
 
+  // The upstream script used implicit loop globals; keep them local in this module.
+  var i, row, col, n, m;
+
   var footerLine;
   var avatar;
   var avatarLaser;
@@ -1978,7 +1982,7 @@ SpaceInvaders.IngameState = function (game) {
       if (alienShots[0].isReadyToBeFired() && alienRollingShotLock <= 0) {
         // find the nearest alien from the list of aliens.
         var avatarX = avatar.getCenterX();
-        var aliendIdx = -1;
+        var alienIdx = -1;
         var prevDistance = -1;
         for (col = 0; col < 11; col++) {
           var distance = Math.abs(aliens[col].getCenterX() - avatarX);
