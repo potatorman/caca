@@ -1436,26 +1436,42 @@ service cloud.firestore {
             || canSelfCancelVampirCountdown()
             || canSelfLeaveVampirLobby()
             || canSelfLeaveGameSession()
-            // Other games use the shared client-side ready toggle as well.
-            // Keep this self-service rule separate from UNO and Vampir's
-            // game-specific readiness policies.
+            // Shared self-service readiness for every game lobby. A member
+            // can change only their own ready bit; countdown cancellation is
+            // permitted only when that member was already ready.
             || (
-              resource.data.gameId != 'uno'
-              && resource.data.gameId != 'vampir-koylu'
-              && resource.data.status == 'lobby'
-              && request.resource.data.status == 'lobby'
+              signedIn()
+              && resource.data.status in ['lobby', 'starting']
+              && request.resource.data.status in ['lobby', 'starting']
               && resource.data.playerIds is list
               && resource.data.playerIds.hasAny([request.auth.uid])
               && request.resource.data.playerIds == resource.data.playerIds
               && request.resource.data.hostId == resource.data.hostId
+              && resource.data.readyIds is list
               && request.resource.data.readyIds is list
               && request.resource.data.readyIds.hasOnly(resource.data.playerIds)
               && (
-                onlyAddsSelf(resource.data.readyIds, request.resource.data.readyIds)
-                || onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+                (
+                  resource.data.status == 'lobby'
+                  && request.resource.data.status == 'lobby'
+                  && (
+                    onlyAddsSelf(resource.data.readyIds, request.resource.data.readyIds)
+                    || onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+                  )
+                  && request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['readyIds', 'updatedAt'])
+                )
+                || (
+                  resource.data.status == 'starting'
+                  && request.resource.data.status == 'lobby'
+                  && resource.data.readyIds.hasAny([request.auth.uid])
+                  && onlyRemovesSelf(resource.data.readyIds, request.resource.data.readyIds)
+                  && !request.resource.data.readyIds.hasAny([request.auth.uid])
+                  && request.resource.data.countdownEndsAt == null
+                  && request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['status', 'countdownEndsAt', 'readyIds', 'updatedAt'])
+                )
               )
-              && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['readyIds', 'updatedAt'])
               && request.resource.data.updatedAt is timestamp
             )
             ||
