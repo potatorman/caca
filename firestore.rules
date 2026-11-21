@@ -698,8 +698,6 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
-      // Game lobbies are shared metadata. The Cloudflare Worker owns game
-      // execution; browser clients may only perform a small set of lobby actions.
       // Game lobby metadata is shared across games. Cloudflare owns game execution;
       // browser clients can only change their own lobby state or perform host actions.
       match /gameSessions/{sessionId} {
@@ -1114,7 +1112,7 @@ service cloud.firestore {
             && request.resource.data.updatedAt is timestamp;
         }
 
-                function canQueueNextRound() {
+        function canQueueNextRound() {
           return roomId != 'global'
             && resource.data.status == 'results'
             && !resource.data.get('playerIds', []).hasAny([request.auth.uid])
