@@ -1437,7 +1437,7 @@ service cloud.firestore {
             isRoomMember(roomId)
             || (signedIn() && isLobbyParticipant(resource.data))
           );
-        allow list: if validSessionId() && isRoomMember(roomId);
+        allow list: if isRoomMember(roomId);
 
         allow create: if validSessionId()
           && isRoomMember(roomId)
