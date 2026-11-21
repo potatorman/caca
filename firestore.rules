@@ -785,11 +785,20 @@ service cloud.firestore {
               || (
                 request.resource.data.maxPlayers is int
                 && request.resource.data.maxPlayers >= 1
+                && request.resource.data.maxPlayers <= 20
               )
             )
             && (
               !request.resource.data.diff(resource.data).affectedKeys().hasAny(['gameSettings'])
-              || request.resource.data.gameSettings is map
+              || (
+                request.resource.data.gameSettings is map
+                && request.resource.data.gameSettings.keys().hasAll(['botFillEnabled', 'targetPlayerCount'])
+                && request.resource.data.gameSettings.keys().hasOnly(['botFillEnabled', 'targetPlayerCount'])
+                && request.resource.data.gameSettings.botFillEnabled is bool
+                && request.resource.data.gameSettings.targetPlayerCount is int
+                && request.resource.data.gameSettings.targetPlayerCount >= 1
+                && request.resource.data.gameSettings.targetPlayerCount <= request.resource.data.get('maxPlayers', 20)
+              )
             )
             && request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['maxPlayers', 'gameSettings', 'updatedAt'])
@@ -1435,8 +1444,34 @@ service cloud.firestore {
           && !exists(gameLobbyLockPath(request.auth.uid))
           && existsAfter(gameLobbyLockPath(request.auth.uid))
           && getAfter(gameLobbyLockPath(request.auth.uid)).data.lobbyId == sessionId
+          && request.resource.data.keys().hasOnly([
+            'hasPassword', 'sessionId', 'gameId', 'gameName', 'maxPlayers',
+            'status', 'round', 'hostId', 'playerIds', 'readyIds',
+            'matchPlayerIds', 'spectatorIds', 'nextRoundPlayerIds',
+            'nextRoundReadyIds', 'resultReturnIds', 'gameSettings',
+            'createdAt', 'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+          ])
           && request.resource.data.gameId is string
           && request.resource.data.gameName is string
+          && request.resource.data.maxPlayers is int
+          && request.resource.data.maxPlayers >= 1
+          && request.resource.data.maxPlayers <= 20
+          && (!request.resource.data.keys().hasAny(['hasPassword']) || request.resource.data.hasPassword is bool)
+          && (!request.resource.data.keys().hasAny(['sessionId']) || (
+            request.resource.data.sessionId is string
+            && request.resource.data.sessionId.size() >= 16
+            && request.resource.data.sessionId.size() <= 80
+            && request.resource.data.sessionId.matches('^[A-Za-z0-9_-]+$')
+          ))
+          && (!request.resource.data.keys().hasAny(['gameSettings']) || (
+            request.resource.data.gameSettings is map
+            && request.resource.data.gameSettings.keys().hasAll(['botFillEnabled', 'targetPlayerCount'])
+            && request.resource.data.gameSettings.keys().hasOnly(['botFillEnabled', 'targetPlayerCount'])
+            && request.resource.data.gameSettings.botFillEnabled is bool
+            && request.resource.data.gameSettings.targetPlayerCount is int
+            && request.resource.data.gameSettings.targetPlayerCount >= 1
+            && request.resource.data.gameSettings.targetPlayerCount <= request.resource.data.maxPlayers
+          ))
           && request.resource.data.status == 'lobby'
           && request.resource.data.round == 1
           && request.resource.data.hostId == request.auth.uid
@@ -1444,9 +1479,21 @@ service cloud.firestore {
           && request.resource.data.playerIds == [request.auth.uid]
           && request.resource.data.readyIds is list
           && request.resource.data.readyIds.size() == 0
+          && request.resource.data.matchPlayerIds is list
+          && request.resource.data.matchPlayerIds.size() == 0
+          && request.resource.data.spectatorIds is list
+          && request.resource.data.spectatorIds.size() == 0
+          && request.resource.data.nextRoundPlayerIds is list
+          && request.resource.data.nextRoundPlayerIds.size() == 0
+          && request.resource.data.nextRoundReadyIds is list
+          && request.resource.data.nextRoundReadyIds.size() == 0
+          && request.resource.data.resultReturnIds is list
+          && request.resource.data.resultReturnIds.size() == 0
           && request.resource.data.createdAt is timestamp
           && request.resource.data.updatedAt is timestamp
-          && request.resource.data.startedAt == null;
+          && request.resource.data.startedAt == null
+          && request.resource.data.countdownEndsAt == null
+          && request.resource.data.finishedAt == null;
 
         allow update: if validSessionId()
           && isRoomMember(roomId)
