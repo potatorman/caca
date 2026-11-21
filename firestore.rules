@@ -996,6 +996,9 @@ service cloud.firestore {
                 )
                 && onlyRemovesSelf(resource.data.get('playerIds', []), request.resource.data.get('playerIds', []))
                 && (request.auth.uid != resource.data.hostId || request.resource.data.playerIds.size() > 0)
+                && request.resource.data.round == resource.data.round
+                && request.resource.data.startedAt == resource.data.startedAt
+                && request.resource.data.finishedAt == resource.data.finishedAt
                 && onlyRemovesSelf(resource.data.get('readyIds', []), request.resource.data.get('readyIds', []))
                 && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
                 && onlyRemovesSelf(spectators(resource.data), spectators(request.resource.data))
@@ -1003,8 +1006,15 @@ service cloud.firestore {
                 && onlyRemovesSelf(resource.data.get('nextRoundReadyIds', []), request.resource.data.get('nextRoundReadyIds', []))
                 && onlyRemovesSelf(resource.data.get('resultReturnIds', []), request.resource.data.get('resultReturnIds', []))
                 && (
-                  resource.data.status != 'starting'
-                  || request.resource.data.countdownEndsAt == null
+                  (
+                    resource.data.status == 'starting'
+                    && request.resource.data.status == 'lobby'
+                    && request.resource.data.countdownEndsAt == null
+                  )
+                  || (
+                    resource.data.status != 'starting'
+                    && request.resource.data.countdownEndsAt == resource.data.get('countdownEndsAt', null)
+                  )
                 )
               )
               || (
@@ -1044,6 +1054,10 @@ service cloud.firestore {
                 && request.resource.data.status == 'lobby'
                 && request.resource.data.countdownEndsAt == null
               )
+            )
+            && (
+              request.resource.data.status != resource.data.status
+              || request.resource.data.countdownEndsAt == resource.data.get('countdownEndsAt', null)
             )
             && onlyShrinks(resource.data.get('playerIds', []), request.resource.data.get('playerIds', []))
             && onlyShrinks(resource.data.get('readyIds', []), request.resource.data.get('readyIds', []))
