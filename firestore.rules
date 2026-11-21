@@ -700,6 +700,8 @@ service cloud.firestore {
 
       // Game lobbies are shared metadata. The Cloudflare Worker owns game
       // execution; browser clients may only perform a small set of lobby actions.
+      // Game lobby metadata is shared across games. Cloudflare owns game execution;
+      // browser clients can only change their own lobby state or perform host actions.
       match /gameSessions/{sessionId} {
         function validSessionId() {
           return sessionId == 'active'
@@ -761,10 +763,6 @@ service cloud.firestore {
           return data.get('spectatorIds', []);
         }
 
-        function resultReturns(data) {
-          return data.get('resultReturnIds', []);
-        }
-
         function isLobbyParticipant(data) {
           return data.get('hostId', '') == request.auth.uid
             || data.get('playerIds', []).hasAny([request.auth.uid])
@@ -800,8 +798,8 @@ service cloud.firestore {
             && request.resource.data.updatedAt is timestamp;
         }
 
-        // A player can add or remove only their own ready flag. Unreadying
-        // during a countdown also returns the lobby to the waiting state.
+        // A player may only toggle their own ready flag. Unreadying during
+        // a countdown cancels it for everyone.
         function canToggleReady() {
           return signedIn()
             && resource.data.status in ['lobby', 'starting']
@@ -835,80 +833,128 @@ service cloud.firestore {
             && request.resource.data.updatedAt is timestamp;
         }
 
-        // Starting the countdown is allowed only after every current player is ready.
-        function canStartCountdown() {
-          return signedIn()
-            && resource.data.status == 'lobby'
-            && request.resource.data.status == 'starting'
-            && resource.data.playerIds is list
-            && resource.data.playerIds.size() > 0
-            && resource.data.readyIds is list
-            && resource.data.readyIds.hasAll(resource.data.playerIds)
-            && request.resource.data.playerIds == resource.data.playerIds
-            && request.resource.data.readyIds == resource.data.readyIds
-            && request.resource.data.hostId == resource.data.hostId
-            && request.resource.data.countdownEndsAt is timestamp
-            && request.resource.data.countdownEndsAt > request.time
-            && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['status', 'countdownEndsAt', 'updatedAt'])
-            && request.resource.data.updatedAt is timestamp;
-        }
-
-        // Any room member may complete an expired countdown; no lobby roster
-        // or game settings can be changed as part of that transition.
-        function canCompleteCountdown() {
-          return signedIn()
-            && resource.data.status == 'starting'
-            && resource.data.countdownEndsAt is timestamp
-            && request.time >= resource.data.countdownEndsAt
-            && request.resource.data.status == 'playing'
-            && request.resource.data.playerIds == resource.data.playerIds
-            && request.resource.data.matchPlayerIds == resource.data.playerIds
-            && request.resource.data.readyIds is list
-            && request.resource.data.readyIds.size() == 0
-            && request.resource.data.spectatorIds is list
-            && request.resource.data.spectatorIds.size() == 0
-            && request.resource.data.startedAt is timestamp
-            && request.resource.data.countdownEndsAt == null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status', 'matchPlayerIds', 'spectatorIds', 'readyIds',
-              'nextRoundPlayerIds', 'nextRoundReadyIds',
-              'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
-            ])
-            && request.resource.data.updatedAt is timestamp;
-        }
-
-        function canCancelExpiredCountdown() {
-          return signedIn()
-            && resource.data.status == 'starting'
-            && resource.data.countdownEndsAt is timestamp
-            && request.time >= resource.data.countdownEndsAt
-            && resource.data.playerIds is list
-            && resource.data.readyIds is list
-            && !resource.data.readyIds.hasAll(resource.data.playerIds)
-            && request.resource.data.status == 'lobby'
-            && request.resource.data.playerIds == resource.data.playerIds
-            && request.resource.data.readyIds == resource.data.readyIds
-            && request.resource.data.hostId == resource.data.hostId
-            && request.resource.data.countdownEndsAt == null
-            && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['status', 'countdownEndsAt', 'updatedAt'])
-            && request.resource.data.updatedAt is timestamp;
-        }
-
-        function canJoinAsSpectator() {
-          return signedIn()
-            && resource.data.status == 'playing'
-            && !resource.data.get('playerIds', []).hasAny([request.auth.uid])
-            && !matchPlayers(resource.data).hasAny([request.auth.uid])
-            && !spectators(resource.data).hasAny([request.auth.uid])
-            && onlyAddsSelf(spectators(resource.data), spectators(request.resource.data))
-            && request.resource.data.playerIds == resource.data.playerIds
-            && request.resource.data.get('readyIds', []) == resource.data.get('readyIds', [])
-            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
-            && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['spectatorIds', 'updatedAt'])
-            && request.resource.data.updatedAt is timestamp;
+        // Shared lifecycle rules: start, complete/cancel a countdown, finish,
+        // and reset a round. No game IDs or per-game player limits are embedded here.
+        function canChangeLifecycle() {
+          return signedIn() && (
+            (
+              resource.data.status == 'lobby'
+              && request.resource.data.status == 'starting'
+              && resource.data.playerIds is list
+              && resource.data.playerIds.size() > 0
+              && resource.data.readyIds is list
+              && resource.data.readyIds.hasAll(resource.data.playerIds)
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.countdownEndsAt is timestamp
+              && request.resource.data.countdownEndsAt > request.time
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'countdownEndsAt', 'updatedAt'])
+            )
+            || (
+              resource.data.status == 'starting'
+              && request.resource.data.status == 'playing'
+              && resource.data.countdownEndsAt is timestamp
+              && request.time >= resource.data.countdownEndsAt
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.matchPlayerIds == resource.data.playerIds
+              && request.resource.data.readyIds is list
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.spectatorIds is list
+              && request.resource.data.spectatorIds.size() == 0
+              && request.resource.data.startedAt is timestamp
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'matchPlayerIds', 'spectatorIds', 'readyIds',
+                'nextRoundPlayerIds', 'nextRoundReadyIds',
+                'startedAt', 'countdownEndsAt', 'finishedAt', 'updatedAt'
+              ])
+            )
+            || (
+              resource.data.status == 'starting'
+              && request.resource.data.status == 'lobby'
+              && resource.data.countdownEndsAt is timestamp
+              && request.time >= resource.data.countdownEndsAt
+              && resource.data.playerIds is list
+              && resource.data.readyIds is list
+              && !resource.data.readyIds.hasAll(resource.data.playerIds)
+              && request.resource.data.playerIds == resource.data.playerIds
+              && request.resource.data.readyIds == resource.data.readyIds
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'countdownEndsAt', 'updatedAt'])
+            )
+            || (
+              (
+                request.auth.uid == resource.data.hostId
+                || isRoomOwner(roomId)
+                || isActiveRoomAdmin(roomId)
+              )
+              && resource.data.status == 'playing'
+              && request.resource.data.status == 'results'
+              && request.resource.data.playerIds is list
+              && resource.data.playerIds is list
+              && spectators(resource.data) is list
+              && request.resource.data.playerIds.hasAll(resource.data.playerIds)
+              && request.resource.data.playerIds.hasAll(spectators(resource.data))
+              && request.resource.data.playerIds.size()
+                == resource.data.playerIds.size() + spectators(resource.data).size()
+              && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+              && request.resource.data.spectatorIds is list
+              && request.resource.data.spectatorIds.size() == 0
+              && request.resource.data.readyIds is list
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.nextRoundPlayerIds is list
+              && request.resource.data.nextRoundPlayerIds.size() == 0
+              && request.resource.data.nextRoundReadyIds is list
+              && request.resource.data.nextRoundReadyIds.size() == 0
+              && request.resource.data.finishedAt is timestamp
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'playerIds', 'readyIds', 'matchPlayerIds',
+                'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
+                'finishedAt', 'updatedAt'
+              ])
+            )
+            || (
+              resource.data.status == 'results'
+              && request.resource.data.status == 'lobby'
+              && resource.data.finishedAt is timestamp
+              && request.time >= resource.data.finishedAt + duration.value(5, 's')
+              && request.resource.data.playerIds is list
+              && request.resource.data.playerIds.toSet()
+                == resource.data.get('playerIds', [])
+                  .concat(spectators(resource.data))
+                  .concat(resource.data.get('nextRoundPlayerIds', []))
+                  .toSet()
+              && request.resource.data.playerIds.size()
+                == request.resource.data.playerIds.toSet().size()
+              && request.resource.data.hostId == resource.data.hostId
+              && request.resource.data.readyIds is list
+              && request.resource.data.readyIds.size() == 0
+              && request.resource.data.matchPlayerIds is list
+              && request.resource.data.matchPlayerIds.size() == 0
+              && request.resource.data.spectatorIds is list
+              && request.resource.data.spectatorIds.size() == 0
+              && request.resource.data.nextRoundPlayerIds is list
+              && request.resource.data.nextRoundPlayerIds.size() == 0
+              && request.resource.data.nextRoundReadyIds is list
+              && request.resource.data.nextRoundReadyIds.size() == 0
+              && request.resource.data.resultReturnIds is list
+              && request.resource.data.resultReturnIds.size() == 0
+              && request.resource.data.round == resource.data.round + 1
+              && request.resource.data.startedAt == null
+              && request.resource.data.countdownEndsAt == null
+              && request.resource.data.finishedAt == null
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'round', 'playerIds', 'readyIds', 'matchPlayerIds',
+                'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
+                'resultReturnIds', 'startedAt', 'countdownEndsAt',
+                'finishedAt', 'updatedAt'
+              ])
+            )
+          ) && request.resource.data.updatedAt is timestamp;
         }
 
         function canChangeHostAfterLeaving() {
@@ -921,10 +967,71 @@ service cloud.firestore {
             );
         }
 
-        function canLeaveNormally() {
+        // A participant can leave by removing only their own UID from lobby lists.
+        // The last match player may reset an otherwise empty round.
+        function canLeaveSelf() {
           return signedIn()
             && isLobbyParticipant(resource.data)
             && resource.data.status in ['lobby', 'starting', 'playing', 'results']
+            && canChangeHostAfterLeaving()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'hostId', 'status', 'round', 'countdownEndsAt', 'playerIds',
+              'readyIds', 'matchPlayerIds', 'spectatorIds', 'nextRoundPlayerIds',
+              'nextRoundReadyIds', 'resultReturnIds', 'startedAt', 'finishedAt',
+              'updatedAt'
+            ])
+            && request.resource.data.updatedAt is timestamp
+            && (
+              (
+                (
+                  request.resource.data.status == resource.data.status
+                  || (
+                    resource.data.status == 'starting'
+                    && request.resource.data.status == 'lobby'
+                    && request.resource.data.countdownEndsAt == null
+                  )
+                )
+                && onlyRemovesSelf(resource.data.get('playerIds', []), request.resource.data.get('playerIds', []))
+                && onlyRemovesSelf(resource.data.get('readyIds', []), request.resource.data.get('readyIds', []))
+                && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
+                && onlyRemovesSelf(spectators(resource.data), spectators(request.resource.data))
+                && onlyRemovesSelf(resource.data.get('nextRoundPlayerIds', []), request.resource.data.get('nextRoundPlayerIds', []))
+                && onlyRemovesSelf(resource.data.get('nextRoundReadyIds', []), request.resource.data.get('nextRoundReadyIds', []))
+                && onlyRemovesSelf(resource.data.get('resultReturnIds', []), request.resource.data.get('resultReturnIds', []))
+                && (
+                  resource.data.status != 'starting'
+                  || request.resource.data.countdownEndsAt == null
+                )
+              )
+              || (
+                resource.data.status == 'playing'
+                && request.resource.data.status == 'lobby'
+                && matchPlayers(resource.data).size() == 1
+                && matchPlayers(resource.data).hasAny([request.auth.uid])
+                && onlyRemovesSelf(resource.data.get('playerIds', []), request.resource.data.get('playerIds', []))
+                && request.resource.data.playerIds is list
+                && request.resource.data.playerIds.size() > 0
+                && request.resource.data.matchPlayerIds is list
+                && request.resource.data.matchPlayerIds.size() == 0
+                && request.resource.data.readyIds is list
+                && request.resource.data.readyIds.size() == 0
+                && request.resource.data.spectatorIds is list
+                && request.resource.data.spectatorIds.size() == 0
+                && request.resource.data.nextRoundPlayerIds is list
+                && request.resource.data.nextRoundPlayerIds.size() == 0
+                && request.resource.data.nextRoundReadyIds is list
+                && request.resource.data.nextRoundReadyIds.size() == 0
+                && request.resource.data.round == resource.data.round + 1
+                && request.resource.data.startedAt == null
+                && request.resource.data.countdownEndsAt == null
+                && request.resource.data.finishedAt == null
+              )
+            );
+        }
+
+        // Only room owners/admins may remove someone other than themselves.
+        function canModerateRoster() {
+          return (isRoomOwner(roomId) || isActiveRoomAdmin(roomId))
             && (
               request.resource.data.status == resource.data.status
               || (
@@ -933,32 +1040,21 @@ service cloud.firestore {
                 && request.resource.data.countdownEndsAt == null
               )
             )
-            && onlyRemovesSelf(
-              resource.data.get('playerIds', []),
-              request.resource.data.get('playerIds', [])
-            )
-            && onlyRemovesSelf(
-              resource.data.get('readyIds', []),
-              request.resource.data.get('readyIds', [])
-            )
-            && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
-            && onlyRemovesSelf(spectators(resource.data), spectators(request.resource.data))
-            && onlyRemovesSelf(
-              resource.data.get('nextRoundPlayerIds', []),
-              request.resource.data.get('nextRoundPlayerIds', [])
-            )
-            && onlyRemovesSelf(
-              resource.data.get('nextRoundReadyIds', []),
-              request.resource.data.get('nextRoundReadyIds', [])
-            )
-            && onlyRemovesSelf(
-              resultReturns(resource.data),
-              resultReturns(request.resource.data)
-            )
-            && canChangeHostAfterLeaving()
+            && onlyShrinks(resource.data.get('playerIds', []), request.resource.data.get('playerIds', []))
+            && onlyShrinks(resource.data.get('readyIds', []), request.resource.data.get('readyIds', []))
+            && onlyShrinks(matchPlayers(resource.data), matchPlayers(request.resource.data))
+            && onlyShrinks(spectators(resource.data), spectators(request.resource.data))
+            && onlyShrinks(resource.data.get('nextRoundPlayerIds', []), request.resource.data.get('nextRoundPlayerIds', []))
+            && onlyShrinks(resource.data.get('nextRoundReadyIds', []), request.resource.data.get('nextRoundReadyIds', []))
+            && onlyShrinks(resource.data.get('resultReturnIds', []), request.resource.data.get('resultReturnIds', []))
             && (
-              resource.data.status != 'starting'
-              || request.resource.data.countdownEndsAt == null
+              request.resource.data.hostId == resource.data.hostId
+              || (
+                !request.resource.data.playerIds.hasAny([resource.data.hostId])
+                && request.resource.data.playerIds is list
+                && request.resource.data.playerIds.size() > 0
+                && request.resource.data.hostId == request.resource.data.playerIds[0]
+              )
             )
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'hostId', 'status', 'countdownEndsAt', 'playerIds', 'readyIds',
@@ -967,238 +1063,32 @@ service cloud.firestore {
             ])
             && request.resource.data.updatedAt is timestamp
             && (
-              request.resource.data.playerIds != resource.data.get('playerIds', [])
-              || request.resource.data.readyIds != resource.data.get('readyIds', [])
-              || matchPlayers(request.resource.data) != matchPlayers(resource.data)
-              || spectators(request.resource.data) != spectators(resource.data)
-              || request.resource.data.get('nextRoundPlayerIds', []) != resource.data.get('nextRoundPlayerIds', [])
-              || request.resource.data.get('nextRoundReadyIds', []) != resource.data.get('nextRoundReadyIds', [])
-              || resultReturns(request.resource.data) != resultReturns(resource.data)
-              || request.resource.data.hostId != resource.data.hostId
+              request.resource.data.hostId != resource.data.hostId
               || request.resource.data.status != resource.data.status
+              || request.resource.data.playerIds.size() < resource.data.playerIds.size()
+              || request.resource.data.readyIds.size() < resource.data.readyIds.size()
+              || matchPlayers(request.resource.data).size() < matchPlayers(resource.data).size()
+              || spectators(request.resource.data).size() < spectators(resource.data).size()
+              || request.resource.data.get('nextRoundPlayerIds', []).size() < resource.data.get('nextRoundPlayerIds', []).size()
+              || request.resource.data.get('nextRoundReadyIds', []).size() < resource.data.get('nextRoundReadyIds', []).size()
+              || request.resource.data.get('resultReturnIds', []).size() < resource.data.get('resultReturnIds', []).size()
             );
         }
 
-        // If the final active match player leaves, reset the lobby for a new round.
-        function canResetAfterLastPlayerLeaves() {
+        function canJoinAsSpectator() {
           return signedIn()
-            && isLobbyParticipant(resource.data)
             && resource.data.status == 'playing'
-            && request.resource.data.status == 'lobby'
-            && matchPlayers(resource.data) is list
-            && matchPlayers(resource.data).size() == 1
-            && matchPlayers(resource.data).hasAny([request.auth.uid])
-            && onlyRemovesSelf(
-              resource.data.get('playerIds', []),
-              request.resource.data.get('playerIds', [])
-            )
-            && request.resource.data.playerIds is list
-            && request.resource.data.playerIds.size() >= 1
-            && canChangeHostAfterLeaving()
-            && request.resource.data.matchPlayerIds is list
-            && request.resource.data.matchPlayerIds.size() == 0
-            && request.resource.data.readyIds is list
-            && request.resource.data.readyIds.size() == 0
-            && request.resource.data.spectatorIds is list
-            && request.resource.data.spectatorIds.size() == 0
-            && request.resource.data.nextRoundPlayerIds is list
-            && request.resource.data.nextRoundPlayerIds.size() == 0
-            && request.resource.data.nextRoundReadyIds is list
-            && request.resource.data.nextRoundReadyIds.size() == 0
-            && request.resource.data.round == resource.data.round + 1
-            && request.resource.data.startedAt == null
-            && request.resource.data.countdownEndsAt == null
-            && request.resource.data.finishedAt == null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status', 'round', 'hostId', 'playerIds', 'readyIds',
-              'matchPlayerIds', 'spectatorIds', 'nextRoundPlayerIds',
-              'nextRoundReadyIds', 'startedAt', 'countdownEndsAt',
-              'finishedAt', 'updatedAt'
-            ])
-            && request.resource.data.updatedAt is timestamp;
-        }
-
-        function canModerateRoster() {
-          return isRoomOwner(roomId) || isActiveRoomAdmin(roomId)
-            ? (
-              (
-                request.resource.data.status == resource.data.status
-                || (
-                  resource.data.status == 'starting'
-                  && request.resource.data.status == 'lobby'
-                  && request.resource.data.countdownEndsAt == null
-                )
-              )
-              && onlyShrinks(
-                resource.data.get('playerIds', []),
-                request.resource.data.get('playerIds', [])
-              )
-              && onlyShrinks(
-                resource.data.get('readyIds', []),
-                request.resource.data.get('readyIds', [])
-              )
-              && onlyShrinks(matchPlayers(resource.data), matchPlayers(request.resource.data))
-              && onlyShrinks(spectators(resource.data), spectators(request.resource.data))
-              && onlyShrinks(
-                resource.data.get('nextRoundPlayerIds', []),
-                request.resource.data.get('nextRoundPlayerIds', [])
-              )
-              && onlyShrinks(
-                resource.data.get('nextRoundReadyIds', []),
-                request.resource.data.get('nextRoundReadyIds', [])
-              )
-              && onlyShrinks(resultReturns(resource.data), resultReturns(request.resource.data))
-              && (
-                request.resource.data.hostId == resource.data.hostId
-                || (
-                  !request.resource.data.playerIds.hasAny([resource.data.hostId])
-                  && request.resource.data.playerIds is list
-                  && request.resource.data.playerIds.size() > 0
-                  && request.resource.data.hostId == request.resource.data.playerIds[0]
-                )
-              )
-              && (
-                resource.data.status != 'starting'
-                || request.resource.data.status != 'lobby'
-                || request.resource.data.countdownEndsAt == null
-              )
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'hostId', 'status', 'countdownEndsAt', 'playerIds', 'readyIds',
-                'matchPlayerIds', 'spectatorIds', 'nextRoundPlayerIds',
-                'nextRoundReadyIds', 'resultReturnIds', 'updatedAt'
-              ])
-              && request.resource.data.updatedAt is timestamp
-              && (
-                request.resource.data.hostId != resource.data.hostId
-                || request.resource.data.status != resource.data.status
-                || request.resource.data.playerIds.size() < resource.data.playerIds.size()
-                || request.resource.data.readyIds.size() < resource.data.readyIds.size()
-                || matchPlayers(request.resource.data).size() < matchPlayers(resource.data).size()
-                || spectators(request.resource.data).size() < spectators(resource.data).size()
-                || request.resource.data.get('nextRoundPlayerIds', []).size() < resource.data.get('nextRoundPlayerIds', []).size()
-                || request.resource.data.get('nextRoundReadyIds', []).size() < resource.data.get('nextRoundReadyIds', []).size()
-                || resultReturns(request.resource.data).size() < resultReturns(resource.data).size()
-              )
-            )
-            : false;
-        }
-
-        function canFinishMatch() {
-          return signedIn()
-            && (
-              request.auth.uid == resource.data.hostId
-              || isRoomOwner(roomId)
-              || isActiveRoomAdmin(roomId)
-            )
-            && resource.data.status == 'playing'
-            && request.resource.data.status == 'results'
-            && request.resource.data.playerIds is list
-            && resource.data.playerIds is list
-            && spectators(resource.data) is list
-            && request.resource.data.playerIds.hasAll(resource.data.playerIds)
-            && request.resource.data.playerIds.hasAll(spectators(resource.data))
-            && request.resource.data.playerIds.size()
-              == resource.data.playerIds.size() + spectators(resource.data).size()
-            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
-            && request.resource.data.spectatorIds is list
-            && request.resource.data.spectatorIds.size() == 0
-            && request.resource.data.readyIds is list
-            && request.resource.data.readyIds.size() == 0
-            && request.resource.data.nextRoundPlayerIds is list
-            && request.resource.data.nextRoundPlayerIds.size() == 0
-            && request.resource.data.nextRoundReadyIds is list
-            && request.resource.data.nextRoundReadyIds.size() == 0
-            && request.resource.data.finishedAt is timestamp
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status', 'playerIds', 'readyIds', 'matchPlayerIds',
-              'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
-              'finishedAt', 'updatedAt'
-            ])
-            && request.resource.data.updatedAt is timestamp;
-        }
-
-        function canResetResults() {
-          return signedIn()
-            && resource.data.status == 'results'
-            && request.resource.data.status == 'lobby'
-            && resource.data.finishedAt is timestamp
-            && request.time >= resource.data.finishedAt + duration.value(5, 's')
-            && request.resource.data.playerIds is list
-            && request.resource.data.playerIds.toSet()
-              == resource.data.get('playerIds', [])
-                .concat(spectators(resource.data))
-                .concat(resource.data.get('nextRoundPlayerIds', []))
-                .toSet()
-            && request.resource.data.playerIds.size()
-              == request.resource.data.playerIds.toSet().size()
-            && request.resource.data.hostId == resource.data.hostId
-            && request.resource.data.readyIds is list
-            && request.resource.data.readyIds.size() == 0
-            && request.resource.data.matchPlayerIds is list
-            && request.resource.data.matchPlayerIds.size() == 0
-            && request.resource.data.spectatorIds is list
-            && request.resource.data.spectatorIds.size() == 0
-            && request.resource.data.nextRoundPlayerIds is list
-            && request.resource.data.nextRoundPlayerIds.size() == 0
-            && request.resource.data.nextRoundReadyIds is list
-            && request.resource.data.nextRoundReadyIds.size() == 0
-            && request.resource.data.resultReturnIds is list
-            && request.resource.data.resultReturnIds.size() == 0
-            && request.resource.data.round == resource.data.round + 1
-            && request.resource.data.startedAt == null
-            && request.resource.data.countdownEndsAt == null
-            && request.resource.data.finishedAt == null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status', 'round', 'playerIds', 'readyIds', 'matchPlayerIds',
-              'spectatorIds', 'nextRoundPlayerIds', 'nextRoundReadyIds',
-              'resultReturnIds', 'startedAt', 'countdownEndsAt',
-              'finishedAt', 'updatedAt'
-            ])
-            && request.resource.data.updatedAt is timestamp;
-        }
-
-        // Retain support for older room-scoped lobbies and their direct joins.
-        function canJoinLegacyLobby() {
-          return roomId != 'global'
-            && signedIn()
-            && resource.data.status == 'lobby'
-            && request.resource.data.status == 'lobby'
-            && !resource.data.get('playerIds', []).hasAny([request.auth.uid])
-            && onlyAddsSelf(
-              resource.data.get('playerIds', []),
-              request.resource.data.get('playerIds', [])
-            )
-            && request.resource.data.readyIds == resource.data.readyIds
-            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
-            && spectators(request.resource.data) == spectators(resource.data)
-            && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['playerIds', 'readyIds', 'updatedAt'])
-            && request.resource.data.updatedAt is timestamp;
-        }
-
-        // Older UNO room lobbies allowed a player to queue for the next round.
-        function canQueueNextRound() {
-          return roomId != 'global'
-            && resource.data.status == 'results'
-            && !resource.data.get('playerIds', []).hasAny([request.auth.uid])
+            && !resource.data.playerIds.hasAny([request.auth.uid])
+            && !matchPlayers(resource.data).hasAny([request.auth.uid])
             && !spectators(resource.data).hasAny([request.auth.uid])
-            && onlyAddsSelf(
-              resource.data.get('nextRoundPlayerIds', []),
-              request.resource.data.get('nextRoundPlayerIds', [])
-            )
+            && onlyAddsSelf(spectators(resource.data), spectators(request.resource.data))
             && request.resource.data.playerIds == resource.data.playerIds
-            && request.resource.data.readyIds == resource.data.readyIds
+            && request.resource.data.get('readyIds', []) == resource.data.get('readyIds', [])
             && matchPlayers(request.resource.data) == matchPlayers(resource.data)
-            && spectators(request.resource.data) == spectators(resource.data)
-            && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
-            && request.resource.data.finishedAt == resource.data.finishedAt
-            && request.resource.data.hostId == resource.data.hostId
-            && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['nextRoundPlayerIds', 'updatedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spectatorIds', 'updatedAt'])
             && request.resource.data.updatedAt is timestamp;
         }
 
-        // A host may attach a one-time worker session identifier to an older lobby.
         function canMigrateSessionIdentity() {
           return signedIn()
             && request.auth.uid == resource.data.hostId
@@ -1207,8 +1097,7 @@ service cloud.firestore {
             && request.resource.data.sessionId.size() >= 16
             && request.resource.data.sessionId.size() <= 80
             && request.resource.data.sessionId.matches('^[A-Za-z0-9_-]+$')
-            && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['sessionId', 'updatedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sessionId', 'updatedAt'])
             && request.resource.data.updatedAt is timestamp;
         }
 
@@ -1474,6 +1363,8 @@ service cloud.firestore {
         }
 
 
+
+
         allow get: if validSessionId()
           && (
             isRoomMember(roomId)
@@ -1507,17 +1398,10 @@ service cloud.firestore {
           && (
             canEditLobbySettings()
             || canToggleReady()
-            || canStartCountdown()
-            || canCompleteCountdown()
-            || canCancelExpiredCountdown()
-            || canJoinAsSpectator()
-            || canLeaveNormally()
-            || canResetAfterLastPlayerLeaves()
+            || canChangeLifecycle()
+            || canLeaveSelf()
             || canModerateRoster()
-            || canFinishMatch()
-            || canResetResults()
-            || canJoinLegacyLobby()
-            || canQueueNextRound()
+            || canJoinAsSpectator()
             || canMigrateSessionIdentity()
             || canBeginUnoResultReturn()
             || canAcknowledgeUnoResultReturn()
