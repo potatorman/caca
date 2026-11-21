@@ -855,6 +855,8 @@ service cloud.firestore {
             || (
               resource.data.status == 'starting'
               && request.resource.data.status == 'playing'
+              && resource.data.readyIds is list
+              && resource.data.readyIds.hasAll(resource.data.playerIds)
               && resource.data.countdownEndsAt is timestamp
               && request.time >= resource.data.countdownEndsAt
               && request.resource.data.playerIds == resource.data.playerIds
@@ -892,6 +894,7 @@ service cloud.firestore {
                 || isRoomOwner(roomId)
                 || isActiveRoomAdmin(roomId)
               )
+              && resource.data.gameId != 'uno'
               && resource.data.status == 'playing'
               && request.resource.data.status == 'results'
               && request.resource.data.playerIds is list
@@ -918,7 +921,8 @@ service cloud.firestore {
               ])
             )
             || (
-              resource.data.status == 'results'
+              resource.data.gameId != 'uno'
+              && resource.data.status == 'results'
               && request.resource.data.status == 'lobby'
               && resource.data.finishedAt is timestamp
               && request.time >= resource.data.finishedAt + duration.value(5, 's')
@@ -973,6 +977,7 @@ service cloud.firestore {
           return signedIn()
             && isLobbyParticipant(resource.data)
             && resource.data.status in ['lobby', 'starting', 'playing', 'results']
+            && !(resource.data.gameId == 'uno' && resource.data.status == 'playing')
             && canChangeHostAfterLeaving()
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'hostId', 'status', 'round', 'countdownEndsAt', 'playerIds',
@@ -992,6 +997,7 @@ service cloud.firestore {
                   )
                 )
                 && onlyRemovesSelf(resource.data.get('playerIds', []), request.resource.data.get('playerIds', []))
+                && (request.auth.uid != resource.data.hostId || request.resource.data.playerIds.size() > 0)
                 && onlyRemovesSelf(resource.data.get('readyIds', []), request.resource.data.get('readyIds', []))
                 && onlyRemovesSelf(matchPlayers(resource.data), matchPlayers(request.resource.data))
                 && onlyRemovesSelf(spectators(resource.data), spectators(request.resource.data))
@@ -1004,7 +1010,8 @@ service cloud.firestore {
                 )
               )
               || (
-                resource.data.status == 'playing'
+                resource.data.gameId != 'uno'
+                && resource.data.status == 'playing'
                 && request.resource.data.status == 'lobby'
                 && matchPlayers(resource.data).size() == 1
                 && matchPlayers(resource.data).hasAny([request.auth.uid])
@@ -1086,6 +1093,45 @@ service cloud.firestore {
             && request.resource.data.get('readyIds', []) == resource.data.get('readyIds', [])
             && matchPlayers(request.resource.data) == matchPlayers(resource.data)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spectatorIds', 'updatedAt'])
+            && request.resource.data.updatedAt is timestamp;
+        }
+
+        function canJoinLegacyLobby() {
+          return roomId != 'global'
+            && signedIn()
+            && resource.data.status == 'lobby'
+            && request.resource.data.status == 'lobby'
+            && !resource.data.get('playerIds', []).hasAny([request.auth.uid])
+            && onlyAddsSelf(
+              resource.data.get('playerIds', []),
+              request.resource.data.get('playerIds', [])
+            )
+            && request.resource.data.readyIds == resource.data.readyIds
+            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+            && spectators(request.resource.data) == spectators(resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['playerIds', 'readyIds', 'updatedAt'])
+            && request.resource.data.updatedAt is timestamp;
+        }
+
+                function canQueueNextRound() {
+          return roomId != 'global'
+            && resource.data.status == 'results'
+            && !resource.data.get('playerIds', []).hasAny([request.auth.uid])
+            && !spectators(resource.data).hasAny([request.auth.uid])
+            && onlyAddsSelf(
+              resource.data.get('nextRoundPlayerIds', []),
+              request.resource.data.get('nextRoundPlayerIds', [])
+            )
+            && request.resource.data.playerIds == resource.data.playerIds
+            && request.resource.data.readyIds == resource.data.readyIds
+            && matchPlayers(request.resource.data) == matchPlayers(resource.data)
+            && spectators(request.resource.data) == spectators(resource.data)
+            && request.resource.data.nextRoundReadyIds == resource.data.nextRoundReadyIds
+            && request.resource.data.finishedAt == resource.data.finishedAt
+            && request.resource.data.hostId == resource.data.hostId
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['nextRoundPlayerIds', 'updatedAt'])
             && request.resource.data.updatedAt is timestamp;
         }
 
@@ -1402,6 +1448,8 @@ service cloud.firestore {
             || canLeaveSelf()
             || canModerateRoster()
             || canJoinAsSpectator()
+            || canJoinLegacyLobby()
+            || canQueueNextRound()
             || canMigrateSessionIdentity()
             || canBeginUnoResultReturn()
             || canAcknowledgeUnoResultReturn()
