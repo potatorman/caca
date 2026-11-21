@@ -18,9 +18,9 @@ const CARD_NAMES = Object.freeze({
 
 const labelCard = (card) => CARD_NAMES[card?.type] || String(card?.value ?? "");
 const memberOf = (id, members) => members.find((member) => member.id === id) || null;
-const labelPlayer = (id, members, myId) => {
+const labelPlayer = (id, members, myId, botNames = {}) => {
     const member = memberOf(id, members);
-    const name = member?.displayNickname || member?.username || "Oyuncu";
+    const name = botNames?.[id] || member?.displayNickname || member?.username || "Oyuncu";
     return id === myId ? name + " · Sen" : name;
 };
 const errorMessage = (error, fallback) => {
@@ -159,12 +159,13 @@ export async function openUnoGame({
 
             const avatar = document.createElement("span");
             avatar.className = "uno-avatar";
-            setAvatarElement(avatar, member?.avatarId, member?.avatarData);
+            if (state.botNames?.[id]) avatar.textContent = "🤖";
+            else setAvatarElement(avatar, member?.avatarId, member?.avatarData);
 
             const details = document.createElement("span");
             details.className = "uno-player-details";
             const name = document.createElement("strong");
-            name.textContent = labelPlayer(id, members, uid);
+            name.textContent = labelPlayer(id, members, uid, state?.botNames);
             const count = document.createElement("small");
             count.textContent = active
                 ? (Number(state.handCounts?.[id]) || 0) + " kart"
@@ -227,7 +228,7 @@ export async function openUnoGame({
     function renderResult() {
         const winnerId = state?.winnerId;
         role("winner").textContent = winnerId
-            ? labelPlayer(winnerId, members, uid) + " kazandı!"
+            ? labelPlayer(winnerId, members, uid, state?.botNames) + " kazandı!"
             : "Maç tamamlandı";
 
         const scores = role("result-scores");
@@ -237,7 +238,7 @@ export async function openUnoGame({
             const row = document.createElement("div");
             row.className = "uno-result-row";
             const name = document.createElement("span");
-            name.textContent = labelPlayer(id, members, uid);
+            name.textContent = labelPlayer(id, members, uid, state?.botNames);
             const count = document.createElement("strong");
             count.textContent = (Number(state.handCounts?.[id]) || 0) + " kart";
             row.append(name, count);
@@ -255,7 +256,7 @@ export async function openUnoGame({
         const myTurn = playing && state.currentPlayerUid === uid;
         role("turn").textContent = myTurn
             ? "SIRA SENDE"
-            : "Sıra: " + labelPlayer(state.currentPlayerUid, members, uid);
+            : "Sıra: " + labelPlayer(state.currentPlayerUid, members, uid, state?.botNames);
         role("active-color").textContent = "Aktif renk: " + (COLORS[state.activeColor] || "—");
         role("active-color").className = "uno-active-color is-" + (state.activeColor || "none");
         role("direction").textContent = "Yön: " + (state.direction === -1 ? "←" : "→");
@@ -472,7 +473,7 @@ export async function openUnoGame({
     action("catch").addEventListener("click", () => {
         void perform(async () => {
             const result = await connection.request("catchUno");
-            return labelPlayer(result.targetUid, members, uid) +
+            return labelPlayer(result.targetUid, members, uid, state?.botNames) +
                 " UNO demedi: " + result.count + " kart çekti.";
         }).then((message) => {
             if (typeof message === "string") setMessage(message);

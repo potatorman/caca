@@ -230,7 +230,11 @@ async function manageLobby(request, env, origin) {
         const field = lobby.status === "results" ? "nextRoundPlayerIds" : "playerIds";
         const existing = Array.isArray(lobby[field]) ? lobby[field] : [];
         const occupied = (lobby.playerIds || []).length + (lobby.spectatorIds || []).length + (lobby.nextRoundPlayerIds || []).length;
-        const max = Number(lobby.maxPlayers) || 10;
+        const configuredMax = Number(lobby.maxPlayers) || (lobby.gameId === "starfall" ? 8 : lobby.gameId === "vampir-koylu" ? 12 : 10);
+        const botSettings = lobby.gameSettings || {};
+        const max = botSettings.botFillEnabled === true
+            ? Math.min(configuredMax, Number(botSettings.targetPlayerCount) || configuredMax)
+            : configuredMax;
         if (occupied >= max) return json({ error: "Lobi dolu." }, 409, origin);
         await patchFirestoreDocument(env, path, { [field]: [...existing, user.uid], updatedAt: new Date().toISOString() });
         return json({ ok: true, joined: true }, 200, origin);
@@ -874,7 +878,14 @@ export default {
 
         try {
             if (url.pathname === "/health" && request.method === "GET") {
-                return json({ ok: true, service: "caca-uno", version: 4, games: ["uno", "vampir-koylu", "starfall"], privateGameDownloads: true }, 200, origin);
+                return json({
+                    ok: true,
+                    service: "caca-uno",
+                    version: 5,
+                    games: ["uno", "vampir-koylu", "starfall"],
+                    botFillGames: ["uno", "vampir-koylu", "starfall"],
+                    privateGameDownloads: true
+                }, 200, origin);
             }
 
             if (url.pathname === "/api/lobby/manage" && request.method === "POST") {

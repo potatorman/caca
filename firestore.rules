@@ -934,27 +934,35 @@ service cloud.firestore {
             : [];
         }
 
-        function validVampirGameSettings(settings) {
+        function validGameBotSettings(gameId, settings) {
           return settings is map
             && settings.keys().hasAll(['botFillEnabled', 'targetPlayerCount'])
             && settings.keys().hasOnly(['botFillEnabled', 'targetPlayerCount'])
             && settings.botFillEnabled is bool
             && settings.targetPlayerCount is int
-            && settings.targetPlayerCount >= 5
-            && settings.targetPlayerCount <= 12;
+            && settings.targetPlayerCount >= (gameId == 'vampir-koylu' ? 5 : 2)
+            && settings.targetPlayerCount <= (gameId == 'uno' ? 10 : (gameId == 'starfall' ? 8 : 12));
         }
 
-        function vampirBotFillEnabled(data) {
+        function gameBotFillEnabled(data) {
           return data.keys().hasAny(['gameSettings'])
             && data.gameSettings is map
             && data.gameSettings.botFillEnabled == true;
         }
 
-        function vampirTargetPlayerCount(data) {
+        function gameBotTargetPlayerCount(data) {
           return data.keys().hasAny(['gameSettings'])
             && data.gameSettings is map
             ? data.gameSettings.targetPlayerCount
-            : 5;
+            : (data.gameId == 'vampir-koylu' ? 5 : 2);
+        }
+
+        function minGamePlayerCount(gameId) {
+          return gameId == 'vampir-koylu' ? 5 : 2;
+        }
+
+        function maxGamePlayerCount(gameId) {
+          return gameId == 'uno' ? 10 : (gameId == 'vampir-koylu' ? 12 : (gameId == 'starfall' ? 8 : 20));
         }
 
         function validGameSession(data) {
@@ -983,16 +991,17 @@ service cloud.firestore {
               || (
                 data.maxPlayers is int
                 && data.maxPlayers >= (data.gameId == 'vampir-koylu' ? 5 : 2)
-                && data.maxPlayers <= (data.gameId == 'uno' ? 10 : (data.gameId == 'vampir-koylu' ? 12 : 20))
+                && data.maxPlayers <= maxGamePlayerCount(data.gameId)
                 && data.playerIds.size() <= data.maxPlayers
               )
             )
             && (
-              !vampirBotFillEnabled(data)
-              || data.playerIds.size() <= vampirTargetPlayerCount(data)
+              !gameBotFillEnabled(data)
+              || data.playerIds.size() <= gameBotTargetPlayerCount(data)
             )
             && (data.gameId != 'uno' || data.playerIds.size() <= 10)
             && (data.gameId != 'vampir-koylu' || data.playerIds.size() <= 12)
+            && (data.gameId != 'starfall' || data.playerIds.size() <= 8)
             && data.readyIds is list && data.readyIds.size() <= 20
             && data.readyIds.hasOnly(data.playerIds)
             && data.nextRoundPlayerIds is list && data.nextRoundPlayerIds.size() <= 20
@@ -1017,6 +1026,7 @@ service cloud.firestore {
                 && data.matchPlayerIds.hasOnly(data.playerIds)
                 && (data.gameId != 'uno' || data.matchPlayerIds.size() <= 10)
                 && (data.gameId != 'vampir-koylu' || data.matchPlayerIds.size() <= 12)
+                && (data.gameId != 'starfall' || data.matchPlayerIds.size() <= 8)
               )
             )
             && (
@@ -1034,8 +1044,11 @@ service cloud.firestore {
             && (
               !data.keys().hasAny(['gameSettings'])
               || (
-                data.gameId == 'vampir-koylu'
-                && validVampirGameSettings(data.gameSettings)
+                data.gameId in ['uno', 'starfall', 'vampir-koylu']
+                && validGameBotSettings(data.gameId, data.gameSettings)
+                && data.gameSettings.targetPlayerCount <= (
+                  data.keys().hasAny(['maxPlayers']) ? data.maxPlayers : maxGamePlayerCount(data.gameId)
+                )
               )
             )
             && data.updatedAt is timestamp;
@@ -1346,7 +1359,7 @@ service cloud.firestore {
             || (
             // The settings write is host-only and intentionally evaluated first.
             (
-              resource.data.gameId == 'vampir-koylu'
+              resource.data.gameId in ['uno', 'starfall', 'vampir-koylu']
               && resource.data.status == 'lobby'
               && request.resource.data.status == 'lobby'
               && request.auth.uid == resource.data.hostId
@@ -1357,7 +1370,7 @@ service cloud.firestore {
                 .hasOnly(['gameSettings', 'maxPlayers', 'updatedAt'])
             )
             || (
-              resource.data.gameId != 'vampir-koylu'
+              !(resource.data.gameId in ['uno', 'starfall', 'vampir-koylu'])
               && resource.data.status == 'lobby'
               && request.resource.data.status == 'lobby'
               && request.auth.uid == resource.data.hostId
@@ -1366,7 +1379,7 @@ service cloud.firestore {
               && request.resource.data.readyIds == resource.data.readyIds
               && request.resource.data.maxPlayers is int
               && request.resource.data.maxPlayers >= (resource.data.gameId == 'vampir-koylu' ? 5 : 2)
-              && request.resource.data.maxPlayers <= (resource.data.gameId == 'uno' ? 10 : (resource.data.gameId == 'vampir-koylu' ? 12 : 20))
+              && request.resource.data.maxPlayers <= maxGamePlayerCount(resource.data.gameId)
               && request.resource.data.playerIds.size() <= request.resource.data.maxPlayers
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['maxPlayers', 'updatedAt'])
             )
@@ -1378,23 +1391,24 @@ service cloud.firestore {
               && request.resource.data.readyIds == resource.data.readyIds
               && (
                 (
-                  resource.data.gameId == 'vampir-koylu'
+                  resource.data.gameId in ['uno', 'starfall', 'vampir-koylu']
                   && (
-                    vampirBotFillEnabled(resource.data)
+                    gameBotFillEnabled(resource.data)
                     ? (
                       request.resource.data.playerIds.size() >= 1
-                      && request.resource.data.playerIds.size() <= vampirTargetPlayerCount(resource.data)
+                      && request.resource.data.playerIds.size() <= gameBotTargetPlayerCount(resource.data)
                     )
-                    : request.resource.data.playerIds.size() >= 5
+                    : request.resource.data.playerIds.size() >= minGamePlayerCount(resource.data.gameId)
                   )
-                  && request.resource.data.playerIds.size() <= 12
+                  && request.resource.data.playerIds.size() <= maxGamePlayerCount(resource.data.gameId)
                 )
                 || (
-                  resource.data.gameId != 'vampir-koylu'
+                  !(resource.data.gameId in ['uno', 'starfall', 'vampir-koylu'])
                   && request.resource.data.playerIds.size() >= 2
                 )
               )
               && (resource.data.gameId != 'uno' || request.resource.data.playerIds.size() <= 10)
+              && (resource.data.gameId != 'starfall' || request.resource.data.playerIds.size() <= 8)
               && request.resource.data.readyIds.hasAll(request.resource.data.playerIds)
               && request.resource.data.countdownEndsAt is timestamp
               && request.resource.data.diff(resource.data).affectedKeys()

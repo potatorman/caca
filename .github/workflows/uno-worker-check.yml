@@ -30,7 +30,10 @@ jobs:
           set -euo pipefail
           for file in \
             ../../games/registry.js \
+            ../../games/bot-roster.js \
             ../../games/lobby-selection.js \
+            ../../games/uno/bots.js \
+            ../../games/starfall/bots.js \
             ../../games/catalog.js \
             ../../games/catalog-admin.js \
             ../../games/uno/state.js \

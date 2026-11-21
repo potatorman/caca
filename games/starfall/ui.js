@@ -2,9 +2,9 @@ import { setAvatarElement } from "../../js/avatars.js";
 import { connectToMatch } from "./state.js";
 
 const memberOf = (id, members) => members.find((member) => member.id === id) || null;
-const playerName = (id, members, myId) => {
+const playerName = (id, members, myId, botNames = {}) => {
     const member = memberOf(id, members);
-    const name = member?.displayNickname || member?.username || "Oyuncu";
+    const name = botNames?.[id] || member?.displayNickname || member?.username || "Oyuncu";
     return id === myId ? name + " · Sen" : name;
 };
 
@@ -142,17 +142,20 @@ export async function openStarfallGame({
                 (state.currentPlayerUid === id ? " is-current" : "");
             const avatar = document.createElement("span");
             avatar.className = "starfall-avatar";
-            setAvatarElement(avatar, member?.avatarId, member?.avatarData);
+            if (state.botNames?.[id]) avatar.textContent = "🤖";
+            else setAvatarElement(avatar, member?.avatarId, member?.avatarData);
             const info = document.createElement("span");
             info.className = "starfall-player-info";
             const name = document.createElement("strong");
-            name.textContent = playerName(id, members, uid);
+            name.textContent = playerName(id, members, uid, state?.botNames);
             const detail = document.createElement("small");
             const online = state.onlineIds?.includes(id);
             const remaining = Number(state.turnsRemainingByPlayer?.[id]) || 0;
-            detail.textContent = !state.activePlayerIds.includes(id)
-                ? "Maçtan ayrıldı"
-                : (online ? "Çevrimiçi" : "Yeniden bağlanabilir") + " · " + remaining + " hamle";
+            detail.textContent = state.botNames?.[id]
+                ? "Bot · Otomatik oynuyor · " + remaining + " hamle"
+                : !state.activePlayerIds.includes(id)
+                    ? "Maçtan ayrıldı"
+                    : (online ? "Çevrimiçi" : "Yeniden bağlanabilir") + " · " + remaining + " hamle";
             info.append(name, detail);
             const score = document.createElement("strong");
             score.className = "starfall-score";
@@ -205,7 +208,7 @@ export async function openStarfallGame({
                 marker.className = "starfall-cell-owner";
                 marker.textContent = owner === uid
                     ? "SEN"
-                    : (member?.displayNickname || member?.username || "OYUNCU").slice(0, 9).toUpperCase();
+                    : (state.botNames?.[owner] || member?.displayNickname || member?.username || "OYUNCU").slice(0, 9).toUpperCase();
                 tile.appendChild(marker);
             } else if (cell.bonus) {
                 hint.textContent = "YILDIZ +3";
@@ -237,7 +240,7 @@ export async function openStarfallGame({
         const title = winners.length > 1
             ? "Beraberlik!"
             : winners.length === 1
-                ? playerName(winners[0], members, uid) + " kazandı!"
+                ? playerName(winners[0], members, uid, state?.botNames) + " kazandı!"
                 : "Maç tamamlandı";
         role("winner").textContent = title;
         role("result-hint").textContent = winners.includes(uid)
@@ -252,7 +255,7 @@ export async function openStarfallGame({
             const row = document.createElement("div");
             row.className = "starfall-result-row";
             const name = document.createElement("span");
-            name.textContent = playerName(id, members, uid);
+            name.textContent = playerName(id, members, uid, state?.botNames);
             const value = document.createElement("strong");
             value.textContent = (Number(state.scores?.[id]) || 0) + " puan";
             row.append(name, value);
@@ -267,7 +270,7 @@ export async function openStarfallGame({
         if (!state) return;
         const myTurn = state.status === "playing" && state.currentPlayerUid === uid;
         const currentName = state.currentPlayerUid
-            ? playerName(state.currentPlayerUid, members, uid)
+            ? playerName(state.currentPlayerUid, members, uid, state?.botNames)
             : "Maç tamamlandı";
         role("status").textContent = state.status === "results"
             ? "Maç tamamlandı · " + state.turnNumber + " hamle"
@@ -281,7 +284,7 @@ export async function openStarfallGame({
             const key = state.lastMove.turnNumber + ":" + state.lastMove.uid + ":" + state.lastMove.cellIndex;
             if (key !== lastMoveKey) {
                 lastMoveKey = key;
-                const name = playerName(state.lastMove.uid, members, uid);
+                const name = playerName(state.lastMove.uid, members, uid, state?.botNames);
                 if (state.lastMove.skipped) showMessage(name + " süresi dolduğu için hamlesini geçti.");
                 else showMessage(name + " kare " + (state.lastMove.cellIndex + 1) + " aldı · +" + state.lastMove.totalPoints + " puan");
             }

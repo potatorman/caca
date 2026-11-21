@@ -6,6 +6,8 @@ import {
     isCardPlayable,
     nextPlayerIndex
 } from "../../../games/uno/engine.js";
+import { createGameBotRoster } from "../../../games/bot-roster.js";
+import { chooseUnoBotPlay } from "../../../games/uno/bots.js";
 import {
     deleteFirestoreDocument,
     firestoreTimestamp,
@@ -15,7 +17,14 @@ import {
 
 const HAND_SIZE = 7;
 const TURN_TIMEOUT_MS = 90_000;
+const BOT_TURN_DELAY_MS = 1_500;
 const MAX_PLAYERS = 10;
+
+function secureRandom() {
+    const value = new Uint32Array(1);
+    crypto.getRandomValues(value);
+    return value[0] / 0x1_0000_0000;
+}
 
 function uniqueIds(values) {
     return [...new Set(Array.isArray(values)
@@ -65,7 +74,9 @@ function publicState(match, uid) {
         winnerId: match.winnerId,
         turnNumber: match.turnNumber,
         turnStartedAt: match.turnStartedAt,
-        finishedAt: match.finishedAt
+        finishedAt: match.finishedAt,
+        botPlayerIds: match.botPlayerIds || [],
+        botNames: match.botNames || {}
     };
 }
 
@@ -135,9 +146,12 @@ export class UnoRoom extends DurableObject {
             throw new Error("UNO maçı başlatılmaya hazır değil.");
         }
 
-        const players = getSessionPlayers(session);
-        if (players.length < 2 || players.length > MAX_PLAYERS) {
-            throw new Error("UNO için 2–10 aktif oyuncu gerekli.");
+        const humanPlayers = getSessionPlayers(session);
+        const roster = createGameBotRoster("uno", humanPlayers, session.gameSettings || {}, round);
+        const players = roster.playerIds;
+        const configuredMax = Number(session.maxPlayers) || MAX_PLAYERS;
+        if (players.length < 2 || players.length > MAX_PLAYERS || players.length > configuredMax) {
+            throw new Error("UNO için toplam 2–10 oyuncu gerekli.");
         }
 
         const deck = shuffleDeck(createUnoDeck());
@@ -160,6 +174,9 @@ export class UnoRoom extends DurableObject {
             status: "playing",
             playerIds: [...players],
             activePlayerIds: [...players],
+            humanPlayerIds: [...humanPlayers],
+            botPlayerIds: [...roster.botPlayerIds],
+            botNames: { ...roster.botNames },
             dealerId: players.includes(session.hostId) ? session.hostId : players[0],
             direction: 1,
             currentPlayerIndex: 0,
@@ -212,11 +229,14 @@ export class UnoRoom extends DurableObject {
     }
 
     async scheduleTurnAlarm(match) {
-        if (match.status === "playing") {
-            await this.ctx.storage.setAlarm(match.turnStartedAt + TURN_TIMEOUT_MS);
-        } else {
+        if (match.status !== "playing" || !match.currentPlayerUid) {
             await this.ctx.storage.deleteAlarm();
+            return;
         }
+        const isBotTurn = (match.botPlayerIds || []).includes(match.currentPlayerUid);
+        await this.ctx.storage.setAlarm(
+            match.turnStartedAt + (isBotTurn ? BOT_TURN_DELAY_MS : TURN_TIMEOUT_MS)
+        );
     }
 
     async saveMatch(match, broadcast = true) {
@@ -440,6 +460,42 @@ export class UnoRoom extends DurableObject {
         match.turnStartedAt = Date.now();
     }
 
+    async runBotTurn(match) {
+        if (
+            match.status !== "playing" ||
+            !(match.botPlayerIds || []).includes(match.currentPlayerUid)
+        ) return false;
+
+        const uid = match.currentPlayerUid;
+        if (match.unoPendingUid && !match.unoCalled && match.unoPendingUid !== uid) {
+            this.catchUno(match, uid);
+        }
+
+        let choice = chooseUnoBotPlay(
+            match.hands[uid] || [],
+            match.topCard,
+            match.activeColor,
+            secureRandom
+        );
+        if (!choice) {
+            const drawn = this.drawCard(match, uid);
+            if (drawn.playable && match.status === "playing" && match.currentPlayerUid === uid) {
+                const drawnCard = (match.hands[uid] || []).find((card) => card.id === match.drewCardId);
+                choice = drawnCard
+                    ? chooseUnoBotPlay([drawnCard], match.topCard, match.activeColor, secureRandom)
+                    : null;
+            }
+        }
+
+        if (choice && match.status === "playing" && match.currentPlayerUid === uid) {
+            await this.playCard(match, uid, choice.card.id, choice.selectedColor);
+            if (match.status === "playing" && match.unoPendingUid === uid && !match.unoCalled) {
+                this.callUno(match, uid);
+            }
+        }
+        return true;
+    }
+
     async playCard(match, uid, cardId, selectedColor) {
         this.requireTurn(match, uid);
         const hand = match.hands[uid] || [];
@@ -629,10 +685,14 @@ export class UnoRoom extends DurableObject {
                 gameId: "uno",
                 round: match.round,
                 status: "results",
-                playerIds: match.playerIds,
-                activePlayerIds: match.activePlayerIds,
-                winnerId: match.winnerId,
-                handCounts: match.handCounts,
+                playerIds: match.humanPlayerIds || match.playerIds.filter((id) => !(match.botPlayerIds || []).includes(id)),
+                activePlayerIds: match.activePlayerIds.filter((id) => !(match.botPlayerIds || []).includes(id)),
+                winnerId: (match.botPlayerIds || []).includes(match.winnerId) ? null : match.winnerId,
+                winnerIsBot: (match.botPlayerIds || []).includes(match.winnerId),
+                winnerName: match.botNames?.[match.winnerId] || null,
+                handCounts: Object.fromEntries(
+                    Object.entries(match.handCounts).filter(([id]) => !(match.botPlayerIds || []).includes(id))
+                ),
                 finishedAt: firestoreTimestamp(new Date(match.finishedAt)),
                 resultReturnIds: match.returnedIds || []
             }
@@ -732,11 +792,13 @@ export class UnoRoom extends DurableObject {
         const nextLobby = uniqueIds(session.playerIds).filter((id) => id !== uid);
         const nextRoster = match.activePlayerIds.filter((id) => id !== uid);
         const nextHost = session.hostId === uid
-            ? (nextLobby[0] || nextRoster[0] || "")
+            ? (nextLobby[0] || nextRoster.find((id) => !(match.botPlayerIds || []).includes(id)) || "")
             : session.hostId;
         const changedAt = Date.now();
 
-        if (nextRoster.length === 0) {
+        const botIds = new Set(match.botPlayerIds || []);
+        const remainingHumans = nextRoster.filter((id) => !botIds.has(id));
+        if (remainingHumans.length === 0) {
             const nextPlayers = uniqueIds([
                 ...nextLobby,
                 ...uniqueIds(session.spectatorIds),
@@ -801,10 +863,10 @@ export class UnoRoom extends DurableObject {
 
         const sessionPatch = {
             status: winner ? "results" : "playing",
-            hostId: nextHost || nextRoster[0],
+            hostId: nextHost || remainingHumans[0],
             playerIds: nextLobby,
             readyIds: [],
-            matchPlayerIds: nextRoster,
+            matchPlayerIds: nextRoster.filter((id) => !botIds.has(id)),
             resultReturnIds: [],
             finishedAt: winner ? firestoreTimestamp(new Date(changedAt)) : null,
             ...(winner ? {
@@ -834,7 +896,8 @@ export class UnoRoom extends DurableObject {
 
         const allowed = getSessionPlayers(sessionDoc.data);
         if (!allowed.includes(uid)) return { reconciled: false };
-        const nextRoster = match.activePlayerIds.filter((id) => allowed.includes(id));
+        const botIds = new Set(match.botPlayerIds || []);
+        const nextRoster = match.activePlayerIds.filter((id) => botIds.has(id) || allowed.includes(id));
         if (
             nextRoster.length === match.activePlayerIds.length &&
             nextRoster.every((id, index) => id === match.activePlayerIds[index])
@@ -970,19 +1033,26 @@ export class UnoRoom extends DurableObject {
         return this.enqueue(async () => {
             const match = await this.loadMatch(false);
             if (!match || match.status !== "playing") return;
-            if (Date.now() - match.turnStartedAt < TURN_TIMEOUT_MS) {
+            const isBotTurn = (match.botPlayerIds || []).includes(match.currentPlayerUid);
+            const delay = isBotTurn ? BOT_TURN_DELAY_MS : TURN_TIMEOUT_MS;
+            if (Date.now() - match.turnStartedAt < delay) {
                 await this.scheduleTurnAlarm(match);
                 return;
             }
 
-            const next = nextPlayerIndex(
-                match.currentPlayerIndex,
-                match.direction,
-                match.activePlayerIds.length,
-                1
-            );
-            this.advanceTurn(match, next, match.direction);
+            if (isBotTurn) {
+                await this.runBotTurn(match);
+            } else {
+                const next = nextPlayerIndex(
+                    match.currentPlayerIndex,
+                    match.direction,
+                    match.activePlayerIds.length,
+                    1
+                );
+                this.advanceTurn(match, next, match.direction);
+            }
             await this.saveMatch(match);
+            if (match.status === "results") await this.syncFinishedResult(match);
         });
     }
 }

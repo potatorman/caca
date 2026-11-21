@@ -7,6 +7,8 @@ import {
     TURNS_PER_PLAYER,
     MAX_PLAYERS
 } from "../../../games/starfall/engine.js";
+import { createGameBotRoster } from "../../../games/bot-roster.js";
+import { chooseStarfallBotMove } from "../../../games/starfall/bots.js";
 import {
     deleteFirestoreDocument,
     firestoreTimestamp,
@@ -15,6 +17,13 @@ import {
 } from "./firebase.js";
 
 const TURN_TIMEOUT_MS = 60_000;
+const BOT_TURN_DELAY_MS = 1_500;
+
+function secureRandom() {
+    const value = new Uint32Array(1);
+    crypto.getRandomValues(value);
+    return value[0] / 0x1_0000_0000;
+}
 
 function uniqueIds(values) {
     return [...new Set(Array.isArray(values)
@@ -54,7 +63,9 @@ function publicState(match, onlineIds) {
         winnerId: match.winnerId,
         winnerIds: match.winnerIds,
         finishedAt: match.finishedAt,
-        returnedIds: match.returnedIds
+        returnedIds: match.returnedIds,
+        botPlayerIds: match.botPlayerIds || [],
+        botNames: match.botNames || {}
     };
 }
 
@@ -139,9 +150,12 @@ export class StarfallRoom extends DurableObject {
             throw new Error("Starfall maçı başlatılmaya hazır değil.");
         }
 
-        const players = getSessionPlayers(session);
-        if (players.length < 2 || players.length > MAX_PLAYERS) {
-            throw new Error("Starfall için 2–8 aktif oyuncu gerekli.");
+        const humanPlayers = getSessionPlayers(session);
+        const roster = createGameBotRoster("starfall", humanPlayers, session.gameSettings || {}, identity.round);
+        const players = roster.playerIds;
+        const configuredMax = Number(session.maxPlayers) || MAX_PLAYERS;
+        if (players.length < 2 || players.length > MAX_PLAYERS || players.length > configuredMax) {
+            throw new Error("Starfall için toplam 2–8 oyuncu gerekli.");
         }
 
         const startedAt = Date.now();
@@ -150,6 +164,9 @@ export class StarfallRoom extends DurableObject {
             status: "playing",
             playerIds: [...players],
             activePlayerIds: [...players],
+            humanPlayerIds: [...humanPlayers],
+            botPlayerIds: [...roster.botPlayerIds],
+            botNames: { ...roster.botNames },
             board: createStarfallBoard(),
             scores: Object.fromEntries(players.map((uid) => [uid, 0])),
             turnsRemainingByPlayer: Object.fromEntries(
@@ -183,11 +200,14 @@ export class StarfallRoom extends DurableObject {
     }
 
     async scheduleTurnAlarm(match) {
-        if (match.status === "playing" && match.currentPlayerUid) {
-            await this.ctx.storage.setAlarm(match.turnStartedAt + TURN_TIMEOUT_MS);
-        } else {
+        if (match.status !== "playing" || !match.currentPlayerUid) {
             await this.ctx.storage.deleteAlarm();
+            return;
         }
+        const isBotTurn = (match.botPlayerIds || []).includes(match.currentPlayerUid);
+        await this.ctx.storage.setAlarm(
+            match.turnStartedAt + (isBotTurn ? BOT_TURN_DELAY_MS : TURN_TIMEOUT_MS)
+        );
     }
 
     async saveMatch(match, broadcast = true) {
@@ -318,27 +338,7 @@ export class StarfallRoom extends DurableObject {
             if (command.type !== "claim") throw new Error("Bilinmeyen Starfall hamlesi.");
 
             const cellIndex = Number(command.cellIndex);
-            const score = scoreStarfallClaim(match.board, cellIndex, uid);
-            const cell = match.board[cellIndex];
-            cell.ownerId = uid;
-            cell.awardedPoints = score.totalPoints;
-            match.scores[uid] = (Number(match.scores[uid]) || 0) + score.totalPoints;
-            match.lastMove = {
-                uid,
-                cellIndex,
-                basePoints: score.basePoints,
-                connectionBonus: score.connectionBonus,
-                starBonus: score.starBonus,
-                totalPoints: score.totalPoints,
-                turnNumber: match.turnNumber,
-                at: Date.now()
-            };
-
-            match.turnsRemainingByPlayer[uid] = Math.max(
-                0,
-                (Number(match.turnsRemainingByPlayer[uid]) || 0) - 1
-            );
-            match.turnNumber += 1;
+            const score = this.claimCell(match, uid, cellIndex);
             this.advanceTurn(match);
             await this.saveMatch(match);
             if (match.status === "results") await this.syncFinishedResult(match);
@@ -356,6 +356,47 @@ export class StarfallRoom extends DurableObject {
                 error: error?.message || "Starfall hamlesi tamamlanamadı."
             });
         }
+    }
+
+    claimCell(match, uid, cellIndex) {
+        const score = scoreStarfallClaim(match.board, cellIndex, uid);
+        const cell = match.board[cellIndex];
+        cell.ownerId = uid;
+        cell.awardedPoints = score.totalPoints;
+        match.scores[uid] = (Number(match.scores[uid]) || 0) + score.totalPoints;
+        match.lastMove = {
+            uid,
+            cellIndex,
+            basePoints: score.basePoints,
+            connectionBonus: score.connectionBonus,
+            starBonus: score.starBonus,
+            totalPoints: score.totalPoints,
+            turnNumber: match.turnNumber,
+            at: Date.now(),
+            ...((match.botPlayerIds || []).includes(uid) ? { bot: true } : {})
+        };
+        match.turnsRemainingByPlayer[uid] = Math.max(
+            0,
+            (Number(match.turnsRemainingByPlayer[uid]) || 0) - 1
+        );
+        match.turnNumber += 1;
+        return score;
+    }
+
+    runBotTurn(match) {
+        if (
+            match.status !== "playing" ||
+            !(match.botPlayerIds || []).includes(match.currentPlayerUid)
+        ) return false;
+        const uid = match.currentPlayerUid;
+        const cellIndex = chooseStarfallBotMove(match.board, uid, secureRandom);
+        if (cellIndex === null) {
+            this.finishMatch(match);
+            return true;
+        }
+        this.claimCell(match, uid, cellIndex);
+        this.advanceTurn(match);
+        return true;
     }
 
     advanceTurn(match) {
@@ -449,10 +490,12 @@ export class StarfallRoom extends DurableObject {
             return { left: false, reason: "not-active" };
         }
 
+        const botIds = new Set(match.botPlayerIds || []);
         const nextLobbyPlayers = uniqueIds(session.playerIds).filter((id) => id !== uid);
         const nextActivePlayers = match.activePlayerIds.filter((id) => id !== uid);
+        const nextHumanActivePlayers = nextActivePlayers.filter((id) => !botIds.has(id));
         const nextHost = session.hostId === uid
-            ? (nextLobbyPlayers[0] || nextActivePlayers[0] || "")
+            ? (nextLobbyPlayers[0] || nextHumanActivePlayers[0] || "")
             : session.hostId;
 
         // Result-screen exits are roster changes, not forfeits: the winner and
@@ -462,7 +505,7 @@ export class StarfallRoom extends DurableObject {
             match.returnedIds = uniqueIds(match.returnedIds)
                 .filter((playerId) => nextActivePlayers.includes(playerId));
 
-            if (!nextActivePlayers.length) {
+            if (!nextHumanActivePlayers.length) {
                 const nextPlayers = uniqueIds([
                     ...nextLobbyPlayers,
                     ...uniqueIds(session.spectatorIds),
@@ -493,9 +536,9 @@ export class StarfallRoom extends DurableObject {
             }
 
             await patchFirestoreDocument(this.env, this.sessionPath(identity), {
-                hostId: nextHost || nextActivePlayers[0],
+                hostId: nextHost || nextHumanActivePlayers[0],
                 playerIds: nextLobbyPlayers,
-                matchPlayerIds: nextActivePlayers,
+                matchPlayerIds: nextHumanActivePlayers,
                 resultReturnIds: [...match.returnedIds],
                 updatedAt: nowTimestamp()
             });
@@ -506,7 +549,7 @@ export class StarfallRoom extends DurableObject {
         match.activePlayerIds = nextActivePlayers;
         match.turnsRemainingByPlayer[uid] = 0;
 
-        if (!nextActivePlayers.length) {
+        if (!nextHumanActivePlayers.length) {
             const nextPlayers = uniqueIds([
                 ...nextLobbyPlayers,
                 ...uniqueIds(session.spectatorIds),
@@ -557,10 +600,10 @@ export class StarfallRoom extends DurableObject {
 
         await patchFirestoreDocument(this.env, this.sessionPath(identity), {
             status: match.status,
-            hostId: nextHost || nextActivePlayers[0],
+            hostId: nextHost || nextHumanActivePlayers[0],
             playerIds: nextLobbyPlayers,
             readyIds: [],
-            matchPlayerIds: nextActivePlayers,
+            matchPlayerIds: nextHumanActivePlayers,
             resultReturnIds: [],
             ...(match.status === "results" ? {
                 finishedAt: firestoreTimestamp(new Date(match.finishedAt))
@@ -588,7 +631,8 @@ export class StarfallRoom extends DurableObject {
         }
         const allowed = getSessionPlayers(session);
         if (!allowed.includes(uid)) return { reconciled: false };
-        const nextRoster = match.activePlayerIds.filter((id) => allowed.includes(id));
+        const botIds = new Set(match.botPlayerIds || []);
+        const nextRoster = match.activePlayerIds.filter((id) => botIds.has(id) || allowed.includes(id));
         if (
             nextRoster.length === match.activePlayerIds.length &&
             nextRoster.every((id, index) => id === match.activePlayerIds[index])
@@ -614,7 +658,7 @@ export class StarfallRoom extends DurableObject {
 
         await patchFirestoreDocument(this.env, this.sessionPath(identity), {
             status: match.status,
-            matchPlayerIds: nextRoster,
+            matchPlayerIds: nextRoster.filter((id) => !botIds.has(id)),
             ...(match.status === "results" ? {
                 finishedAt: firestoreTimestamp(new Date(match.finishedAt))
             } : {}),
@@ -712,24 +756,30 @@ export class StarfallRoom extends DurableObject {
         return this.enqueue(async () => {
             const match = await this.loadMatch(false);
             if (!match || match.status !== "playing" || !match.currentPlayerUid) return;
-            if (Date.now() < match.turnStartedAt + TURN_TIMEOUT_MS) {
+            const isBotTurn = (match.botPlayerIds || []).includes(match.currentPlayerUid);
+            const delay = isBotTurn ? BOT_TURN_DELAY_MS : TURN_TIMEOUT_MS;
+            if (Date.now() - match.turnStartedAt < delay) {
                 await this.scheduleTurnAlarm(match);
                 return;
             }
-            const uid = match.currentPlayerUid;
-            match.turnsRemainingByPlayer[uid] = Math.max(
-                0,
-                (Number(match.turnsRemainingByPlayer[uid]) || 0) - 1
-            );
-            match.lastMove = {
-                uid,
-                skipped: true,
-                reason: "timeout",
-                turnNumber: match.turnNumber,
-                at: Date.now()
-            };
-            match.turnNumber += 1;
-            this.advanceTurn(match);
+            if (isBotTurn) {
+                this.runBotTurn(match);
+            } else {
+                const uid = match.currentPlayerUid;
+                match.turnsRemainingByPlayer[uid] = Math.max(
+                    0,
+                    (Number(match.turnsRemainingByPlayer[uid]) || 0) - 1
+                );
+                match.lastMove = {
+                    uid,
+                    skipped: true,
+                    reason: "timeout",
+                    turnNumber: match.turnNumber,
+                    at: Date.now()
+                };
+                match.turnNumber += 1;
+                this.advanceTurn(match);
+            }
             await this.saveMatch(match);
             if (match.status === "results") await this.syncFinishedResult(match);
         });
